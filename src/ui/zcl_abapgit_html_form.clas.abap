@@ -729,7 +729,11 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
     IF is_field-side_action IS NOT INITIAL.
       ii_html->add( '</div>' ).
       ii_html->add( '<div class="command-container">' ).
-      ii_html->add( |<input type="submit" value="&#x2026;" formaction="sapevent:{ is_field-side_action }">| ).
+      IF is_field-side_action CP 'popup-*'.
+        ii_html->add( |<input type="button" value="&#x2026;" onclick="togglePopup();">| ).
+      ELSE.
+        ii_html->add( |<input type="submit" value="&#x2026;" formaction="sapevent:{ is_field-side_action }">| ).
+      ENDIF.
       ii_html->add( '</div>' ).
     ENDIF.
 
@@ -811,8 +815,12 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
     IF iv_side_action IS NOT INITIAL AND mv_form_id IS NOT INITIAL.
       ls_field-item_class = 'with-command'.
       ls_field-side_action = iv_side_action.
-      ls_field-dblclick = | ondblclick="document.getElementById('{ mv_form_id }').action = 'sapevent:|
-                       && |{ iv_side_action }'; document.getElementById('{ mv_form_id }').submit()"|.
+      IF iv_side_action CP 'popup-*'.
+        ls_field-dblclick = | ondblclick="togglePopup();"|.
+      ELSE.
+        ls_field-dblclick = | ondblclick="document.getElementById('{ mv_form_id }').action = 'sapevent:|
+                         && |{ iv_side_action }'; document.getElementById('{ mv_form_id }').submit()"|.
+      ENDIF.
     ENDIF.
 
     APPEND ls_field TO mt_fields.

@@ -638,6 +638,21 @@ div.tutorial h2 { font-size: 14pt;}
   padding: 0 12px;
 }
 
+.nav-container ul button {
+  display: block;
+  text-decoration: none;
+  line-height: 30px;
+  padding: 0 12px !important;
+  background: none !important;
+  border: none;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
 /* clearfix https://css-tricks.com/snippets/css/clear-fix/ */
 .nav-container:after { clear: both; display: block; content: ""; }
 
@@ -1169,6 +1184,7 @@ settings_tab tr:first-child td { border-top: 0px; }
 .dialog li.with-command div.command-container {
   display: table-cell;
 }
+.dialog li.with-command input[type="button"],
 .dialog li.with-command input[type="submit"] {
   height: 2.5em;
 }
@@ -1192,4 +1208,56 @@ settings_tab tr:first-child td { border-top: 0px; }
 }
 .dialog .dialog-help {
   float: left;
+}
+
+/* MODAL POPUP */
+/* https://css-tricks.com/considerations-styling-modal/ */
+
+.modal {
+    /* center on screen */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    /* size */
+    width: 680px;
+    max-width: 100%;
+    height: 260px;
+    max-height: 100%;
+    /* infront of overlay */
+    z-index: 1010;
+    /* show by default */
+    display: block;
+    /* style */    
+    background: lightgray;
+    border-radius: 6px;
+}
+
+.closed {
+    /* hide when closed */
+    display: none;
+}
+
+.modal-guts {
+    /* cover the modal */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* spacing as needed */
+    padding: 5px 5px 5px 5px;
+    /* let it scroll */
+    overflow: auto;
+}
+
+.modal-overlay {
+    /* darken and prevent interactions with background */
+    z-index: 1000;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
 }

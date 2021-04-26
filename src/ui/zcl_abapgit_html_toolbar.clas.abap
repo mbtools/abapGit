@@ -72,7 +72,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_HTML_TOOLBAR IMPLEMENTATION.
+CLASS zcl_abapgit_html_toolbar IMPLEMENTATION.
 
 
   METHOD add.
@@ -222,12 +222,17 @@ CLASS ZCL_ABAPGIT_HTML_TOOLBAR IMPLEMENTATION.
 
       ri_html->add( |<li{ lv_class }{ lv_check }{ lv_aux }>| ).
       IF <ls_item>-sub IS INITIAL.
-        ri_html->add_a( iv_txt   = lv_icon && <ls_item>-txt
-                        iv_typ   = <ls_item>-typ
-                        iv_act   = <ls_item>-act
-                        iv_id    = <ls_item>-id
-                        iv_opt   = <ls_item>-opt
-                        iv_title = <ls_item>-title ).
+        IF <ls_item>-typ = 'F'.
+          ri_html->add( |<button type="submit" name="action" value="{ <ls_item>-act }">| &&
+                        |{ lv_icon }{ <ls_item>-txt }</button>| ).
+        ELSE.
+          ri_html->add_a( iv_txt   = lv_icon && <ls_item>-txt
+                          iv_typ   = <ls_item>-typ
+                          iv_act   = <ls_item>-act
+                          iv_id    = <ls_item>-id
+                          iv_opt   = <ls_item>-opt
+                          iv_title = <ls_item>-title ).
+        ENDIF.
       ELSE.
         ri_html->add_a( iv_txt   = lv_icon && <ls_item>-txt
                         iv_typ   = zif_abapgit_html=>c_action_type-dummy

@@ -2101,3 +2101,17 @@ function memoizeScrollPosition(fn){
     return fn.call(this, fn.args);
   }.bind(this);
 }
+
+/* MODAL POPUP */
+/* https://css-tricks.com/considerations-styling-modal/ */
+
+function togglePopup() {
+  var modal = document.querySelector("#modal");
+  var modalOverlay = document.querySelector("#modal-overlay");
+  modal.classList.toggle("closed");
+  modalOverlay.classList.toggle("closed");
+
+  if (!modal.classList.contains("closed")) {
+    modal.getElementsByTagName("input")[0].focus();
+  }
+}

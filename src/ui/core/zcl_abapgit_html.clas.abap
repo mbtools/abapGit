@@ -68,7 +68,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_HTML IMPLEMENTATION.
+CLASS zcl_abapgit_html IMPLEMENTATION.
 
 
   METHOD checkbox.
@@ -304,6 +304,8 @@ CLASS ZCL_ABAPGIT_HTML IMPLEMENTATION.
           lv_click = | onclick="{ iv_act }"|.
         WHEN zif_abapgit_html=>c_action_type-dummy.
           lv_href  = ' href="#"'.
+        WHEN 'F'.
+          lv_href  = | href="#" formaction="sapevent:{ iv_act }"|.
       ENDCASE.
     ENDIF.
 

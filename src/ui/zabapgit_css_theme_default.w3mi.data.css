@@ -380,6 +380,12 @@ div.tutorial h1, h2 { color: #404040; }
 .nav-container ul ul { background-color: #fff; }
 .nav-container.corner > ul > li:hover > a { background-color: inherit; }
 
+.nav-container ul button {
+  font-family: var(--theme-primary-font);
+  font-size: var(--theme-font-size);
+  color: var(--theme-link-color);
+}
+
 /* Toolbar separator style */
 .nav-container ul ul li.separator {
   color: var(--theme-greyscale-medium);
