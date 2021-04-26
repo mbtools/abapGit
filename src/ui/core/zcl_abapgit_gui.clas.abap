@@ -96,9 +96,10 @@ CLASS zcl_abapgit_gui DEFINITION
         zcx_abapgit_exception .
     METHODS handle_action
       IMPORTING
-        !iv_action   TYPE c
-        !iv_getdata  TYPE c OPTIONAL
-        !it_postdata TYPE zif_abapgit_html_viewer=>ty_post_data OPTIONAL .
+        !iv_action      TYPE c
+        !iv_getdata     TYPE c OPTIONAL
+        !it_postdata    TYPE zif_abapgit_html_viewer=>ty_post_data OPTIONAL
+        !it_query_table TYPE zif_abapgit_html_viewer=>ty_query_table OPTIONAL .
     METHODS handle_error
       IMPORTING
         !ix_exception TYPE REF TO zcx_abapgit_exception .
@@ -106,7 +107,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_GUI IMPLEMENTATION.
+CLASS zcl_abapgit_gui IMPLEMENTATION.
 
 
   METHOD back.
@@ -247,7 +248,8 @@ CLASS ZCL_ABAPGIT_GUI IMPLEMENTATION.
         ii_gui_services = me
         iv_action       = iv_action
         iv_getdata      = iv_getdata
-        it_postdata     = it_postdata.
+        it_postdata     = it_postdata
+        it_query_table  = it_query_table.
 
     TRY.
         LOOP AT mt_event_handlers INTO li_handler.
@@ -326,7 +328,8 @@ CLASS ZCL_ABAPGIT_GUI IMPLEMENTATION.
     handle_action(
       iv_action   = action
       iv_getdata  = getdata
-      it_postdata = postdata ).
+      it_postdata = postdata
+      it_query_table = query_table ).
 
   ENDMETHOD.
 
@@ -376,7 +379,8 @@ CLASS ZCL_ABAPGIT_GUI IMPLEMENTATION.
     FIELD-SYMBOLS <ls_asset> LIKE LINE OF lt_assets.
 
 
-    mi_html_viewer = zcl_abapgit_ui_factory=>get_html_viewer( ).
+    mi_html_viewer = zcl_abapgit_ui_factory=>get_html_viewer(
+      iv_disable_query_table = abap_false ).
 
     IF mi_asset_man IS BOUND.
       lt_assets = mi_asset_man->get_all_assets( ).

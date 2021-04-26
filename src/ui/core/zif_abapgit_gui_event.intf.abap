@@ -1,9 +1,10 @@
 INTERFACE zif_abapgit_gui_event
-  PUBLIC .
+  PUBLIC.
 
-  DATA mv_action   TYPE string READ-ONLY.
-  DATA mv_getdata  TYPE string READ-ONLY.
+  DATA mv_action TYPE string READ-ONLY.
+  DATA mv_getdata TYPE string READ-ONLY.
   DATA mt_postdata TYPE zif_abapgit_html_viewer=>ty_post_data READ-ONLY.
+  DATA mt_query_table TYPE zif_abapgit_html_viewer=>ty_query_table READ-ONLY.
   DATA mi_gui_services TYPE REF TO zif_abapgit_gui_services READ-ONLY.
   DATA mv_current_page_name TYPE string.
 
