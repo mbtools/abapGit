@@ -593,6 +593,9 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
       WHEN zif_abapgit_definitions=>c_action-repo_settings.                   " Repo settings
         rs_handled-page  = zcl_abapgit_gui_page_sett_repo=>create( lo_repo ).
         rs_handled-state = get_state_settings( ii_event ).
+      WHEN 'repo_pack'.                  " Repo packaging
+        rs_handled-page  = zcl_abapgit_gui_page_sett_pack=>create( lo_repo ).
+        rs_handled-state = get_state_settings( ii_event ).
       WHEN zif_abapgit_definitions=>c_action-repo_local_settings.             " Local repo settings
         rs_handled-page  = zcl_abapgit_gui_page_sett_locl=>create( lo_repo ).
         rs_handled-state = get_state_settings( ii_event ).
