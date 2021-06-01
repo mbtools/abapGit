@@ -5,12 +5,13 @@ CLASS zcl_abapgit_objects_super DEFINITION
 
   PUBLIC SECTION.
 
-    CONSTANTS c_user_unknown TYPE xubname VALUE 'UNKNOWN'.
+    CONSTANTS c_user_unknown TYPE xubname VALUE 'UNKNOWN' ##NO_TEXT.
 
     METHODS constructor
       IMPORTING
-        !is_item     TYPE zif_abapgit_definitions=>ty_item
-        !iv_language TYPE spras .
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr .
     CLASS-METHODS jump_adt
       IMPORTING
         !iv_obj_name     TYPE zif_abapgit_definitions=>ty_item-obj_name
@@ -24,6 +25,7 @@ CLASS zcl_abapgit_objects_super DEFINITION
 
     DATA ms_item TYPE zif_abapgit_definitions=>ty_item .
     DATA mv_language TYPE spras .
+    DATA mv_transport TYPE trkorr .
 
     METHODS get_metadata
       RETURNING
@@ -105,6 +107,8 @@ CLASS zcl_abapgit_objects_super IMPLEMENTATION.
     ASSERT NOT ms_item IS INITIAL.
     mv_language = iv_language.
     ASSERT NOT mv_language IS INITIAL.
+    " Transport can be initial (for local packages)
+    mv_transport = iv_transport.
   ENDMETHOD.
 
 

@@ -1,16 +1,24 @@
-CLASS zcl_abapgit_objects_bridge DEFINITION PUBLIC FINAL CREATE PUBLIC INHERITING FROM zcl_abapgit_objects_super.
+CLASS zcl_abapgit_objects_bridge DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_abapgit_objects_super
+  FINAL
+  CREATE PUBLIC .
 
   PUBLIC SECTION.
 
-    CLASS-METHODS class_constructor.
+    INTERFACES zif_abapgit_object .
 
+    ALIASES mo_files
+      FOR zif_abapgit_object~mo_files .
+
+    CLASS-METHODS class_constructor .
     METHODS constructor
-      IMPORTING is_item TYPE zif_abapgit_definitions=>ty_item
-      RAISING   cx_sy_create_object_error.
-
-    INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-
+      IMPORTING
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr
+      RAISING
+        cx_sy_create_object_error .
   PROTECTED SECTION.
   PRIVATE SECTION.
     DATA: mo_plugin TYPE REF TO object.
@@ -37,7 +45,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECTS_BRIDGE IMPLEMENTATION.
+CLASS zcl_abapgit_objects_bridge IMPLEMENTATION.
 
 
   METHOD class_constructor.
@@ -106,8 +114,10 @@ CLASS ZCL_ABAPGIT_OBJECTS_BRIDGE IMPLEMENTATION.
 
     DATA ls_objtype_map LIKE LINE OF gt_objtype_map.
 
-    super->constructor( is_item = is_item
-                        iv_language = zif_abapgit_definitions=>c_english ).
+    super->constructor(
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
 
 *    determine the responsible plugin
     READ TABLE gt_objtype_map INTO ls_objtype_map

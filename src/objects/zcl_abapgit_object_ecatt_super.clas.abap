@@ -11,12 +11,11 @@ CLASS zcl_abapgit_object_ecatt_super DEFINITION
     ALIASES mo_files
       FOR zif_abapgit_object~mo_files .
 
-    METHODS:
-      constructor
-        IMPORTING
-          !is_item     TYPE zif_abapgit_definitions=>ty_item
-          !iv_language TYPE spras .
-
+    METHODS constructor
+      IMPORTING
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr .
   PROTECTED SECTION.
     METHODS:
       get_object_type ABSTRACT
@@ -201,8 +200,10 @@ CLASS zcl_abapgit_object_ecatt_super IMPLEMENTATION.
 
   METHOD constructor.
 
-    super->constructor( is_item     = is_item
-                        iv_language = iv_language ).
+    super->constructor(
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
 
     mv_object_name = ms_item-obj_name.
 

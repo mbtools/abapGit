@@ -111,8 +111,9 @@ CLASS zcl_abapgit_objects DEFINITION
         !iv_package TYPE devclass .
     CLASS-METHODS delete_object
       IMPORTING
-        !iv_package TYPE devclass
-        !is_item    TYPE zif_abapgit_definitions=>ty_item
+        !iv_package   TYPE devclass
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_transport TYPE trkorr OPTIONAL
       RAISING
         zcx_abapgit_exception .
     CLASS-METHODS compare_remote_to_local
@@ -141,6 +142,7 @@ CLASS zcl_abapgit_objects DEFINITION
       IMPORTING
         !is_item        TYPE zif_abapgit_definitions=>ty_item
         !iv_language    TYPE spras
+        !iv_transport   TYPE trkorr OPTIONAL
         !is_metadata    TYPE zif_abapgit_definitions=>ty_metadata OPTIONAL
         !iv_native_only TYPE abap_bool DEFAULT abap_false
       RETURNING
@@ -392,15 +394,18 @@ CLASS zcl_abapgit_objects IMPLEMENTATION.
     TRY.
         CREATE OBJECT ri_obj TYPE (lv_class_name)
           EXPORTING
-            is_item     = is_item
-            iv_language = iv_language.
+            is_item      = is_item
+            iv_language  = iv_language
+            iv_transport = iv_transport.
       CATCH cx_sy_create_object_error.
         lv_message = |Object type { is_item-obj_type } not supported, serialize|.
         IF iv_native_only = abap_false.
           TRY. " 2nd step, try looking for plugins
               CREATE OBJECT ri_obj TYPE zcl_abapgit_objects_bridge
                 EXPORTING
-                  is_item = is_item.
+                  is_item      = is_item
+                  iv_language  = iv_language
+                  iv_transport = iv_transport.
             CATCH cx_sy_create_object_error.
               zcx_abapgit_exception=>raise( lv_message ).
           ENDTRY.
@@ -458,8 +463,9 @@ CLASS zcl_abapgit_objects IMPLEMENTATION.
 
         TRY.
             delete_object(
-              iv_package = <ls_tadir>-devclass
-              is_item    = ls_item ).
+              iv_package   = <ls_tadir>-devclass
+              is_item      = ls_item
+              iv_transport = is_checks-transport-transport ).
 
             INSERT <ls_tadir> INTO TABLE lt_deleted.
             DELETE lt_tadir.
@@ -501,8 +507,9 @@ CLASS zcl_abapgit_objects IMPLEMENTATION.
 
 
     IF is_supported( is_item ) = abap_true.
-      li_obj = create_object( is_item     = is_item
-                              iv_language = zif_abapgit_definitions=>c_english ).
+      li_obj = create_object( is_item      = is_item
+                              iv_language  = zif_abapgit_definitions=>c_english
+                              iv_transport = iv_transport ).
 
       li_obj->delete( iv_package ).
 
@@ -618,9 +625,10 @@ CLASS zcl_abapgit_objects IMPLEMENTATION.
           "analyze XML in order to instantiate the proper serializer
           lo_xml = lo_files->read_xml( ).
 
-          li_obj = create_object( is_item     = ls_item
-                                  iv_language = io_repo->get_dot_abapgit( )->get_main_language( )
-                                  is_metadata = lo_xml->get_metadata( ) ).
+          li_obj = create_object( is_item      = ls_item
+                                  iv_language  = io_repo->get_dot_abapgit( )->get_main_language( )
+                                  iv_transport = is_checks-transport-transport
+                                  is_metadata  = lo_xml->get_metadata( ) ).
 
           compare_remote_to_local(
             ii_object = li_obj

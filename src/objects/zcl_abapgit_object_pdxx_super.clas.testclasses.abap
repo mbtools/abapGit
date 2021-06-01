@@ -48,8 +48,9 @@ CLASS ltc_lock IMPLEMENTATION.
 
     CREATE OBJECT lo_cut TYPE lth_object_pdxx
       EXPORTING
-        is_item     = ls_item
-        iv_language = sy-langu.
+        is_item      = ls_item
+        iv_language  = sy-langu
+        iv_transport = ''.
 
     cl_abap_unit_assert=>assert_equals( act = lo_cut->is_locked( )
                                         exp = abap_true ).
@@ -107,8 +108,9 @@ CLASS ltc_general_tests IMPLEMENTATION.
 
     CREATE OBJECT lo_cut TYPE lth_object_pdxx
       EXPORTING
-        is_item     = ls_item
-        iv_language = sy-langu.
+        is_item      = ls_item
+        iv_language  = sy-langu
+        iv_transport = ''.
 
     cl_abap_unit_assert=>assert_equals( act = lo_cut->get_objkey( )-otype
                                         exp = 'ZZ' ).

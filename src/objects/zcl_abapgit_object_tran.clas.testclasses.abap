@@ -54,8 +54,9 @@ CLASS ltcl_split_parameters IMPLEMENTATION.
 
     CREATE OBJECT mo_cut
       EXPORTING
-        is_item     = ls_item
-        iv_language = sy-langu.
+        is_item      = ls_item
+        iv_language  = sy-langu
+        iv_transport = ''.
 
   ENDMETHOD.
 

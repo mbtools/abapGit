@@ -1,14 +1,21 @@
-CLASS zcl_abapgit_object_shi3 DEFINITION PUBLIC INHERITING FROM zcl_abapgit_objects_super FINAL.
+CLASS zcl_abapgit_object_shi3 DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_abapgit_objects_super
+  FINAL
+  CREATE PUBLIC .
 
   PUBLIC SECTION.
-    INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
+
+    INTERFACES zif_abapgit_object .
+
+    ALIASES mo_files
+      FOR zif_abapgit_object~mo_files .
 
     METHODS constructor
       IMPORTING
-        is_item     TYPE zif_abapgit_definitions=>ty_item
-        iv_language TYPE spras.
-
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr .
   PROTECTED SECTION.
 
     METHODS has_authorization
@@ -65,9 +72,14 @@ CLASS zcl_abapgit_object_shi3 IMPLEMENTATION.
 
 
   METHOD constructor.
-    super->constructor( is_item = is_item
-                        iv_language = iv_language ).
+
+    super->constructor(
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
+
     mv_tree_id = ms_item-obj_name.
+
   ENDMETHOD.
 
 

@@ -1,11 +1,21 @@
-CLASS zcl_abapgit_object_intf DEFINITION PUBLIC FINAL INHERITING FROM zcl_abapgit_objects_program.
+CLASS zcl_abapgit_object_intf DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_abapgit_objects_program
+  FINAL
+  CREATE PUBLIC .
+
   PUBLIC SECTION.
-    INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
+
+    INTERFACES zif_abapgit_object .
+
+    ALIASES mo_files
+      FOR zif_abapgit_object~mo_files .
+
     METHODS constructor
       IMPORTING
-        is_item     TYPE zif_abapgit_definitions=>ty_item
-        iv_language TYPE spras.
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr .
   PROTECTED SECTION.
 
     METHODS deserialize_proxy
@@ -39,10 +49,14 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
 
 
   METHOD constructor.
+
     super->constructor(
-      is_item     = is_item
-      iv_language = iv_language ).
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
+
     mi_object_oriented_object_fct = zcl_abapgit_oo_factory=>make( ms_item-obj_type ).
+
   ENDMETHOD.
 
 

@@ -45,13 +45,9 @@ CLASS zcl_abapgit_object_scvi IMPLEMENTATION.
 
   METHOD zif_abapgit_object~delete.
 
-    DATA: lv_screen_variant TYPE scvariant.
-
-    lv_screen_variant = ms_item-obj_name.
-
     CALL FUNCTION 'RS_HDSYS_DELETE_SC_VARIANT'
       EXPORTING
-        scvariant        = lv_screen_variant
+        scvariant        = |{ ms_item-obj_name }|
       EXCEPTIONS
         variant_enqueued = 1
         no_correction    = 2
@@ -109,13 +105,13 @@ CLASS zcl_abapgit_object_scvi IMPLEMENTATION.
 
   METHOD zif_abapgit_object~exists.
 
-    DATA: lv_screen_variant TYPE scvariant.
+    DATA lv_scvariant TYPE scvariant.
 
-    lv_screen_variant = ms_item-obj_name.
+    lv_scvariant = ms_item-obj_name.
 
     CALL FUNCTION 'RS_HDSYS_READ_SC_VARIANT_DB'
       EXPORTING
-        scvariant  = lv_screen_variant
+        scvariant  = lv_scvariant
       EXCEPTIONS
         no_variant = 1
         OTHERS     = 2.

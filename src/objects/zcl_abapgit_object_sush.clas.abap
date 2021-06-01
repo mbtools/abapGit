@@ -10,13 +10,14 @@ CLASS zcl_abapgit_object_sush DEFINITION
 
     ALIASES mo_files
       FOR zif_abapgit_object~mo_files .
+
     METHODS constructor
       IMPORTING
-        is_item     TYPE zif_abapgit_definitions=>ty_item
-        iv_language TYPE spras
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr
       RAISING
-        zcx_abapgit_exception.
-
+        zcx_abapgit_exception .
   PROTECTED SECTION.
 
   PRIVATE SECTION.
@@ -26,13 +27,15 @@ ENDCLASS.
 
 CLASS zcl_abapgit_object_sush IMPLEMENTATION.
 
+
   METHOD constructor.
 
     DATA: lr_data_head TYPE REF TO data.
 
     super->constructor(
-      is_item     = is_item
-      iv_language = iv_language ).
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
 
     TRY.
         CREATE DATA lr_data_head TYPE ('IF_SU22_ADT_OBJECT=>TS_SU2X_HEAD').

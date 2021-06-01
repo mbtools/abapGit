@@ -4,47 +4,49 @@ CLASS zcl_abapgit_object_sqsc DEFINITION
   CREATE PUBLIC .
 
   PUBLIC SECTION.
-    INTERFACES:
-      zif_abapgit_object.
 
-    METHODS:
-      constructor
-        IMPORTING
-          is_item     TYPE zif_abapgit_definitions=>ty_item
-          iv_language TYPE spras
-        RAISING
-          zcx_abapgit_exception.
+    INTERFACES zif_abapgit_object .
 
+    METHODS constructor
+      IMPORTING
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr
+      RAISING
+        zcx_abapgit_exception .
   PROTECTED SECTION.
   PRIVATE SECTION.
+
+    TYPES:
     " Downport original structures from
     "   - IF_DBPROC_PROXY_UI
     "   - IF_DBPROC_PROXY_BASIC_TYPES
-
+      ty_db_name         TYPE c LENGTH 256 .
     TYPES:
-      ty_db_name         TYPE c LENGTH 256,
-      ty_abap_name       TYPE c LENGTH 30,
-      ty_param_direction TYPE c LENGTH 10,
-      ty_param_kind      TYPE c LENGTH 10,
-      ty_ddic_name       TYPE ddobjname,
-
+      ty_abap_name       TYPE c LENGTH 30 .
+    TYPES:
+      ty_param_direction TYPE c LENGTH 10 .
+    TYPES:
+      ty_param_kind      TYPE c LENGTH 10 .
+    TYPES ty_ddic_name TYPE ddobjname .
+    TYPES:
       BEGIN OF ty_db_simple_type_s,
         name   TYPE ty_db_name,
         length TYPE i,
         decs   TYPE i,
-      END OF ty_db_simple_type_s,
-
+      END OF ty_db_simple_type_s .
+    TYPES:
       BEGIN OF ty_abap_simple_type_s,
         name   TYPE ty_abap_name,
         length TYPE i,
         decs   TYPE i,
-      END OF ty_abap_simple_type_s,
-
+      END OF ty_abap_simple_type_s .
+    TYPES:
       BEGIN OF ty_abap_simple_type_ui_s,
         typ  TYPE ty_abap_simple_type_s,
         text TYPE string,
-      END OF ty_abap_simple_type_ui_s,
-
+      END OF ty_abap_simple_type_ui_s .
+    TYPES:
       BEGIN OF ty_header_ui_s,
         db_repository_package   TYPE ty_db_name,
         db_repository_proc_name TYPE ty_db_name,
@@ -52,8 +54,8 @@ CLASS zcl_abapgit_object_sqsc DEFINITION
         db_catalog_proc_name    TYPE ty_db_name,
         read_only               TYPE abap_bool,
         interface_pool          TYPE ty_abap_name,
-      END OF  ty_header_ui_s,
-
+      END OF  ty_header_ui_s .
+    TYPES:
       BEGIN OF ty_param_ui_s,
         position              TYPE i,
         db_name               TYPE ty_db_name,
@@ -68,11 +70,12 @@ CLASS zcl_abapgit_object_sqsc DEFINITION
         abap_name_is_ro       TYPE abap_bool,
         ddic_table            TYPE ty_ddic_name,
         ddic_table_is_ro      TYPE abap_bool,
-      END OF  ty_param_ui_s,
-      ty_param_ui_t            TYPE STANDARD TABLE OF ty_param_ui_s WITH KEY position,
-
-      ty_abap_simple_type_ui_t TYPE STANDARD TABLE OF ty_abap_simple_type_ui_s WITH DEFAULT KEY,
-
+      END OF  ty_param_ui_s .
+    TYPES:
+      ty_param_ui_t            TYPE STANDARD TABLE OF ty_param_ui_s WITH KEY position .
+    TYPES:
+      ty_abap_simple_type_ui_t TYPE STANDARD TABLE OF ty_abap_simple_type_ui_s WITH DEFAULT KEY .
+    TYPES:
       BEGIN OF ty_param_type_ui_s,
         param_position       TYPE i,
         comp_index           TYPE i,
@@ -86,41 +89,40 @@ CLASS zcl_abapgit_object_sqsc DEFINITION
         abap_type_selection  TYPE ty_abap_simple_type_ui_t,
         ddic_type            TYPE ty_ddic_name,
         ddic_type_is_ro      TYPE abap_bool,
-      END OF ty_param_type_ui_s ,
-      ty_param_type_ui_t TYPE STANDARD TABLE OF ty_param_type_ui_s WITH KEY param_position comp_index,
-
+      END OF ty_param_type_ui_s .
+    TYPES:
+      ty_param_type_ui_t TYPE STANDARD TABLE OF ty_param_type_ui_s WITH KEY param_position comp_index .
+    TYPES:
       BEGIN OF ty_proxy,
         description     TYPE ddtext,
         header          TYPE ty_header_ui_s,
         parameters      TYPE ty_param_ui_t,
         parameter_types TYPE ty_param_type_ui_t,
-      END OF ty_proxy.
+      END OF ty_proxy .
 
-    DATA:
-      mo_proxy     TYPE REF TO object,
-      mv_transport TYPE e070use-ordernum.
+    DATA mo_proxy TYPE REF TO object .
 
-    METHODS:
-      delete_interface_if_it_exists
-        IMPORTING
-          iv_package   TYPE devclass
-          iv_interface TYPE ty_abap_name
-        RAISING
-          zcx_abapgit_exception.
-
+    METHODS delete_interface_if_it_exists
+      IMPORTING
+        !iv_package   TYPE devclass
+        !iv_interface TYPE ty_abap_name
+      RAISING
+        zcx_abapgit_exception .
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_SQSC IMPLEMENTATION.
+CLASS zcl_abapgit_object_sqsc IMPLEMENTATION.
 
 
   METHOD constructor.
 
     FIELD-SYMBOLS: <lv_dbproxyname> TYPE ty_abap_name.
 
-    super->constructor( is_item     = is_item
-                        iv_language = iv_language ).
+    super->constructor(
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
 
     TRY.
         CREATE OBJECT mo_proxy
@@ -135,10 +137,6 @@ CLASS ZCL_ABAPGIT_OBJECT_SQSC IMPLEMENTATION.
     ENDTRY.
 
     <lv_dbproxyname> = ms_item-obj_name.
-
-    mv_transport = zcl_abapgit_default_transport=>get_instance(
-                                               )->get(
-                                               )-ordernum.
 
   ENDMETHOD.
 
@@ -159,8 +157,9 @@ CLASS ZCL_ABAPGIT_OBJECT_SQSC IMPLEMENTATION.
 
       CREATE OBJECT lo_interface
         EXPORTING
-          is_item     = ls_item
-          iv_language = mv_language.
+          is_item      = ls_item
+          iv_language  = mv_language
+          iv_transport = mv_transport.
 
       lo_interface->zif_abapgit_object~delete( iv_package ).
 

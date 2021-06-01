@@ -239,8 +239,9 @@ CLASS ltcl_object_ddls_mock DEFINITION FOR TESTING.
     METHODS:
       constructor
         IMPORTING
-          is_item     TYPE zif_abapgit_definitions=>ty_item
-          iv_language TYPE spras.
+          is_item      TYPE zif_abapgit_definitions=>ty_item
+          iv_language  TYPE spras
+          iv_transport TYPE trkorr.
 
   PRIVATE SECTION.
     DATA ms_item TYPE zif_abapgit_definitions=>ty_item.

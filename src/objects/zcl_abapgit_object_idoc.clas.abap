@@ -1,15 +1,24 @@
-CLASS zcl_abapgit_object_idoc DEFINITION PUBLIC INHERITING FROM zcl_abapgit_objects_super FINAL.
+CLASS zcl_abapgit_object_idoc DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_abapgit_objects_super
+  FINAL
+  CREATE PUBLIC .
 
   PUBLIC SECTION.
-    INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-    METHODS:
-      constructor
-        IMPORTING
-          is_item     TYPE zif_abapgit_definitions=>ty_item
-          iv_language TYPE spras.
-    CLASS-METHODS clear_idoc_segement_fields CHANGING cg_structure TYPE any.
 
+    INTERFACES zif_abapgit_object .
+
+    ALIASES mo_files
+      FOR zif_abapgit_object~mo_files .
+
+    METHODS constructor
+      IMPORTING
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr .
+    CLASS-METHODS clear_idoc_segement_fields
+      CHANGING
+        !cg_structure TYPE any .
   PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES:
@@ -28,7 +37,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_IDOC IMPLEMENTATION.
+CLASS zcl_abapgit_object_idoc IMPLEMENTATION.
 
 
   METHOD clear_idoc_segement_field.
@@ -66,8 +75,10 @@ CLASS ZCL_ABAPGIT_OBJECT_IDOC IMPLEMENTATION.
 
   METHOD constructor.
 
-    super->constructor( is_item = is_item
-                        iv_language = iv_language ).
+    super->constructor(
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
 
     mv_idoctyp = ms_item-obj_name.
 

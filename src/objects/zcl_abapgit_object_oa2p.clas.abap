@@ -7,11 +7,12 @@ CLASS zcl_abapgit_object_oa2p DEFINITION
   PUBLIC SECTION.
 
     INTERFACES zif_abapgit_object .
+
     METHODS constructor
       IMPORTING
-        is_item     TYPE zif_abapgit_definitions=>ty_item
-        iv_language TYPE spras.
-
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr .
   PROTECTED SECTION.
   PRIVATE SECTION.
     DATA: mv_profile TYPE c LENGTH 30.
@@ -22,10 +23,13 @@ ENDCLASS.
 
 CLASS zcl_abapgit_object_oa2p IMPLEMENTATION.
 
+
   METHOD constructor.
 
-    super->constructor( is_item     = is_item
-                        iv_language = iv_language ).
+    super->constructor(
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
 
     mv_profile = is_item-obj_name.
 

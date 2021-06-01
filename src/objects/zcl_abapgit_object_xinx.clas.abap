@@ -1,14 +1,21 @@
-CLASS zcl_abapgit_object_xinx DEFINITION PUBLIC INHERITING FROM zcl_abapgit_objects_super FINAL.
+CLASS zcl_abapgit_object_xinx DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_abapgit_objects_super
+  FINAL
+  CREATE PUBLIC .
 
   PUBLIC SECTION.
-    INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-    METHODS:
-      constructor
-        IMPORTING
-          is_item     TYPE zif_abapgit_definitions=>ty_item
-          iv_language TYPE spras.
 
+    INTERFACES zif_abapgit_object .
+
+    ALIASES mo_files
+      FOR zif_abapgit_object~mo_files .
+
+    METHODS constructor
+      IMPORTING
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr .
   PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES:
@@ -40,8 +47,10 @@ CLASS zcl_abapgit_object_xinx IMPLEMENTATION.
 
   METHOD constructor.
 
-    super->constructor( is_item     = is_item
-                        iv_language = iv_language ).
+    super->constructor(
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
 
     cl_wb_object_type=>get_key_components_from_id(
       EXPORTING
@@ -56,6 +65,43 @@ CLASS zcl_abapgit_object_xinx IMPLEMENTATION.
         OTHERS                  = 3 ).
 
     ASSERT sy-subrc = 0.
+
+  ENDMETHOD.
+
+
+  METHOD xinx_delete_docu.
+
+    DATA: lv_docuid  TYPE dokhl-id,
+          lv_doctype TYPE dokhl-typ,
+          lv_docname TYPE dokhl-object.
+
+    lv_docname    = iv_objname.
+    lv_docname+30 = iv_id.
+    CALL FUNCTION 'INTERN_DD_DOCU_ID_MATCH'
+      EXPORTING
+        p_trobjtype  = c_objtype_extension_index
+      IMPORTING
+        p_docu_id    = lv_docuid
+        p_doctype    = lv_doctype
+      EXCEPTIONS
+        illegal_type = 1
+        OTHERS       = 2.
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'DOKU_DELETE_ALL'
+      EXPORTING
+        doku_id            = lv_docuid
+        doku_object        = lv_docname
+        doku_typ           = lv_doctype
+        suppress_authority = 'X'
+        suppress_enqueue   = 'X'
+        suppress_transport = 'X'
+      EXCEPTIONS
+        no_docu_found      = 1
+        OTHERS             = 2.
 
   ENDMETHOD.
 
@@ -342,41 +388,4 @@ CLASS zcl_abapgit_object_xinx IMPLEMENTATION.
                  ig_data = ls_extension_index ).
 
   ENDMETHOD.
-
-  METHOD xinx_delete_docu.
-
-    DATA: lv_docuid  TYPE dokhl-id,
-          lv_doctype TYPE dokhl-typ,
-          lv_docname TYPE dokhl-object.
-
-    lv_docname    = iv_objname.
-    lv_docname+30 = iv_id.
-    CALL FUNCTION 'INTERN_DD_DOCU_ID_MATCH'
-      EXPORTING
-        p_trobjtype  = c_objtype_extension_index
-      IMPORTING
-        p_docu_id    = lv_docuid
-        p_doctype    = lv_doctype
-      EXCEPTIONS
-        illegal_type = 1
-        OTHERS       = 2.
-
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
-
-    CALL FUNCTION 'DOKU_DELETE_ALL'
-      EXPORTING
-        doku_id            = lv_docuid
-        doku_object        = lv_docname
-        doku_typ           = lv_doctype
-        suppress_authority = 'X'
-        suppress_enqueue   = 'X'
-        suppress_transport = 'X'
-      EXCEPTIONS
-        no_docu_found      = 1
-        OTHERS             = 2.
-
-  ENDMETHOD.
-
 ENDCLASS.

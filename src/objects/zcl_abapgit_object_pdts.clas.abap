@@ -2,17 +2,22 @@ CLASS zcl_abapgit_object_pdts DEFINITION
   PUBLIC
   INHERITING FROM zcl_abapgit_object_pdxx_super
   FINAL
-  CREATE PUBLIC.
+  CREATE PUBLIC .
 
   PUBLIC SECTION.
 
-    METHODS constructor IMPORTING is_item     TYPE zif_abapgit_definitions=>ty_item
-                                  iv_language TYPE spras
-                        RAISING   zcx_abapgit_exception.
+    METHODS constructor
+      IMPORTING
+        !is_item      TYPE zif_abapgit_definitions=>ty_item
+        !iv_language  TYPE spras
+        !iv_transport TYPE trkorr
+      RAISING
+        zcx_abapgit_exception .
 
-    METHODS zif_abapgit_object~serialize REDEFINITION.
-    METHODS zif_abapgit_object~deserialize REDEFINITION.
-
+    METHODS zif_abapgit_object~deserialize
+        REDEFINITION .
+    METHODS zif_abapgit_object~serialize
+        REDEFINITION .
   PROTECTED SECTION.
 
   PRIVATE SECTION.
@@ -29,12 +34,16 @@ CLASS zcl_abapgit_object_pdts DEFINITION
 ENDCLASS.
 
 
+
 CLASS zcl_abapgit_object_pdts IMPLEMENTATION.
+
 
   METHOD constructor.
 
-    super->constructor( is_item     = is_item
-                        iv_language = iv_language ).
+    super->constructor(
+      is_item      = is_item
+      iv_language  = iv_language
+      iv_transport = iv_transport ).
 
     IF is_experimental( ) = abap_false.
       "Alpha version, known issues:
@@ -52,17 +61,30 @@ CLASS zcl_abapgit_object_pdts IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_object~serialize.
+  METHOD extract_container.
 
-    DATA li_task TYPE REF TO lif_task_definition.
+    DATA li_stream TYPE REF TO if_ixml_ostream.
+    DATA li_container_element TYPE REF TO if_ixml_element.
+    DATA li_document TYPE REF TO if_ixml_document.
 
-    li_task = lcl_task_definition=>load( mv_objid ).
-    li_task->clear_origin_data( ).
-    io_xml->add( iv_name = 'PDTS'
-                 ig_data = li_task->get_definition( ) ).
+    li_document = io_xml->get_raw( ).
 
-    io_xml->add_xml( iv_name = 'CONTAINER'
-                     ii_xml  = get_container_xml( li_task ) ).
+    li_container_element = li_document->find_from_name_ns( 'CONTAINER' ).
+
+    IF li_container_element IS BOUND.
+
+      li_document = cl_ixml=>create( )->create_document( ).
+
+      li_stream = cl_ixml=>create( )->create_stream_factory( )->create_ostream_xstring( rv_result ).
+
+      li_document->append_child( li_container_element ).
+
+      cl_ixml=>create( )->create_renderer(
+          document = li_document
+          ostream  = li_stream
+      )->render( ).
+
+    ENDIF.
 
   ENDMETHOD.
 
@@ -171,32 +193,17 @@ CLASS zcl_abapgit_object_pdts IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD extract_container.
+  METHOD zif_abapgit_object~serialize.
 
-    DATA li_stream TYPE REF TO if_ixml_ostream.
-    DATA li_container_element TYPE REF TO if_ixml_element.
-    DATA li_document TYPE REF TO if_ixml_document.
+    DATA li_task TYPE REF TO lif_task_definition.
 
-    li_document = io_xml->get_raw( ).
+    li_task = lcl_task_definition=>load( mv_objid ).
+    li_task->clear_origin_data( ).
+    io_xml->add( iv_name = 'PDTS'
+                 ig_data = li_task->get_definition( ) ).
 
-    li_container_element = li_document->find_from_name_ns( 'CONTAINER' ).
-
-    IF li_container_element IS BOUND.
-
-      li_document = cl_ixml=>create( )->create_document( ).
-
-      li_stream = cl_ixml=>create( )->create_stream_factory( )->create_ostream_xstring( rv_result ).
-
-      li_document->append_child( li_container_element ).
-
-      cl_ixml=>create( )->create_renderer(
-          document = li_document
-          ostream  = li_stream
-      )->render( ).
-
-    ENDIF.
+    io_xml->add_xml( iv_name = 'CONTAINER'
+                     ii_xml  = get_container_xml( li_task ) ).
 
   ENDMETHOD.
-
-
 ENDCLASS.
