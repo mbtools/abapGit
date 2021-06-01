@@ -11,14 +11,6 @@
     <FIXPT>X</FIXPT>
     <UNICODE>X</UNICODE>
    </VSEOCLASS>
-   <DESCRIPTIONS>
-    <SEOCOMPOTX>
-     <CLSNAME>ZCL_ABAPGIT_OBJECTS_SUPER</CLSNAME>
-     <CMPNAME>MV_TRANSPORT</CMPNAME>
-     <LANGU>E</LANGU>
-     <DESCRIPT>Request/Task</DESCRIPT>
-    </SEOCOMPOTX>
-   </DESCRIPTIONS>
   </asx:values>
  </asx:abap>
 </abapGit>
