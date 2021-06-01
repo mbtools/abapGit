@@ -58,6 +58,7 @@ INTERFACE zif_abapgit_html_form
       textarea    TYPE i VALUE 6,
       table       TYPE i VALUE 7,
       hidden      TYPE i VALUE 8,
+      image       TYPE i VALUE 9,
     END OF c_field_type .
 
 ENDINTERFACE.

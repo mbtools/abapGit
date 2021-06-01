@@ -98,6 +98,17 @@ CLASS zcl_abapgit_html_form DEFINITION
         !iv_readonly   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(ro_self) TYPE REF TO zcl_abapgit_html_form .
+    METHODS image
+      IMPORTING
+        !iv_label       TYPE csequence
+        !iv_name        TYPE csequence
+        !iv_hint        TYPE csequence OPTIONAL
+        !iv_required    TYPE abap_bool DEFAULT abap_false
+        !iv_readonly    TYPE abap_bool DEFAULT abap_false
+        !iv_placeholder TYPE csequence OPTIONAL
+        !iv_side_action TYPE csequence OPTIONAL
+      RETURNING
+        VALUE(ro_self)  TYPE REF TO zcl_abapgit_html_form .
     METHODS start_group
       IMPORTING
         !iv_label      TYPE csequence
@@ -126,8 +137,7 @@ CLASS zcl_abapgit_html_form DEFINITION
         required    TYPE string,
       END OF ty_attr .
 
-    DATA:
-      mt_fields TYPE zif_abapgit_html_form=>ty_fields.
+    DATA mt_fields TYPE zif_abapgit_html_form=>ty_fields .
     DATA:
       mt_commands TYPE STANDARD TABLE OF zif_abapgit_html_form=>ty_command .
     DATA mv_form_id TYPE string .
@@ -170,6 +180,11 @@ CLASS zcl_abapgit_html_form DEFINITION
         !ii_html TYPE REF TO zif_abapgit_html
         !is_cmd  TYPE zif_abapgit_html_form=>ty_command .
     METHODS render_field_hidden
+      IMPORTING
+        !ii_html  TYPE REF TO zif_abapgit_html
+        !is_field TYPE zif_abapgit_html_form=>ty_field
+        !is_attr  TYPE ty_attr .
+    METHODS render_field_image
       IMPORTING
         !ii_html  TYPE REF TO zif_abapgit_html
         !is_field TYPE zif_abapgit_html_form=>ty_field
@@ -265,6 +280,34 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
 
     ls_field-type  = zif_abapgit_html_form=>c_field_type-hidden.
     ls_field-name  = iv_name.
+    APPEND ls_field TO mt_fields.
+
+    ro_self = me.
+
+  ENDMETHOD.
+
+
+  METHOD image.
+
+    DATA ls_field LIKE LINE OF mt_fields.
+
+    ls_field-type        = zif_abapgit_html_form=>c_field_type-image.
+    ls_field-name        = iv_name.
+    ls_field-label       = iv_label.
+    ls_field-upper_case  = abap_true.
+    ls_field-readonly    = iv_readonly.
+    ls_field-max         = 40.
+    ls_field-hint        = iv_hint.
+    ls_field-required    = iv_required.
+    ls_field-placeholder = iv_placeholder.
+
+    IF iv_side_action IS NOT INITIAL AND mv_form_id IS NOT INITIAL.
+      ls_field-item_class = 'with-command'.
+      ls_field-side_action = iv_side_action.
+      ls_field-dblclick = | ondblclick="document.getElementById('{ mv_form_id }').action = 'sapevent:|
+                       && |{ iv_side_action }'; document.getElementById('{ mv_form_id }').submit()"|.
+    ENDIF.
+
     APPEND ls_field TO mt_fields.
 
     ro_self = me.
@@ -558,6 +601,13 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
           is_field = is_field
           is_attr  = ls_attr ).
 
+      WHEN zif_abapgit_html_form=>c_field_type-image.
+
+        render_field_image(
+          ii_html  = ii_html
+          is_field = is_field
+          is_attr  = ls_attr ).
+
       WHEN OTHERS.
         ASSERT 1 = 0.
     ENDCASE.
@@ -589,6 +639,31 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
   METHOD render_field_hidden.
 
     ii_html->add( |<input type="hidden" name="{ is_field-name }" id="{ is_field-name }" value="{ is_attr-value }">| ).
+
+  ENDMETHOD.
+
+
+  METHOD render_field_image.
+
+    ii_html->add( |<label for="{ is_field-name }"{ is_attr-hint }>{ is_field-label }{ is_attr-required }</label>| ).
+
+    IF is_attr-error IS NOT INITIAL.
+      ii_html->add( is_attr-error ).
+    ENDIF.
+
+    IF is_attr-value IS NOT INITIAL.
+      ii_html->add( '<div class="input-logo">' ).
+      ii_html->add( |<img src="img/logo.png" width="128" height="128">| ).
+      ii_html->add( |</div>| ).
+    ENDIF.
+
+    ii_html->add( '<div class="input-container">' ).
+    ii_html->add( |<input type="text" name="{ is_field-name }" id="{ is_field-name }"|
+               && | value="{ is_attr-value }" { is_field-dblclick }{ is_attr-placeholder }{ is_attr-readonly }>| ).
+    ii_html->add( '</div>' ).
+    ii_html->add( '<div class="command-container">' ).
+    ii_html->add( |<input type="submit" value="&#x2026;" formaction="sapevent:{ is_field-side_action }">| ).
+    ii_html->add( '</div>' ).
 
   ENDMETHOD.
 
