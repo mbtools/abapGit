@@ -184,7 +184,7 @@ INTERFACE zif_abapgit_definitions
       object   TYPE tadir-object,
       obj_name TYPE tadir-obj_name,
       devclass TYPE tadir-devclass,
-      korrnum  TYPE tadir-korrnum,
+      korrnum  TYPE tadir-korrnum, " todo, I think this field can be removed after #2464 -Hvam
       delflag  TYPE tadir-delflag,
       genflag  TYPE tadir-genflag,
       path     TYPE string,
@@ -446,6 +446,7 @@ INTERFACE zif_abapgit_definitions
       zip_package                   TYPE string VALUE 'zip_package',
       zip_transport                 TYPE string VALUE 'zip_transport',
       zip_object                    TYPE string VALUE 'zip_object',
+      rfc_compare                   TYPE string VALUE 'rfc_compare',
       performance_test              TYPE string VALUE 'performance_test',
       ie_devtools                   TYPE string VALUE 'ie_devtools',
       git_pull                      TYPE string VALUE 'git_pull',
