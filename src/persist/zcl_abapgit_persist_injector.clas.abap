@@ -13,6 +13,10 @@ CLASS zcl_abapgit_persist_injector DEFINITION
       IMPORTING
         !ii_settings TYPE REF TO zif_abapgit_persist_settings .
 
+    CLASS-METHODS set_user
+      IMPORTING
+        !ii_user TYPE REF TO zif_abapgit_persist_user .
+
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -21,7 +25,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_PERSIST_INJECTOR IMPLEMENTATION.
+CLASS zcl_abapgit_persist_injector IMPLEMENTATION.
 
 
   METHOD set_repo.
@@ -34,6 +38,13 @@ CLASS ZCL_ABAPGIT_PERSIST_INJECTOR IMPLEMENTATION.
   METHOD set_settings.
 
     zcl_abapgit_persist_factory=>gi_settings = ii_settings.
+
+  ENDMETHOD.
+
+
+  METHOD set_user.
+
+    zcl_abapgit_persist_factory=>gi_current_user = ii_user.
 
   ENDMETHOD.
 ENDCLASS.

@@ -7,8 +7,7 @@ CLASS zcl_abapgit_gui_page_main DEFINITION
     INTERFACES: zif_abapgit_gui_hotkeys.
     METHODS:
       constructor
-        IMPORTING iv_only_favorites TYPE abap_bool
-        RAISING   zcx_abapgit_exception,
+        RAISING zcx_abapgit_exception,
       zif_abapgit_gui_event_handler~on_event REDEFINITION.
 
 
@@ -26,9 +25,8 @@ CLASS zcl_abapgit_gui_page_main DEFINITION
         abapgit_home TYPE string VALUE 'abapgit_home',
       END OF c_actions.
 
-    DATA: mo_repo_overview  TYPE REF TO zcl_abapgit_gui_page_repo_over,
-          mv_repo_key       TYPE zif_abapgit_persistence=>ty_value,
-          mv_only_favorites TYPE abap_bool.
+    DATA: mo_repo_overview TYPE REF TO zcl_abapgit_gui_page_repo_over,
+          mv_repo_key      TYPE zif_abapgit_persistence=>ty_value.
 
     METHODS build_main_menu
       RETURNING VALUE(ro_menu) TYPE REF TO zcl_abapgit_html_toolbar.
@@ -69,7 +67,6 @@ CLASS zcl_abapgit_gui_page_main IMPLEMENTATION.
     super->constructor( ).
     ms_control-page_menu  = build_main_menu( ).
     ms_control-page_title = 'Repository List'.
-    mv_only_favorites = iv_only_favorites.
   ENDMETHOD.
 
 
@@ -79,15 +76,13 @@ CLASS zcl_abapgit_gui_page_main IMPLEMENTATION.
 
     gui_services( )->get_hotkeys_ctl( )->register_hotkeys( zif_abapgit_gui_hotkeys~get_hotkey_actions( ) ).
 
-    IF mo_repo_overview IS INITIAL OR mo_repo_overview->mv_only_favorites <> mv_only_favorites.
-      CREATE OBJECT mo_repo_overview EXPORTING iv_only_favorites = mv_only_favorites.
+    IF mo_repo_overview IS INITIAL.
+      CREATE OBJECT mo_repo_overview.
     ENDIF.
 
     ri_html->add( mo_repo_overview->zif_abapgit_gui_renderable~render( ) ).
 
-    register_deferred_script( zcl_abapgit_gui_chunk_lib=>render_repo_palette(
-      iv_action = c_actions-select
-      iv_only_favorites = mv_only_favorites ) ).
+    register_deferred_script( zcl_abapgit_gui_chunk_lib=>render_repo_palette( c_actions-select ) ).
 
   ENDMETHOD.
 
@@ -104,7 +99,7 @@ CLASS zcl_abapgit_gui_page_main IMPLEMENTATION.
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
       WHEN c_actions-select.
 
-        zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( lv_key ).
+        zcl_abapgit_persist_factory=>get_user( )->set_repo_show( lv_key ).
 
         TRY.
             zcl_abapgit_repo_srv=>get_instance( )->get( lv_key )->refresh( ).
@@ -120,11 +115,6 @@ CLASS zcl_abapgit_gui_page_main IMPLEMENTATION.
       WHEN zif_abapgit_definitions=>c_action-change_order_by.
 
         mo_repo_overview->set_order_by( ii_event->query( )->get( 'ORDERBY' ) ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
-
-      WHEN zif_abapgit_definitions=>c_action-toggle_favorites.
-
-        mv_only_favorites = ii_event->query( )->get( 'FAVORITES' ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
 
       WHEN zif_abapgit_definitions=>c_action-direction.
@@ -180,19 +170,9 @@ CLASS zcl_abapgit_gui_page_main IMPLEMENTATION.
     ls_hotkey_action-hotkey = |s|.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
-    ls_hotkey_action-description   = |Diff|.
-    ls_hotkey_action-action = zif_abapgit_definitions=>c_action-go_repo_diff.
-    ls_hotkey_action-hotkey = |d|.
-    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
-
     ls_hotkey_action-description = |Check|.
     ls_hotkey_action-action = zif_abapgit_definitions=>c_action-repo_code_inspector.
     ls_hotkey_action-hotkey = |c|.
-    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
-
-    ls_hotkey_action-description   = |Pull|.
-    ls_hotkey_action-action = zif_abapgit_definitions=>c_action-git_reset.
-    ls_hotkey_action-hotkey = |p|.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
     ls_hotkey_action-description = |Patch|.

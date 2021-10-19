@@ -9,12 +9,10 @@ CLASS zcl_abapgit_gui_page_repo_over DEFINITION
     INTERFACES zif_abapgit_gui_renderable .
 
     DATA mv_order_by TYPE string READ-ONLY .
-    DATA mv_only_favorites   TYPE abap_bool READ-ONLY.
 
     METHODS constructor
-      IMPORTING iv_only_favorites TYPE abap_bool
       RAISING
-                zcx_abapgit_exception .
+        zcx_abapgit_exception .
     METHODS set_order_by
       IMPORTING
         !iv_order_by TYPE string .
@@ -23,12 +21,7 @@ CLASS zcl_abapgit_gui_page_repo_over DEFINITION
         !iv_order_descending TYPE abap_bool .
     METHODS set_filter
       IMPORTING
-        it_postdata TYPE zif_abapgit_html_viewer=>ty_post_data .
-    METHODS set_only_favorites
-      IMPORTING
-        iv_only_favorites TYPE abap_bool.
-    METHODS
-      get_only_favorites RETURNING VALUE(rv_result) TYPE abap_bool.
+        !it_postdata TYPE zif_abapgit_html_viewer=>ty_post_data .
   PROTECTED SECTION.
 
 
@@ -144,6 +137,11 @@ ENDCLASS.
 CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
 
 
+  METHOD action_link.
+    rv_html = |<span class="action_link">| && iv_content && |</span>|.
+  ENDMETHOD.
+
+
   METHOD apply_filter.
 
     IF mv_filter IS NOT INITIAL.
@@ -188,11 +186,19 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD column.
+    IF iv_css_class IS NOT INITIAL.
+      rv_html = |<td class="{ iv_css_class }">| && iv_content && |</td>|.
+    ELSE.
+      rv_html = |<td>| && iv_content && |</td>|.
+    ENDIF.
+  ENDMETHOD.
+
+
   METHOD constructor.
 
     super->constructor( ).
     mv_order_by = |NAME|.
-    mv_only_favorites = iv_only_favorites.
 
     CALL FUNCTION 'GET_SYSTEM_TIMEZONE'
       IMPORTING
@@ -214,17 +220,13 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
 
     FIELD-SYMBOLS <ls_repo> LIKE LINE OF lt_repo_obj_list.
 
-    IF mv_only_favorites = abap_true.
-      lt_repo_obj_list = zcl_abapgit_repo_srv=>get_instance( )->list_favorites( ).
-    ELSE.
-      lt_repo_obj_list = zcl_abapgit_repo_srv=>get_instance( )->list( ).
-    ENDIF.
+    lt_repo_obj_list = zcl_abapgit_repo_srv=>get_instance( )->list( ).
 
     LOOP AT lt_repo_obj_list ASSIGNING <ls_repo>.
 
       CLEAR: ls_overview.
 
-      ls_overview-favorite   = zcl_abapgit_persistence_user=>get_instance(
+      ls_overview-favorite   = zcl_abapgit_persist_factory=>get_user(
         )->is_favorite_repo( <ls_repo>->ms_data-key ).
       ls_overview-type       = <ls_repo>->ms_data-offline.
       ls_overview-key        = <ls_repo>->ms_data-key.
@@ -262,10 +264,74 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD render_header_bar.
+  METHOD render_actions.
 
-    DATA: lv_new_toggle_favorites TYPE abap_bool,
-          lv_icon_class           TYPE string.
+    CONSTANTS:
+      lc_separator     TYPE string VALUE `<span class="separator">|</span>`,
+      lc_dummy_key     TYPE string VALUE `?key=#`,
+      lc_offline_class TYPE string VALUE `action_offline_repo`,
+      lc_online_class  TYPE string VALUE `action_online_repo`,
+      lc_action_class  TYPE string VALUE `action_link`.
+
+    DATA:
+      lv_settings_link TYPE string,
+      lv_check_link    TYPE string,
+      lv_stage_link    TYPE string,
+      lv_patch_link    TYPE string.
+
+    DATA:
+      lv_zip_import_link TYPE string,
+      lv_zip_export_link TYPE string.
+
+    ii_html->add( |<div class="float-right">| ).
+
+    lv_check_link = ii_html->a(
+      iv_txt = |Check|
+      iv_act = |{ zif_abapgit_definitions=>c_action-repo_code_inspector }{ lc_dummy_key }|
+      iv_class = |{ lc_action_class }| ).
+
+    ii_html->add( action_link( lv_check_link && lc_separator ) ).
+
+    lv_stage_link = ii_html->a(
+      iv_txt = |Stage|
+      iv_act = |{ zif_abapgit_definitions=>c_action-go_stage }{ lc_dummy_key }|
+      iv_class = |{ lc_action_class } { lc_online_class } | ).
+
+    ii_html->add( action_link( lv_stage_link && lc_separator ) ).
+
+    lv_patch_link = ii_html->a(
+      iv_txt = |Patch|
+      iv_act = |{ zif_abapgit_definitions=>c_action-go_patch }{ lc_dummy_key }|
+      iv_class = |{ lc_action_class } { lc_online_class } | ).
+
+    ii_html->add( action_link( lv_patch_link && lc_separator ) ).
+
+    lv_zip_import_link = ii_html->a(
+      iv_txt = |Import|
+      iv_act = |{ zif_abapgit_definitions=>c_action-zip_import }{ lc_dummy_key }|
+      iv_class = |{ lc_action_class } { lc_offline_class }| ).
+
+    ii_html->add( action_link( lv_zip_import_link && lc_separator ) ).
+
+    lv_zip_export_link = ii_html->a(
+      iv_txt = |Export|
+      iv_act = |{ zif_abapgit_definitions=>c_action-zip_export }{ lc_dummy_key }|
+      iv_class = |{ lc_action_class } { lc_offline_class }| ).
+
+    ii_html->add( action_link( lv_zip_export_link && lc_separator ) ).
+
+    lv_settings_link = ii_html->a(
+      iv_txt = |Settings|
+      iv_act = |{ zif_abapgit_definitions=>c_action-repo_settings }{ lc_dummy_key }|
+      iv_class = |{ lc_action_class }| ).
+
+    ii_html->add( action_link( lv_settings_link ) ).
+
+    ii_html->add( |</div>| ).
+  ENDMETHOD.
+
+
+  METHOD render_header_bar.
 
     ii_html->add( |<div class="form-container">| ).
 
@@ -279,17 +345,10 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
     ii_html->add( |<input type="submit" class="hidden-submit">| ).
     ii_html->add( |</form>| ).
 
-    lv_new_toggle_favorites = boolc( NOT mv_only_favorites = abap_true ).
-    " render icon for current state but filter value for new state
-    IF mv_only_favorites = abap_true.
-      lv_icon_class = `blue`.
-    ELSE.
-      lv_icon_class = `grey`.
-    ENDIF.
-
     ii_html->add( ii_html->a(
-      iv_txt   = |<i id="icon-filter-favorite" class="icon icon-check { lv_icon_class }"></i> Only Favorites|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-toggle_favorites }?favorites={ lv_new_toggle_favorites }| ) ).
+      iv_txt = '<i id="icon-filter-favorite" class="icon icon-check"></i> Only Favorites'
+      iv_act = |gHelper.toggleRepoListFavorites()|
+      iv_typ = zif_abapgit_html=>c_action_type-onclick ) ).
 
     ii_html->add( `<span class="separator">|</span>` ).
 
@@ -322,7 +381,7 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
     ii_html->add( |<table class="db_tab">| ).
 
     render_table_header( ii_html ).
-    render_table_body( ii_html      = ii_html
+    render_table_body( ii_html     = ii_html
                        it_repo_list = it_overview ).
 
     ii_html->add( |</table>| ).
@@ -399,7 +458,7 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
       ii_html->add(
         column( iv_content = zcl_abapgit_gui_chunk_lib=>render_package_name(
                             iv_package = <ls_repo>-package
-                            iv_suppress_title = boolc( NOT mv_only_favorites = abap_true ) )->render( ) ) ).
+                            iv_suppress_title = abap_true )->render( ) ) ).
 
 
       IF <ls_repo>-type = abap_false.
@@ -433,7 +492,7 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
       ii_html->add(
         column( iv_content = zcl_abapgit_gui_chunk_lib=>render_user_name(
                             iv_username = <ls_repo>-deserialized_by
-                            iv_suppress_title = boolc( NOT mv_only_favorites = abap_true ) )->render( )
+                            iv_suppress_title = abap_true )->render( )
                 iv_css_class = 'ro-detail' ) ).
 
       ii_html->add(
@@ -443,7 +502,7 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
       ii_html->add(
         column( iv_content = zcl_abapgit_gui_chunk_lib=>render_user_name(
                     iv_username = <ls_repo>-created_by
-                    iv_suppress_title = boolc( NOT mv_only_favorites = abap_true ) )->render( )
+                    iv_suppress_title = abap_true )->render( )
                 iv_css_class = 'ro-detail' ) ).
 
       ii_html->add(
@@ -456,8 +515,8 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
 
       " the link is clicked in javascript
       lv_repo_go_link = ii_html->a(
-        iv_txt   = ``
-        iv_act   = |{ c_action-select }?key={ <ls_repo>-key }|
+        iv_txt = ``
+        iv_act = |{ c_action-select }?key={ <ls_repo>-key }|
         iv_class = 'hidden' ).
 
       ii_html->add( column(
@@ -468,188 +527,78 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
 
     ii_html->add( |</tbody>| ).
 
-    IF mv_only_favorites = abap_true.
-      ii_html->add( `<tfoot><tr><td colspan="5">` ).
-      ii_html->add( `(Only favorites are shown. ` ).
-      ii_html->add( ii_html->a(
-        iv_txt   = |Show All|
-        iv_act   = |{ zif_abapgit_definitions=>c_action-toggle_favorites }?favorites={ abap_false }| ) ).
-      ii_html->add( `)</td></tr></tfoot>` ).
-    ENDIF.
-
   ENDMETHOD.
 
-  METHOD render_actions.
-
-    CONSTANTS:
-      lc_separator     TYPE string VALUE `<span class="separator">|</span>`,
-      lc_dummy_key     TYPE string VALUE `?key=#`,
-      lc_offline_class TYPE string VALUE `action_offline_repo`,
-      lc_online_class  TYPE string VALUE `action_online_repo`,
-      lc_action_class  TYPE string VALUE `action_link`.
-
-    DATA:
-      lv_settings_link TYPE string,
-      lv_check_link    TYPE string,
-      lv_stage_link    TYPE string,
-      lv_patch_link    TYPE string,
-      lv_diff_link     TYPE string,
-      lv_pull_link     TYPE string.
-
-    DATA:
-      lv_zip_import_link TYPE string,
-      lv_zip_export_link TYPE string.
-
-    ii_html->add( |<div class="float-right">| ).
-
-    lv_pull_link = ii_html->a(
-      iv_txt   = |Pull|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-git_reset }{ lc_dummy_key }|
-      iv_class = |{ lc_action_class } { lc_online_class }| ).
-
-    ii_html->add( action_link( lv_pull_link && lc_separator ) ).
-
-    lv_stage_link = ii_html->a(
-      iv_txt   = |Stage|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-go_stage }{ lc_dummy_key }|
-      iv_class = |{ lc_action_class } { lc_online_class } | ).
-
-    ii_html->add( action_link( lv_stage_link && lc_separator ) ).
-
-    lv_patch_link = ii_html->a(
-      iv_txt   = |Patch|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-go_patch }{ lc_dummy_key }|
-      iv_class = |{ lc_action_class } { lc_online_class } | ).
-
-    ii_html->add( action_link( lv_patch_link && lc_separator ) ).
-
-    lv_diff_link = ii_html->a(
-      iv_txt   = |Diff|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-go_repo_diff }{ lc_dummy_key }|
-      iv_class = |{ lc_action_class } { lc_online_class }| ).
-
-    ii_html->add( action_link( lv_diff_link && lc_separator ) ).
-
-    lv_check_link = ii_html->a(
-      iv_txt   = |Check|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-repo_code_inspector }{ lc_dummy_key }|
-      iv_class = |{ lc_action_class }| ).
-
-    ii_html->add( action_link( lv_check_link && lc_separator ) ).
-
-    lv_zip_import_link = ii_html->a(
-      iv_txt   = |Import|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-zip_import }{ lc_dummy_key }|
-      iv_class = |{ lc_action_class } { lc_offline_class }| ).
-
-    ii_html->add( action_link( lv_zip_import_link && lc_separator ) ).
-
-    lv_zip_export_link = ii_html->a(
-      iv_txt   = |Export|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-zip_export }{ lc_dummy_key }|
-      iv_class = |{ lc_action_class } { lc_offline_class }| ).
-
-    ii_html->add( action_link( lv_zip_export_link && lc_separator ) ).
-
-    lv_settings_link = ii_html->a(
-      iv_txt   = |Settings|
-      iv_act   = |{ zif_abapgit_definitions=>c_action-repo_settings }{ lc_dummy_key }|
-      iv_class = |{ lc_action_class }| ).
-
-    ii_html->add( action_link( lv_settings_link ) ).
-
-    ii_html->add( |</div>| ).
-  ENDMETHOD.
-
-  METHOD shorten_repo_url.
-    DATA lt_results TYPE match_result_tab.
-    DATA lv_new_length TYPE i.
-    DATA: lv_length_to_truncate_to TYPE i.
-
-    rv_shortened = iv_full_url.
-
-    REPLACE FIRST OCCURRENCE OF 'https://' IN rv_shortened WITH ''.
-    REPLACE FIRST OCCURRENCE OF 'http://' IN rv_shortened WITH ''.
-    IF rv_shortened CP '*.git'.
-      lv_new_length = strlen( rv_shortened ) - 4.
-      rv_shortened  = rv_shortened(lv_new_length).
-    ENDIF.
-
-    IF strlen( rv_shortened ) > iv_max_length.
-      lv_length_to_truncate_to = iv_max_length - 3.
-      rv_shortened = rv_shortened(lv_length_to_truncate_to) && `...`.
-    ENDIF.
-  ENDMETHOD.
 
   METHOD render_table_header.
 
     CLEAR mt_col_spec.
 
     _add_column(
-      iv_tech_name      = 'FAVORITE'
-      iv_css_class      = 'wmin'
+      iv_tech_name = 'FAVORITE'
+      iv_css_class = 'wmin'
       iv_allow_order_by = abap_false ).
 
     _add_column(
-      iv_tech_name      = 'TYPE'
-      iv_css_class      = 'wmin'
+      iv_tech_name = 'TYPE'
+      iv_css_class = 'wmin'
       iv_allow_order_by = abap_false ).
 
     _add_column(
-      iv_tech_name      = 'NAME'
-      iv_display_name   = 'Name'
+      iv_tech_name = 'NAME'
+      iv_display_name = 'Name'
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'PACKAGE'
-      iv_display_name   = 'Package'
-      iv_css_class      = 'package'
+      iv_tech_name = 'PACKAGE'
+      iv_display_name = 'Package'
+      iv_css_class = 'package'
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'URL'
-      iv_display_name   = 'Remote'
+      iv_tech_name = 'URL'
+      iv_display_name = 'Remote'
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'BRANCH'
-      iv_display_name   = 'Branch'
+      iv_tech_name = 'BRANCH'
+      iv_display_name = 'Branch'
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'DESERIALIZED_BY'
-      iv_display_name   = 'Deserialized by'
-      iv_css_class      = 'ro-detail'
+      iv_tech_name = 'DESERIALIZED_BY'
+      iv_display_name = 'Deserialized by'
+      iv_css_class = 'ro-detail'
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'DESERIALIZED_AT'
-      iv_display_name   = 'Deserialized at'
-      iv_css_class      = 'ro-detail'
+      iv_tech_name = 'DESERIALIZED_AT'
+      iv_display_name = 'Deserialized at'
+      iv_css_class = 'ro-detail'
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'CREATED_BY'
-      iv_display_name   = 'Created by'
-      iv_css_class      = 'ro-detail'
+      iv_tech_name = 'CREATED_BY'
+      iv_display_name = 'Created by'
+      iv_css_class = 'ro-detail'
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'CREATED_AT'
-      iv_display_name   = 'Created at'
-      iv_css_class      = 'ro-detail'
-      iv_add_tz         = abap_true
+      iv_tech_name = 'CREATED_AT'
+      iv_display_name = 'Created at'
+      iv_css_class = 'ro-detail'
+      iv_add_tz = abap_true
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'KEY'
-      iv_display_name   = 'Key'
-      iv_css_class      = 'ro-detail'
+      iv_tech_name = 'KEY'
+      iv_display_name = 'Key'
+      iv_css_class = 'ro-detail'
       iv_allow_order_by = abap_true ).
 
     _add_column(
-      iv_tech_name      = 'GO'
-      iv_css_class      = 'ro-go'
+      iv_tech_name = 'GO'
+      iv_css_class = 'ro-go'
       iv_allow_order_by = abap_false ).
 
     ii_html->add( |<thead>| ).
@@ -717,6 +666,27 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD shorten_repo_url.
+    DATA lt_results TYPE match_result_tab.
+    DATA lv_new_length TYPE i.
+    DATA: lv_length_to_truncate_to TYPE i.
+
+    rv_shortened = iv_full_url.
+
+    REPLACE FIRST OCCURRENCE OF 'https://' IN rv_shortened WITH ''.
+    REPLACE FIRST OCCURRENCE OF 'http://' IN rv_shortened WITH ''.
+    IF rv_shortened CP '*.git'.
+      lv_new_length = strlen( rv_shortened ) - 4.
+      rv_shortened  = rv_shortened(lv_new_length).
+    ENDIF.
+
+    IF strlen( rv_shortened ) > iv_max_length.
+      lv_length_to_truncate_to = iv_max_length - 3.
+      rv_shortened = rv_shortened(lv_length_to_truncate_to) && `...`.
+    ENDIF.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_gui_renderable~render.
 
     mt_overview = map_repo_list_to_overview( ).
@@ -748,26 +718,4 @@ CLASS zcl_abapgit_gui_page_repo_over IMPLEMENTATION.
     <ls_col>-add_tz = iv_add_tz.
     <ls_col>-allow_order_by = iv_allow_order_by.
   ENDMETHOD.
-
-  METHOD column.
-    IF iv_css_class IS NOT INITIAL.
-      rv_html = |<td class="{ iv_css_class }">| && iv_content && |</td>|.
-    ELSE.
-      rv_html = |<td>| && iv_content && |</td>|.
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD action_link.
-    rv_html = |<span class="action_link">| && iv_content && |</span>|.
-  ENDMETHOD.
-
-
-  METHOD set_only_favorites.
-    mv_only_favorites = iv_only_favorites.
-  ENDMETHOD.
-
-  METHOD get_only_favorites.
-    rv_result = mv_only_favorites.
-  ENDMETHOD.
-
 ENDCLASS.

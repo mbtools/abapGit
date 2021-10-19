@@ -16,7 +16,6 @@ CLASS zcl_abapgit_gui_page_commit DEFINITION
       IMPORTING
         io_repo  TYPE REF TO zcl_abapgit_repo_online
         io_stage TYPE REF TO zcl_abapgit_stage
-        iv_sci_result TYPE zif_abapgit_definitions=>ty_sci_result DEFAULT zif_abapgit_definitions=>c_sci_result-no_run
       RAISING
         zcx_abapgit_exception.
 
@@ -39,7 +38,6 @@ CLASS zcl_abapgit_gui_page_commit DEFINITION
     DATA mo_repo TYPE REF TO zcl_abapgit_repo_online .
     DATA mo_stage TYPE REF TO zcl_abapgit_stage .
     DATA ms_commit TYPE zif_abapgit_services_git=>ty_commit_fields .
-    DATA mv_sci_result TYPE zif_abapgit_definitions=>ty_sci_result.
 
     METHODS render_menu
       RETURNING
@@ -85,7 +83,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
+CLASS zcl_abapgit_gui_page_commit IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -93,7 +91,6 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
 
     mo_repo   = io_repo.
     mo_stage  = io_stage.
-    mv_sci_result = iv_sci_result.
 
     ms_control-page_title = 'Commit'.
   ENDMETHOD.
@@ -233,7 +230,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
 * commit messages should be max 50 characters
 * body should wrap at 72 characters
 
-    li_user = zcl_abapgit_persistence_user=>get_instance( ).
+    li_user = zcl_abapgit_persist_factory=>get_user( ).
 
     lv_user  = li_user->get_repo_git_user_name( mo_repo->get_url( ) ).
     IF lv_user IS INITIAL.
@@ -340,15 +337,6 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
                      iv_opt = zif_abapgit_html=>c_html_opt-cancel ).
 
     ri_html->add( '<div class="paddings">' ).
-
-    IF mv_sci_result <> zif_abapgit_definitions=>c_sci_result-no_run.
-      ri_html->add( '<span class="float-right">' ).
-      zcl_abapgit_gui_chunk_lib=>render_sci_result(
-        ii_html       = ri_html
-        iv_sci_result = mv_sci_result ).
-      ri_html->add( '</span>' ).
-    ENDIF.
-
     ri_html->add( lo_toolbar->render( ) ).
     ri_html->add( '</div>' ).
 

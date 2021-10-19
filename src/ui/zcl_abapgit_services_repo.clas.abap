@@ -95,7 +95,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
+CLASS zcl_abapgit_services_repo IMPLEMENTATION.
 
 
   METHOD check_package.
@@ -170,11 +170,6 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     " find troublesome objects
     ls_checks = io_repo->deserialize_checks( ).
 
-    IF ls_checks-overwrite IS INITIAL.
-      zcx_abapgit_exception=>raise(
-        'There is nothing to pull. The local state completely matches the remote repository.' ).
-    ENDIF.
-
     " let the user decide what to do
     TRY.
         popup_decisions(
@@ -221,7 +216,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     toggle_favorite( ro_repo->get_key( ) ).
 
     " Set default repo for user
-    zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( ro_repo->get_key( ) ).
+    zcl_abapgit_persist_factory=>get_user( )->set_repo_show( ro_repo->get_key( ) ).
 
     COMMIT WORK AND WAIT.
 
@@ -248,7 +243,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     toggle_favorite( ro_repo->get_key( ) ).
 
     " Set default repo for user
-    zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( ro_repo->get_key( ) ).
+    zcl_abapgit_persist_factory=>get_user( )->set_repo_show( ro_repo->get_key( ) ).
 
     COMMIT WORK AND WAIT.
 
@@ -272,7 +267,9 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
     IF iv_reset_all IS INITIAL.
       DELETE lt_decision
         WHERE action = zif_abapgit_objects=>c_deserialize_action-add
-           OR action = zif_abapgit_objects=>c_deserialize_action-update.
+           OR action = zif_abapgit_objects=>c_deserialize_action-update
+           OR action = zif_abapgit_objects=>c_deserialize_action-delete
+           OR action = zif_abapgit_objects=>c_deserialize_action-delete_add.
     ENDIF.
 
     " Ask user what to do
@@ -577,7 +574,7 @@ CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
 
   METHOD toggle_favorite.
 
-    zcl_abapgit_persistence_user=>get_instance( )->toggle_favorite( iv_key ).
+    zcl_abapgit_persist_factory=>get_user( )->toggle_favorite( iv_key ).
 
   ENDMETHOD.
 

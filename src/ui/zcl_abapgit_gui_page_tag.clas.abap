@@ -70,7 +70,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_GUI_PAGE_TAG IMPLEMENTATION.
+CLASS zcl_abapgit_gui_page_tag IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -193,7 +193,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_TAG IMPLEMENTATION.
     FIELD-SYMBOLS: <lv_type> LIKE LINE OF lt_type.
 
 
-    li_user = zcl_abapgit_persistence_user=>get_instance( ).
+    li_user = zcl_abapgit_persist_factory=>get_user( ).
 
     lv_user = li_user->get_repo_git_user_name( mo_repo_online->get_url( ) ).
     IF lv_user IS INITIAL.
