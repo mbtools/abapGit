@@ -47,13 +47,13 @@ CLASS zcl_abapgit_gui_page_codi_base DEFINITION PUBLIC ABSTRACT INHERITING FROM 
       RETURNING
         VALUE(ro_menu) TYPE REF TO zcl_abapgit_html_toolbar .
   PRIVATE SECTION.
-    CONSTANTS c_object_separator TYPE char1 VALUE '|'.
+    CONSTANTS c_object_separator TYPE c LENGTH 1 VALUE '|'.
     CONSTANTS c_ci_sig TYPE string VALUE 'cinav:'.
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_GUI_PAGE_CODI_BASE IMPLEMENTATION.
+CLASS zcl_abapgit_gui_page_codi_base IMPLEMENTATION.
 
 
   METHOD build_base_menu.
@@ -137,11 +137,10 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODI_BASE IMPLEMENTATION.
 
           lv_line_number = <ls_result>-line.
 
-          zcl_abapgit_objects_super=>jump_adt( iv_obj_name     = ls_item-obj_name
-                                               iv_obj_type     = ls_item-obj_type
-                                               iv_sub_obj_name = ls_sub_item-obj_name
-                                               iv_sub_obj_type = ls_sub_item-obj_type
-                                               iv_line_number  = lv_line_number ).
+          zcl_abapgit_objects=>jump(
+            is_item         = ls_item
+            iv_sub_obj_name = ls_sub_item-obj_name
+            iv_line_number  = lv_line_number ).
           RETURN.
 
         ENDIF.
@@ -215,19 +214,19 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_CODI_BASE IMPLEMENTATION.
 
     IF is_result-sobjname IS INITIAL OR
        ( is_result-sobjname = is_result-objname AND
-         is_result-sobjtype = is_result-sobjtype ).
+         is_result-sobjtype = is_result-objtype ).
       lv_obj_txt = |{ is_result-objtype } { is_result-objname }|.
     ELSEIF is_result-objtype = 'CLAS' OR
          ( is_result-objtype = 'PROG' AND NOT is_result-sobjname+30(*) IS INITIAL ).
       TRY.
           CASE is_result-sobjname+30(*).
-            WHEN seop_incextapp_definition.
+            WHEN 'CCDEF'.
               lv_obj_txt = |CLAS { is_result-objname } : Local Definitions|.
-            WHEN seop_incextapp_implementation.
+            WHEN 'CCIMP'.
               lv_obj_txt = |CLAS { is_result-objname } : Local Implementations|.
-            WHEN seop_incextapp_macros.
+            WHEN 'CCMAC'.
               lv_obj_txt = |CLAS { is_result-objname } : Macros|.
-            WHEN seop_incextapp_testclasses.
+            WHEN 'CCAU'.
               lv_obj_txt = |CLAS { is_result-objname } : Test Classes|.
             WHEN 'CU'.
               lv_obj_txt = |CLAS { is_result-objname } : Public Section|.

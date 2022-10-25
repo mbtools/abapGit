@@ -137,9 +137,17 @@ CLASS zcl_abapgit_object_w3xx_super IMPLEMENTATION.
     READ TABLE ct_params ASSIGNING <ls_param> WITH KEY name = c_param_names-filename.
     <ls_param>-value = zcl_abapgit_path=>get_filename_from_syspath( |{ <ls_param>-value }| ).
 
+    " Clear id and object name
+    LOOP AT ct_params ASSIGNING <ls_param>.
+      CLEAR: <ls_param>-relid, <ls_param>-objid.
+    ENDLOOP.
+
     " Clear version & filesize
     DELETE ct_params WHERE name = c_param_names-version.
     DELETE ct_params WHERE name = c_param_names-filesize.
+
+    " Avoid diffs due to different order
+    SORT ct_params.
 
   ENDMETHOD.
 
@@ -195,7 +203,6 @@ CLASS zcl_abapgit_object_w3xx_super IMPLEMENTATION.
     DATA lt_w3mime    TYPE STANDARD TABLE OF w3mime.
     DATA lt_w3html    TYPE STANDARD TABLE OF w3html.
     DATA lv_size      TYPE i.
-    DATA lv_tadir_obj TYPE tadir-object.
 
 
     io_xml->read( EXPORTING iv_name = 'TEXT'
@@ -286,44 +293,7 @@ CLASS zcl_abapgit_object_w3xx_super IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'Cannot upload W3xx data' ).
     ENDIF.
 
-    CONCATENATE 'W3' ms_key-relid INTO lv_tadir_obj.
-
-    CALL FUNCTION 'TR_TADIR_INTERFACE'
-      EXPORTING
-        wi_tadir_pgmid                 = 'R3TR'
-        wi_tadir_object                = lv_tadir_obj
-        wi_tadir_devclass              = iv_package
-        wi_tadir_obj_name              = ms_key-objid
-        wi_test_modus                  = space
-      EXCEPTIONS
-        tadir_entry_not_existing       = 1
-        tadir_entry_ill_type           = 2
-        no_systemname                  = 3
-        no_systemtype                  = 4
-        original_system_conflict       = 5
-        object_reserved_for_devclass   = 6
-        object_exists_global           = 7
-        object_exists_local            = 8
-        object_is_distributed          = 9
-        obj_specification_not_unique   = 10
-        no_authorization_to_delete     = 11
-        devclass_not_existing          = 12
-        simultanious_set_remove_repair = 13
-        order_missing                  = 14
-        no_modification_of_head_syst   = 15
-        pgmid_object_not_allowed       = 16
-        masterlanguage_not_specified   = 17
-        devclass_not_specified         = 18
-        specify_owner_unique           = 19
-        loc_priv_objs_no_repair        = 20
-        gtadir_not_reached             = 21
-        object_locked_for_order        = 22
-        change_of_class_not_allowed    = 23
-        no_change_from_sap_to_tmp      = 24
-        OTHERS                         = 99.
-    IF sy-subrc IS NOT INITIAL.
-      zcx_abapgit_exception=>raise( 'Cannot update TADIR for W3xx' ).
-    ENDIF.
+    tadir_insert( iv_package ).
 
     corr_insert( iv_package ).
 
@@ -414,19 +384,11 @@ CLASS zcl_abapgit_object_w3xx_super IMPLEMENTATION.
     ls_bdcdata-fval = '=ONLI'.
     APPEND ls_bdcdata TO lt_bdcdata.
 
-    CALL FUNCTION 'ABAP4_CALL_TRANSACTION'
-      STARTING NEW TASK 'GIT'
-      EXPORTING
-        tcode     = 'SMW0'
-        mode_val  = 'E'
-      TABLES
-        using_tab = lt_bdcdata
-      EXCEPTIONS
-        OTHERS    = 1.
+    zcl_abapgit_ui_factory=>get_gui_jumper( )->jump_batch_input(
+      iv_tcode   = 'SMW0'
+      it_bdcdata = lt_bdcdata ).
 
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'error from ABAP4_CALL_TRANSACTION, SE35' ).
-    ENDIF.
+    rv_exit = abap_true.
 
   ENDMETHOD.
 
@@ -513,6 +475,8 @@ CLASS zcl_abapgit_object_w3xx_super IMPLEMENTATION.
 
     io_xml->add( iv_name = 'TEXT'
                  ig_data = ms_key-text ).
+
+    SORT lt_w3params.
 
     io_xml->add( iv_name = 'PARAMS'
                  ig_data = lt_w3params ).

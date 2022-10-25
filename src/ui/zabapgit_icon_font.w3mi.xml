@@ -3,23 +3,17 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <NAME>ZABAPGIT_ICON_FONT</NAME>
-   <TEXT>Icon set for abapgit</TEXT>
+   <TEXT>abapGit - Icon Set</TEXT>
    <PARAMS>
     <WWWPARAMS>
-     <RELID>MI</RELID>
-     <OBJID>ZABAPGIT_ICON_FONT</OBJID>
      <NAME>fileextension</NAME>
      <VALUE>.woff</VALUE>
     </WWWPARAMS>
     <WWWPARAMS>
-     <RELID>MI</RELID>
-     <OBJID>ZABAPGIT_ICON_FONT</OBJID>
      <NAME>filename</NAME>
      <VALUE>ag-icons.woff</VALUE>
     </WWWPARAMS>
     <WWWPARAMS>
-     <RELID>MI</RELID>
-     <OBJID>ZABAPGIT_ICON_FONT</OBJID>
      <NAME>mimetype</NAME>
      <VALUE>application/x-font-woff</VALUE>
     </WWWPARAMS>

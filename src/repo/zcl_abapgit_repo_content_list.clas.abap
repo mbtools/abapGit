@@ -9,8 +9,9 @@ CLASS zcl_abapgit_repo_content_list DEFINITION
 
     METHODS list
       IMPORTING iv_path              TYPE string
-                iv_by_folders        TYPE abap_bool
-                iv_changes_only      TYPE abap_bool
+                iv_by_folders        TYPE abap_bool OPTIONAL
+                iv_changes_only      TYPE abap_bool OPTIONAL
+                iv_transports        TYPE abap_bool OPTIONAL
       RETURNING VALUE(rt_repo_items) TYPE zif_abapgit_definitions=>ty_repo_item_tt
       RAISING   zcx_abapgit_exception.
 
@@ -43,6 +44,9 @@ CLASS zcl_abapgit_repo_content_list DEFINITION
       CHANGING  ct_repo_items TYPE zif_abapgit_definitions=>ty_repo_item_tt
       RAISING   zcx_abapgit_exception.
 
+    METHODS determine_transports
+      CHANGING ct_repo_items TYPE zif_abapgit_definitions=>ty_repo_item_tt.
+
     METHODS filter_changes
       CHANGING ct_repo_items TYPE zif_abapgit_definitions=>ty_repo_item_tt.
 
@@ -53,7 +57,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
+CLASS zcl_abapgit_repo_content_list IMPLEMENTATION.
 
 
   METHOD build_folders.
@@ -123,15 +127,16 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
 
     LOOP AT lt_tadir ASSIGNING <ls_tadir>.
       APPEND INITIAL LINE TO rt_repo_items ASSIGNING <ls_repo_item>.
-      <ls_repo_item>-obj_type = <ls_tadir>-object.
-      <ls_repo_item>-obj_name = <ls_tadir>-obj_name.
-      <ls_repo_item>-path     = <ls_tadir>-path.
+      <ls_repo_item>-obj_type  = <ls_tadir>-object.
+      <ls_repo_item>-obj_name  = <ls_tadir>-obj_name.
+      <ls_repo_item>-path      = <ls_tadir>-path.
+      <ls_repo_item>-srcsystem = <ls_tadir>-srcsystem.
       MOVE-CORRESPONDING <ls_repo_item> TO ls_item.
       <ls_repo_item>-inactive = boolc( zcl_abapgit_objects=>is_active( ls_item ) = abap_false ).
       IF <ls_repo_item>-inactive = abap_true.
         <ls_repo_item>-sortkey = c_sortkey-inactive.
       ELSE.
-        <ls_repo_item>-sortkey  = c_sortkey-default.      " Default sort key
+        <ls_repo_item>-sortkey = c_sortkey-default.      " Default sort key
       ENDIF.
 
       IF <ls_repo_item>-obj_type IS NOT INITIAL.
@@ -149,7 +154,7 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
   METHOD build_repo_items_with_remote.
 
     DATA:
-      lo_state  TYPE REF TO zcl_abapgit_item_state,
+      lo_state      TYPE REF TO zcl_abapgit_item_state,
       ls_file       TYPE zif_abapgit_definitions=>ty_repo_file,
       lt_status     TYPE zif_abapgit_definitions=>ty_results_tt,
       ls_item       TYPE zif_abapgit_definitions=>ty_item,
@@ -165,12 +170,13 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
     LOOP AT lt_status ASSIGNING <ls_status>.
       AT NEW obj_name. "obj_type + obj_name
         APPEND INITIAL LINE TO rt_repo_items ASSIGNING <ls_repo_item>.
-        <ls_repo_item>-obj_type = <ls_status>-obj_type.
-        <ls_repo_item>-obj_name = <ls_status>-obj_name.
-        <ls_repo_item>-inactive = <ls_status>-inactive.
-        <ls_repo_item>-sortkey  = c_sortkey-default. " Default sort key
-        <ls_repo_item>-changes  = 0.
-        <ls_repo_item>-path     = <ls_status>-path.
+        <ls_repo_item>-obj_type  = <ls_status>-obj_type.
+        <ls_repo_item>-obj_name  = <ls_status>-obj_name.
+        <ls_repo_item>-inactive  = <ls_status>-inactive.
+        <ls_repo_item>-sortkey   = c_sortkey-default. " Default sort key
+        <ls_repo_item>-changes   = 0.
+        <ls_repo_item>-path      = <ls_status>-path.
+        <ls_repo_item>-srcsystem = <ls_status>-srcsystem.
         CREATE OBJECT lo_state.
       ENDAT.
 
@@ -226,8 +232,9 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
     IF lines( lt_remote ) > lc_new_repo_size.
       " Less files means it's a new repo (with just readme and license, for example) which is ok
       READ TABLE lt_remote TRANSPORTING NO FIELDS
-        WITH KEY path = zif_abapgit_definitions=>c_root_dir
-        filename = zif_abapgit_definitions=>c_dot_abapgit.
+        WITH KEY file_path
+        COMPONENTS path     = zif_abapgit_definitions=>c_root_dir
+                   filename = zif_abapgit_definitions=>c_dot_abapgit.
       IF sy-subrc <> 0.
         mi_log->add_warning( |Cannot find .abapgit.xml - Is this an abapGit repository?| ).
       ENDIF.
@@ -239,6 +246,25 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
   METHOD constructor.
     mo_repo = io_repo.
     CREATE OBJECT mi_log TYPE zcl_abapgit_log.
+  ENDMETHOD.
+
+
+  METHOD determine_transports.
+
+    DATA ls_item TYPE zif_abapgit_definitions=>ty_item.
+
+    FIELD-SYMBOLS <ls_item> LIKE LINE OF ct_repo_items.
+
+    LOOP AT ct_repo_items ASSIGNING <ls_item>.
+      ls_item-obj_type = <ls_item>-obj_type.
+      ls_item-obj_name = <ls_item>-obj_name.
+      TRY.
+          <ls_item>-transport = zcl_abapgit_factory=>get_cts_api( )->get_transport_for_object( ls_item ).
+        CATCH zcx_abapgit_exception ##NO_HANDLER.
+          " Ignore errors related to object check when trying to get transport
+      ENDTRY.
+    ENDLOOP.
+
   ENDMETHOD.
 
 
@@ -298,6 +324,10 @@ CLASS ZCL_ABAPGIT_REPO_CONTENT_LIST IMPLEMENTATION.
     IF iv_changes_only = abap_true.
       " There are never changes for offline repositories
       filter_changes( CHANGING ct_repo_items = rt_repo_items ).
+    ENDIF.
+
+    IF iv_transports = abap_true.
+      determine_transports( CHANGING ct_repo_items = rt_repo_items ).
     ENDIF.
 
     SORT rt_repo_items BY

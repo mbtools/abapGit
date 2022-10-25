@@ -2,10 +2,10 @@ CLASS zcl_abapgit_object_wdya DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
+    CONSTANTS c_longtext_id_wdya TYPE dokil-id VALUE 'WA'.
+
     METHODS read
       EXPORTING es_app        TYPE wdy_application
                 et_properties TYPE wdy_app_property_table
@@ -21,7 +21,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_WDYA IMPLEMENTATION.
+CLASS zcl_abapgit_object_wdya IMPLEMENTATION.
 
 
   METHOD read.
@@ -154,6 +154,8 @@ CLASS ZCL_ABAPGIT_OBJECT_WDYA IMPLEMENTATION.
         zcx_abapgit_exception=>raise( 'WDYA, error deleting' ).
     ENDTRY.
 
+    delete_longtexts( c_longtext_id_wdya ).
+
   ENDMETHOD.
 
 
@@ -174,6 +176,9 @@ CLASS ZCL_ABAPGIT_OBJECT_WDYA IMPLEMENTATION.
     zcl_abapgit_sotr_handler=>create_sotr(
       iv_package = iv_package
       io_xml     = io_xml ).
+
+    deserialize_longtexts( ii_xml         = io_xml
+                           iv_longtext_id = c_longtext_id_wdya ).
 
   ENDMETHOD.
 
@@ -225,14 +230,7 @@ CLASS ZCL_ABAPGIT_OBJECT_WDYA IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation     = 'SHOW'
-        object_name   = ms_item-obj_name
-        object_type   = ms_item-obj_type
-        in_new_window = abap_true.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -254,6 +252,9 @@ CLASS ZCL_ABAPGIT_OBJECT_WDYA IMPLEMENTATION.
       iv_object   = ms_item-obj_type
       iv_obj_name = ms_item-obj_name
       io_xml      = io_xml ).
+
+    serialize_longtexts( ii_xml         = io_xml
+                         iv_longtext_id = c_longtext_id_wdya ).
 
   ENDMETHOD.
 ENDCLASS.

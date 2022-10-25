@@ -10,6 +10,7 @@ CLASS zcl_abapgit_services_abapgit DEFINITION
     CONSTANTS c_abapgit_wikipage TYPE string VALUE 'https://docs.abapgit.org' ##NO_TEXT.
     CONSTANTS c_dotabap_homepage TYPE string VALUE 'https://dotabap.org' ##NO_TEXT.
     CONSTANTS c_abapgit_class TYPE seoclsname VALUE `ZCX_ABAPGIT_EXCEPTION` ##NO_TEXT.
+    CONSTANTS c_changelog_path TYPE string VALUE '/blob/main/changelog.txt' ##NO_TEXT.
 
     CLASS-METHODS open_abapgit_homepage
       RAISING
@@ -29,6 +30,9 @@ CLASS zcl_abapgit_services_abapgit DEFINITION
     CLASS-METHODS prepare_gui_startup
       RAISING
         zcx_abapgit_exception .
+    CLASS-METHODS get_abapgit_tcode
+      RETURNING
+        VALUE(rv_tcode) TYPE tcode .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -43,11 +47,16 @@ CLASS zcl_abapgit_services_abapgit DEFINITION
     CLASS-METHODS check_sapgui
       RAISING
         zcx_abapgit_exception .
+    CLASS-METHODS open_url_in_browser
+      IMPORTING
+        !iv_url TYPE string
+      RAISING
+        zcx_abapgit_exception.
 ENDCLASS.
 
 
 
-CLASS zcl_abapgit_services_abapgit IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_SERVICES_ABAPGIT IMPLEMENTATION.
 
 
   METHOD check_sapgui.
@@ -60,7 +69,7 @@ CLASS zcl_abapgit_services_abapgit IMPLEMENTATION.
       ls_settings         TYPE zif_abapgit_definitions=>ty_s_user_settings,
       li_user_persistence TYPE REF TO zif_abapgit_persist_user.
 
-    li_user_persistence = zcl_abapgit_persist_factory=>get_user( ).
+    li_user_persistence = zcl_abapgit_persistence_user=>get_instance( ).
 
     ls_settings = li_user_persistence->get_settings( ).
 
@@ -68,7 +77,7 @@ CLASS zcl_abapgit_services_abapgit IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    IF zcl_abapgit_ui_factory=>get_gui_functions( )->is_sapgui_for_java( ) = abap_false.
+    IF zcl_abapgit_ui_factory=>get_frontend_services( )->is_sapgui_for_java( ) = abap_false.
       RETURN.
     ENDIF.
 
@@ -158,50 +167,34 @@ CLASS zcl_abapgit_services_abapgit IMPLEMENTATION.
 
 
   METHOD open_abapgit_changelog.
-
-    cl_gui_frontend_services=>execute(
-      EXPORTING document = c_abapgit_repo && '/blob/main/changelog.txt'
-      EXCEPTIONS OTHERS = 1 ).
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'Opening page in external browser failed.' ).
-    ENDIF.
-
+    open_url_in_browser( |{ c_abapgit_repo }{ c_changelog_path }| ).
   ENDMETHOD.
 
 
   METHOD open_abapgit_homepage.
-
-    cl_gui_frontend_services=>execute(
-      EXPORTING document = c_abapgit_homepage
-      EXCEPTIONS OTHERS = 1 ).
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'Opening page in external browser failed.' ).
-    ENDIF.
-
+    open_url_in_browser( c_abapgit_homepage ).
   ENDMETHOD.
 
 
   METHOD open_abapgit_wikipage.
-
-    cl_gui_frontend_services=>execute(
-      EXPORTING document = c_abapgit_wikipage
-      EXCEPTIONS OTHERS = 1 ).
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'Opening page in external browser failed.' ).
-    ENDIF.
-
+    open_url_in_browser( c_abapgit_wikipage ).
   ENDMETHOD.
 
 
   METHOD open_dotabap_homepage.
+    open_url_in_browser( c_dotabap_homepage ).
+  ENDMETHOD.
 
-    cl_gui_frontend_services=>execute(
-      EXPORTING document = c_dotabap_homepage
-      EXCEPTIONS OTHERS = 1 ).
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'Opening page in external browser failed.' ).
-    ENDIF.
 
+  METHOD open_url_in_browser.
+    DATA lx_error TYPE REF TO zcx_abapgit_exception.
+
+    TRY.
+        zcl_abapgit_ui_factory=>get_frontend_services( )->execute( iv_document = iv_url ).
+      CATCH zcx_abapgit_exception INTO lx_error.
+        zcx_abapgit_exception=>raise( iv_text     = 'Opening page in external browser failed.'
+                                      ix_previous = lx_error ).
+    ENDTRY.
   ENDMETHOD.
 
 
@@ -215,7 +208,7 @@ CLASS zcl_abapgit_services_abapgit IMPLEMENTATION.
 
     IF zcl_abapgit_persist_factory=>get_settings( )->read( )->get_show_default_repo( ) = abap_false.
       " Don't show the last seen repo at startup
-      zcl_abapgit_persist_factory=>get_user( )->set_repo_show( || ).
+      zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( || ).
     ENDIF.
 
     " We have three special cases for gui startup
@@ -231,7 +224,7 @@ CLASS zcl_abapgit_services_abapgit IMPLEMENTATION.
     IF lv_repo_key IS NOT INITIAL.
 
       SET PARAMETER ID zif_abapgit_definitions=>c_spagpa_param_repo_key FIELD ''.
-      zcl_abapgit_persist_factory=>get_user( )->set_repo_show( lv_repo_key ).
+      zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( lv_repo_key ).
 
     ELSEIF lv_package IS NOT INITIAL.
 
@@ -283,15 +276,33 @@ CLASS zcl_abapgit_services_abapgit IMPLEMENTATION.
     LOOP AT lt_repo_list ASSIGNING <lo_repo>.
 
       IF <lo_repo>->get_package( ) IN lt_r_package.
-        lo_repo = <lo_repo>.
+        lo_repo ?= <lo_repo>.
         EXIT.
       ENDIF.
 
     ENDLOOP.
 
     IF lo_repo IS BOUND.
-      zcl_abapgit_persist_factory=>get_user( )->set_repo_show( lo_repo->get_key( ) ).
+      zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( lo_repo->get_key( ) ).
     ENDIF.
 
   ENDMETHOD.
+
+
+  METHOD get_abapgit_tcode.
+    CONSTANTS: lc_report_tcode_hex TYPE x VALUE '80'.
+    DATA: lt_tcodes TYPE STANDARD TABLE OF tcode.
+
+    SELECT tcode
+      FROM tstc
+      INTO TABLE lt_tcodes
+      WHERE pgmna = sy-cprog
+        AND cinfo = lc_report_tcode_hex.
+
+    IF lines( lt_tcodes ) > 0.
+      READ TABLE lt_tcodes INDEX 1 INTO rv_tcode.
+    ENDIF.
+  ENDMETHOD.
+
+
 ENDCLASS.

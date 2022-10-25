@@ -3,23 +3,17 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <NAME>ZABAPGIT_JS_COMMON</NAME>
-   <TEXT>Abapgit common JS library</TEXT>
+   <TEXT>abapGit - Common Scripts (JS)</TEXT>
    <PARAMS>
     <WWWPARAMS>
-     <RELID>MI</RELID>
-     <OBJID>ZABAPGIT_JS_COMMON</OBJID>
      <NAME>fileextension</NAME>
      <VALUE>.js</VALUE>
     </WWWPARAMS>
     <WWWPARAMS>
-     <RELID>MI</RELID>
-     <OBJID>ZABAPGIT_JS_COMMON</OBJID>
      <NAME>filename</NAME>
      <VALUE>common.js</VALUE>
     </WWWPARAMS>
     <WWWPARAMS>
-     <RELID>MI</RELID>
-     <OBJID>ZABAPGIT_JS_COMMON</OBJID>
      <NAME>mimetype</NAME>
      <VALUE>text/javascript</VALUE>
     </WWWPARAMS>

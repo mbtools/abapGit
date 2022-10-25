@@ -8,9 +8,6 @@ CLASS zcl_abapgit_object_sfpf DEFINITION
 
     INTERFACES zif_abapgit_object .
 
-    ALIASES mo_files
-      FOR zif_abapgit_object~mo_files .
-
     CLASS-METHODS fix_oref
       IMPORTING
         !ii_document TYPE REF TO if_ixml_document
@@ -33,7 +30,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_SFPF IMPLEMENTATION.
+CLASS zcl_abapgit_object_sfpf IMPLEMENTATION.
 
 
   METHOD fix_oref.
@@ -124,8 +121,9 @@ CLASS ZCL_ABAPGIT_OBJECT_SFPF IMPLEMENTATION.
     li_fp_layout = li_fp_form->get_layout( ).
     lv_layout_data = li_fp_layout->get_layout_data( ).
 
-    mo_files->add_raw( iv_ext = c_layout_file_ext
-                       iv_data = lv_layout_data ).
+    zif_abapgit_object~mo_files->add_raw(
+      iv_ext  = c_layout_file_ext
+      iv_data = lv_layout_data ).
 
     TRY.
         li_fp_layout->set_layout_data( i_layout_data   = lc_empty_data
@@ -193,16 +191,22 @@ CLASS ZCL_ABAPGIT_OBJECT_SFPF IMPLEMENTATION.
 
   METHOD zif_abapgit_object~delete.
 
-    DATA: lv_name    TYPE fpname,
-          lo_wb_form TYPE REF TO cl_fp_wb_form.
-
-
-    lo_wb_form ?= load( ).
+    DATA: lv_name TYPE fpname.
 
     lv_name = ms_item-obj_name.
 
     TRY.
-        lo_wb_form->delete( lv_name ).
+        TRY.
+            CALL METHOD cl_fp_wb_form=>('DELETE')
+              EXPORTING
+                i_name     = lv_name
+                i_ordernum = iv_transport
+                i_dark     = abap_true. " > 740
+          CATCH cx_sy_dyn_call_error.
+            cl_fp_wb_form=>delete(
+              i_name     = lv_name
+              i_ordernum = iv_transport ).
+        ENDTRY.
       CATCH cx_fp_api.
         zcx_abapgit_exception=>raise( 'SFPI error, delete' ).
     ENDTRY.
@@ -226,18 +230,43 @@ CLASS ZCL_ABAPGIT_OBJECT_SFPF IMPLEMENTATION.
     TRY.
         li_form = cl_fp_helper=>convert_xstring_to_form( lv_xstr ).
 
-        IF mo_files->contains( c_layout_file_ext ) = abap_true.
-          lv_layout = mo_files->read_raw( c_layout_file_ext ).
+        IF zif_abapgit_object~mo_files->contains_file( c_layout_file_ext ) = abap_true.
+          lv_layout = zif_abapgit_object~mo_files->read_raw( c_layout_file_ext ).
           li_form->get_layout( )->set_layout_data( lv_layout ).
         ENDIF.
 
         IF zif_abapgit_object~exists( ) = abap_true.
-          cl_fp_wb_form=>delete( lv_name ).
+          TRY.
+              CALL METHOD cl_fp_wb_form=>('DELETE')
+                EXPORTING
+                  i_name     = lv_name
+                  i_ordernum = iv_transport
+                  i_dark     = abap_true. " > 740
+            CATCH cx_sy_dyn_call_error.
+              cl_fp_wb_form=>delete(
+                i_name     = lv_name
+                i_ordernum = iv_transport ).
+          ENDTRY.
         ENDIF.
 
         tadir_insert( iv_package ).
-        li_wb_object = cl_fp_wb_form=>create( i_name = lv_name
-                                              i_form = li_form ).
+
+        TRY.
+            CALL METHOD cl_fp_wb_form=>('CREATE')
+              EXPORTING
+                i_name     = lv_name
+                i_form     = li_form
+                i_ordernum = iv_transport
+                i_dark     = abap_true " > 740
+              RECEIVING
+                r_wb_form  = li_wb_object.
+          CATCH cx_sy_dyn_call_error.
+            li_wb_object = cl_fp_wb_form=>create(
+              i_name     = lv_name
+              i_form     = li_form
+              i_ordernum = iv_transport ).
+        ENDTRY.
+
         li_wb_object->save( ).
         li_wb_object->free( ).
       CATCH cx_fp_api INTO lx_fp_err.
@@ -297,13 +326,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SFPF IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation   = 'SHOW'
-        object_name = ms_item-obj_name
-        object_type = ms_item-obj_type.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 

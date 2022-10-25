@@ -2,7 +2,7 @@ CLASS zcl_abapgit_object_drul DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
+
     METHODS:
       constructor
         IMPORTING
@@ -10,7 +10,6 @@ CLASS zcl_abapgit_object_drul DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
           iv_language TYPE spras
         RAISING
           zcx_abapgit_exception.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     METHODS:
@@ -30,14 +29,6 @@ CLASS zcl_abapgit_object_drul DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
         RAISING
           zcx_abapgit_exception,
 
-      get_transport_req_if_needed
-        IMPORTING
-          iv_package                  TYPE devclass
-        RETURNING
-          VALUE(rv_transport_request) TYPE trkorr
-        RAISING
-          zcx_abapgit_exception,
-
       get_wb_object_operator
         RETURNING
           VALUE(ri_wb_object_operator) TYPE REF TO object
@@ -49,7 +40,6 @@ CLASS zcl_abapgit_object_drul DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
       mv_dependency_rule_key TYPE seu_objkey,
       mi_persistence         TYPE REF TO if_wb_object_persist,
       mi_wb_object_operator  TYPE REF TO object.
-
 ENDCLASS.
 
 
@@ -132,7 +122,7 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
     mv_dependency_rule_key = ms_item-obj_name.
 
     TRY.
-        CREATE DATA mr_dependency_rule TYPE ('CL_DRUL_WB_OBJECT_DATA=>TY_OBJECT_DATA').
+        CREATE DATA mr_dependency_rule TYPE ('CL_BLUE_SOURCE_OBJECT_DATA=>TY_OBJECT_DATA').
         CREATE OBJECT mi_persistence TYPE ('CL_DRUL_WB_OBJECT_PERSIST').
 
       CATCH cx_sy_create_error.
@@ -157,7 +147,7 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
 
     li_wb_object_operator = get_wb_object_operator( ).
 
-    CREATE DATA lr_dependency_rule_old TYPE ('CL_DRUL_WB_OBJECT_DATA=>TY_OBJECT_DATA').
+    CREATE DATA lr_dependency_rule_old TYPE ('CL_BLUE_SOURCE_OBJECT_DATA=>TY_OBJECT_DATA').
     ASSIGN lr_dependency_rule_old->* TO <ls_dependency_rule_old>.
     ASSERT sy-subrc = 0.
 
@@ -183,19 +173,6 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
 
     <lv_created_at> = <lv_created_at_old>.
     <lv_created_by> = <lv_created_by_old>.
-
-  ENDMETHOD.
-
-
-  METHOD get_transport_req_if_needed.
-
-    DATA: li_sap_package TYPE REF TO zif_abapgit_sap_package.
-
-    li_sap_package = zcl_abapgit_factory=>get_sap_package( iv_package ).
-
-    IF li_sap_package->are_changes_recorded_in_tr_req( ) = abap_true.
-      rv_transport_request = zcl_abapgit_default_transport=>get_instance( )->get( )-ordernum.
-    ENDIF.
 
   ENDMETHOD.
 
@@ -257,16 +234,14 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
 
     DATA:
       lx_error              TYPE REF TO cx_root,
-      lv_transport_request  TYPE trkorr,
       li_wb_object_operator TYPE REF TO object.
 
-    lv_transport_request = get_transport_req_if_needed( iv_package ).
     li_wb_object_operator = get_wb_object_operator( ).
 
     TRY.
         CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~DELETE')
           EXPORTING
-            transport_request = lv_transport_request.
+            transport_request = iv_transport.
 
       CATCH cx_root INTO lx_error.
         zcx_abapgit_exception=>raise_with_text( lx_error ).
@@ -280,8 +255,7 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
     DATA:
       li_object_data_model  TYPE REF TO if_wb_object_data_model,
       li_wb_object_operator TYPE REF TO object,
-      lx_error              TYPE REF TO cx_root,
-      lv_transport_request  TYPE trkorr.
+      lx_error              TYPE REF TO cx_root.
 
     FIELD-SYMBOLS:
       <ls_dependency_rule> TYPE any,
@@ -299,17 +273,15 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
     li_wb_object_operator = get_wb_object_operator( ).
 
     TRY.
-        CREATE OBJECT li_object_data_model TYPE ('CL_DRUL_WB_OBJECT_DATA').
+        CREATE OBJECT li_object_data_model TYPE ('CL_BLUE_SOURCE_OBJECT_DATA').
 
         ASSIGN COMPONENT 'CONTENT-SOURCE' OF STRUCTURE <ls_dependency_rule>
                TO <lv_source>.
         ASSERT sy-subrc = 0.
 
-        <lv_source> = mo_files->read_string( 'asdrul' ).
+        <lv_source> = zif_abapgit_object~mo_files->read_string( 'asdrul' ).
 
         tadir_insert( iv_package ).
-
-        lv_transport_request = get_transport_req_if_needed( iv_package ).
 
         IF zif_abapgit_object~exists( ) = abap_true.
 
@@ -320,7 +292,7 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
           CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
             EXPORTING
               io_object_data    = li_object_data_model
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
         ELSE.
 
@@ -331,13 +303,13 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
               io_object_data    = li_object_data_model
               data_selection    = 'P' " if_wb_object_data_selection_co=>c_properties
               package           = iv_package
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
           CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
             EXPORTING
               io_object_data    = li_object_data_model
               data_selection    = 'D' " if_wb_object_data_selection_co=>c_data_content
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
         ENDIF.
 
@@ -380,8 +352,6 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-
-    rs_metadata-ddic         = abap_true.
     rs_metadata-delete_tadir = abap_true.
   ENDMETHOD.
 
@@ -400,22 +370,7 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name
-        object_type         = ms_item-obj_type
-        in_new_window       = abap_true
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -460,7 +415,7 @@ CLASS zcl_abapgit_object_drul IMPLEMENTATION.
         iv_name = 'DRUL'
         ig_data = <ls_dependency_rule> ).
 
-    mo_files->add_string(
+    zif_abapgit_object~mo_files->add_string(
         iv_ext    = 'asdrul'
         iv_string = lv_source ).
 

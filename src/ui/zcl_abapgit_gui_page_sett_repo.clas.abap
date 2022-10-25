@@ -27,18 +27,19 @@ CLASS zcl_abapgit_gui_page_sett_repo DEFINITION
 
     CONSTANTS:
       BEGIN OF c_id,
-        dot             TYPE string VALUE 'dot',
-        main_language   TYPE string VALUE 'main_language',
-        i18n_langs      TYPE string VALUE 'i18n_langs',
-        starting_folder TYPE string VALUE 'starting_folder',
-        folder_logic    TYPE string VALUE 'folder_logic',
-        ignore          TYPE string VALUE 'ignore',
-        requirements    TYPE string VALUE 'requirements',
-      END OF c_id .
+        dot              TYPE string VALUE 'dot',
+        main_language    TYPE string VALUE 'main_language',
+        i18n_langs       TYPE string VALUE 'i18n_langs',
+        starting_folder  TYPE string VALUE 'starting_folder',
+        folder_logic     TYPE string VALUE 'folder_logic',
+        ignore           TYPE string VALUE 'ignore',
+        requirements     TYPE string VALUE 'requirements',
+        version_constant TYPE string VALUE 'version_constant',
+        version_value    TYPE string VALUE 'version_value',
+      END OF c_id.
     CONSTANTS:
       BEGIN OF c_event,
-        go_back TYPE string VALUE 'go_back',
-        save    TYPE string VALUE 'save',
+        save TYPE string VALUE 'save',
       END OF c_event .
     CONSTANTS c_empty_rows TYPE i VALUE 2 ##NO_TEXT.
 
@@ -137,6 +138,9 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
     )->option(
       iv_label       = 'Full'
       iv_value       = zif_abapgit_dot_abapgit=>c_folder_logic-full
+    )->option(
+      iv_label       = 'Mixed'
+      iv_value       = zif_abapgit_dot_abapgit=>c_folder_logic-mixed
     )->text(
       iv_name        = c_id-starting_folder
       iv_label       = 'Starting Folder'
@@ -158,13 +162,21 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
     )->column(
       iv_label       = 'Minimum Patch'
       iv_width       = '30%'
+    )->text(
+      iv_name        = c_id-version_constant
+      iv_label       = 'Version Constant'
+      iv_placeholder = 'ZVERSION_CLASS=>VERSION_CONSTANT'
+    )->text(
+      iv_name        = c_id-version_value
+      iv_label       = 'Version Value'
+      iv_readonly    = abap_true
     )->command(
       iv_label       = 'Save Settings'
       iv_cmd_type    = zif_abapgit_html_form=>c_cmd_type-input_main
       iv_action      = c_event-save
     )->command(
       iv_label       = 'Back'
-      iv_action      = c_event-go_back ).
+      iv_action      = zif_abapgit_definitions=>c_action-go_back ).
 
   ENDMETHOD.
 
@@ -208,13 +220,22 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
     mo_form_data->set(
       iv_key = c_id-starting_folder
       iv_val = ls_dot-starting_folder ).
+    mo_form_data->set(
+      iv_key = c_id-version_constant
+      iv_val = ls_dot-version_constant ).
+    TRY.
+        mo_form_data->set(
+          iv_key = c_id-version_value
+          iv_val = zcl_abapgit_version=>get_version_constant_value( ls_dot-version_constant ) ).
+      CATCH zcx_abapgit_exception.
+        mo_form_data->set(
+          iv_key = c_id-version_value
+          iv_val = '' ).
+    ENDTRY.
 
-    LOOP AT ls_dot-ignore ASSIGNING <lv_ignore>.
-      lv_ignore = lv_ignore && <lv_ignore> && zif_abapgit_definitions=>c_newline.
-    ENDLOOP.
-    IF sy-subrc <> 0.
-      lv_ignore = zif_abapgit_definitions=>c_newline.
-    ENDIF.
+    lv_ignore = concat_lines_of(
+      table = ls_dot-ignore
+      sep   = zif_abapgit_definitions=>c_newline ).
 
     mo_form_data->set(
       iv_key = c_id-ignore
@@ -271,6 +292,7 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
 
     lo_dot->set_folder_logic( mo_form_data->get( c_id-folder_logic ) ).
     lo_dot->set_starting_folder( mo_form_data->get( c_id-starting_folder ) ).
+    lo_dot->set_version_constant( mo_form_data->get( c_id-version_constant ) ).
 
     lo_dot->set_i18n_languages(
       zcl_abapgit_lxe_texts=>convert_lang_string_to_table(
@@ -286,9 +308,12 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
 
     " Add newly entered ignores
     lt_ignore = zcl_abapgit_convert=>split_string( mo_form_data->get( c_id-ignore ) ).
-    LOOP AT lt_ignore INTO lv_ignore WHERE table_line IS NOT INITIAL.
-      lo_dot->add_ignore( iv_path = ''
-                          iv_filename = lv_ignore ).
+    LOOP AT lt_ignore INTO lv_ignore.
+      lv_ignore = condense( lv_ignore ).
+      IF lv_ignore IS NOT INITIAL.
+        lo_dot->add_ignore( iv_path = ''
+                            iv_filename = lv_ignore ).
+      ENDIF.
     ENDLOOP.
 
     " Requirements
@@ -320,11 +345,13 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
   METHOD validate_form.
 
     DATA:
-      lv_folder      TYPE string,
-      lv_len         TYPE i,
-      lv_component   TYPE zif_abapgit_dot_abapgit=>ty_requirement-component,
-      lv_min_release TYPE zif_abapgit_dot_abapgit=>ty_requirement-min_release,
-      lv_min_patch   TYPE zif_abapgit_dot_abapgit=>ty_requirement-min_patch.
+      lv_folder           TYPE string,
+      lv_len              TYPE i,
+      lv_component        TYPE zif_abapgit_dot_abapgit=>ty_requirement-component,
+      lv_min_release      TYPE zif_abapgit_dot_abapgit=>ty_requirement-min_release,
+      lv_min_patch        TYPE zif_abapgit_dot_abapgit=>ty_requirement-min_patch,
+      lv_version_constant TYPE string,
+      lx_exception        TYPE REF TO zcx_abapgit_exception.
 
     ro_validation_log = mo_form_util->validate( io_form_data ).
 
@@ -360,6 +387,17 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
       ENDIF.
     ENDDO.
 
+    TRY.
+        lv_version_constant = io_form_data->get( c_id-version_constant ).
+        IF lv_version_constant IS NOT INITIAL.
+          zcl_abapgit_version=>get_version_constant_value( lv_version_constant ).
+        ENDIF.
+      CATCH zcx_abapgit_exception INTO lx_exception.
+        ro_validation_log->set(
+          iv_key = c_id-version_constant
+          iv_val = lx_exception->get_text( ) ).
+    ENDTRY.
+
   ENDMETHOD.
 
 
@@ -368,7 +406,7 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
     mo_form_data = mo_form_util->normalize( ii_event->form_data( ) ).
 
     CASE ii_event->mv_action.
-      WHEN c_event-go_back.
+      WHEN zif_abapgit_definitions=>c_action-go_back.
         rs_handled-state = mo_form_util->exit( mo_form_data ).
 
       WHEN c_event-save.

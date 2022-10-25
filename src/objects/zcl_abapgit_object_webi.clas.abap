@@ -56,12 +56,15 @@ CLASS zcl_abapgit_object_webi DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
       RAISING
         zcx_abapgit_exception
         cx_ws_md_exception.
+    METHODS sort
+      CHANGING
+        cs_webi TYPE ty_webi.
 
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_WEBI IMPLEMENTATION.
+CLASS zcl_abapgit_object_webi IMPLEMENTATION.
 
 
   METHOD handle_endpoint.
@@ -317,7 +320,13 @@ CLASS ZCL_ABAPGIT_OBJECT_WEBI IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~changed_by.
-    rv_user = c_user_unknown. " todo
+
+    SELECT SINGLE changedby FROM vepheader INTO rv_user
+      WHERE vepname = ms_item-obj_name AND version = 'A'.
+    IF sy-subrc <> 0.
+      rv_user = c_user_unknown.
+    ENDIF.
+
   ENDMETHOD.
 
 
@@ -393,7 +402,7 @@ CLASS ZCL_ABAPGIT_OBJECT_WEBI IMPLEMENTATION.
       CATCH cx_ws_md_exception INTO lx_root.
         TRY.
             mi_vi->if_ws_md_lockable_object~unlock( ).
-          CATCH cx_ws_md_exception ##no_handler.
+          CATCH cx_ws_md_exception ##NO_HANDLER.
         ENDTRY.
         zcx_abapgit_exception=>raise_with_text( lx_root ).
     ENDTRY.
@@ -416,7 +425,7 @@ CLASS ZCL_ABAPGIT_OBJECT_WEBI IMPLEMENTATION.
 
     rv_bool = cl_ws_md_vif_root=>check_existence_by_vif_name(
       name      = lv_name
-      i_version = sews_c_vif_version-active ).
+      i_version = sews_c_vif_version-all ).
 
   ENDMETHOD.
 
@@ -447,14 +456,7 @@ CLASS ZCL_ABAPGIT_OBJECT_WEBI IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation     = 'SHOW'
-        object_name   = ms_item-obj_name
-        object_type   = ms_item-obj_type
-        in_new_window = abap_true.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -497,14 +499,14 @@ CLASS ZCL_ABAPGIT_OBJECT_WEBI IMPLEMENTATION.
         version_not_found = 1
         webi_not_exist    = 2
         OTHERS            = 3.
-    IF sy-subrc <> 0.
+    IF sy-subrc = 1.
+      " no active version
+      RETURN.
+    ELSEIF sy-subrc <> 0.
       zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
-    SORT ls_webi-pveptype BY
-      vepname ASCENDING
-      version ASCENDING
-      typename ASCENDING.
+    sort( CHANGING cs_webi = ls_webi ).
 
     lv_name = ms_item-obj_name.
     TRY.
@@ -551,4 +553,26 @@ CLASS ZCL_ABAPGIT_OBJECT_WEBI IMPLEMENTATION.
       io_xml      = io_xml ).
 
   ENDMETHOD.
+
+  METHOD sort.
+    SORT cs_webi-pvepheader BY vepname version.
+    SORT cs_webi-pvepfunction BY vepname version function.
+    SORT cs_webi-pvepfault BY vepname version function fault.
+    SORT cs_webi-pvepparameter BY vepname version function vepparam vepparamtype.
+    SORT cs_webi-pveptype BY vepname version typename.
+    SORT cs_webi-pvepelemtype BY vepname version typename.
+    SORT cs_webi-pveptabletype BY vepname version typename.
+    SORT cs_webi-pvepstrutype BY vepname version typename fieldpos.
+    SORT cs_webi-pveptypesoapext BY vepname version typename.
+    SORT cs_webi-pvepeletypsoap BY vepname version typename assign_type assign_data1 assign_data2.
+    SORT cs_webi-pveptabtypsoap BY vepname version typename.
+    SORT cs_webi-pvepfuncsoapext BY vepname version function.
+    SORT cs_webi-pvepfieldref BY vepname version function vepparam vepparamtype strucid fieldname.
+    SORT cs_webi-pvependpoint BY relid vepname version sortfield.
+    SORT cs_webi-pvepvisoapext BY vepname version.
+    SORT cs_webi-pvepparasoapext BY vepname version function vepparam vepparamtype.
+    SORT cs_webi-pwsheader BY wsname version.
+    SORT cs_webi-pwssoapprop BY wsname version feature soapapp funcref propnum.
+  ENDMETHOD.
+
 ENDCLASS.

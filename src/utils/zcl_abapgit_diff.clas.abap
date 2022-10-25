@@ -1,37 +1,41 @@
 CLASS zcl_abapgit_diff DEFINITION
   PUBLIC
-  CREATE PUBLIC .
+  CREATE PUBLIC.
 
   PUBLIC SECTION.
     CONSTANTS co_starting_beacon TYPE i VALUE 1.
 
 * assumes data is UTF8 based with newlines
-* only works with lines up to 255 characters
     METHODS constructor
       IMPORTING
-        !iv_new TYPE xstring
-        !iv_old TYPE xstring .
+        !iv_new                TYPE xstring
+        !iv_old                TYPE xstring
+        !iv_ignore_indentation TYPE abap_bool DEFAULT abap_false
+        !iv_ignore_comments    TYPE abap_bool DEFAULT abap_false
+        !iv_ignore_case        TYPE abap_bool DEFAULT abap_false
+      RAISING
+        zcx_abapgit_exception.
     METHODS get
       RETURNING
-        VALUE(rt_diff) TYPE zif_abapgit_definitions=>ty_diffs_tt .
+        VALUE(rt_diff) TYPE zif_abapgit_definitions=>ty_diffs_tt.
     METHODS stats
       RETURNING
-        VALUE(rs_count) TYPE zif_abapgit_definitions=>ty_count .
+        VALUE(rs_count) TYPE zif_abapgit_definitions=>ty_count.
     METHODS set_patch_new
       IMPORTING
         !iv_line_new   TYPE i
         !iv_patch_flag TYPE abap_bool
       RAISING
-        zcx_abapgit_exception .
+        zcx_abapgit_exception.
     METHODS set_patch_old
       IMPORTING
         !iv_line_old   TYPE i
         !iv_patch_flag TYPE abap_bool
       RAISING
-        zcx_abapgit_exception .
+        zcx_abapgit_exception.
     METHODS get_beacons
       RETURNING
-        VALUE(rt_beacons) TYPE zif_abapgit_definitions=>ty_string_tt .
+        VALUE(rt_beacons) TYPE zif_abapgit_definitions=>ty_string_tt.
     METHODS is_line_patched
       IMPORTING
         iv_index          TYPE i
@@ -47,38 +51,38 @@ CLASS zcl_abapgit_diff DEFINITION
   PROTECTED SECTION.
 
   PRIVATE SECTION.
-    TYPES ty_regexset_tt TYPE STANDARD TABLE OF REF TO cl_abap_regex WITH KEY table_line.
 
-    DATA mt_beacons TYPE zif_abapgit_definitions=>ty_string_tt .
-    DATA mt_diff TYPE zif_abapgit_definitions=>ty_diffs_tt .
-    DATA ms_stats TYPE zif_abapgit_definitions=>ty_count .
+    TYPES:
+      ty_regexset_tt TYPE STANDARD TABLE OF REF TO cl_abap_regex WITH KEY table_line.
 
-    CLASS-METHODS unpack
+    DATA mt_beacons TYPE zif_abapgit_definitions=>ty_string_tt.
+    DATA mt_diff TYPE zif_abapgit_definitions=>ty_diffs_tt.
+    DATA ms_stats TYPE zif_abapgit_definitions=>ty_count.
+    DATA mv_compare_mode TYPE c LENGTH 1.
+    DATA mv_ignore_case TYPE abap_bool.
+
+    METHODS unpack
       IMPORTING
         !iv_new TYPE xstring
         !iv_old TYPE xstring
       EXPORTING
-        !et_new TYPE abaptxt255_tab
-        !et_old TYPE abaptxt255_tab .
-    CLASS-METHODS render
-      IMPORTING
-        !it_new        TYPE abaptxt255_tab
-        !it_old        TYPE abaptxt255_tab
-        !it_delta      TYPE vxabapt255_tab
-      RETURNING
-        VALUE(rt_diff) TYPE zif_abapgit_definitions=>ty_diffs_tt .
-    CLASS-METHODS compute
-      IMPORTING
-        !it_new         TYPE abaptxt255_tab
-        !it_old         TYPE abaptxt255_tab
-      RETURNING
-        VALUE(rt_delta) TYPE vxabapt255_tab .
-    METHODS calculate_line_num_and_stats .
-    METHODS map_beacons .
-    METHODS shortlist .
+        !et_new TYPE rswsourcet
+        !et_old TYPE rswsourcet
+      RAISING
+        zcx_abapgit_exception.
+    METHODS map_beacons.
+    METHODS shortlist.
     METHODS create_regex_set
       RETURNING
         VALUE(rt_regex_set) TYPE ty_regexset_tt.
+    METHODS compute_and_render
+      IMPORTING
+        !it_new        TYPE rswsourcet
+        !it_old        TYPE rswsourcet
+      RETURNING
+        VALUE(rt_diff) TYPE zif_abapgit_definitions=>ty_diffs_tt.
+    METHODS calculate_stats.
+    METHODS adjust_diff.
 ENDCLASS.
 
 
@@ -86,31 +90,91 @@ ENDCLASS.
 CLASS zcl_abapgit_diff IMPLEMENTATION.
 
 
-  METHOD calculate_line_num_and_stats.
+  METHOD adjust_diff.
 
-    DATA: lv_new TYPE i VALUE 1,
-          lv_old TYPE i VALUE 1.
+    " ABAP kernel diff traverses files from bottom up which leads to odd display of diffs
+    " SAP won't adjust this kernel service so we will do it here
+    " https://github.com/abapGit/abapGit/issues/4395
+
+    TYPES:
+      BEGIN OF ty_diff_block,
+        start TYPE i,
+        len   TYPE i,
+      END OF ty_diff_block.
+
+    DATA:
+      lv_block_begin TYPE i,
+      lv_block_end   TYPE i,
+      ls_diff_block  TYPE ty_diff_block,
+      lt_diff_block  TYPE STANDARD TABLE OF ty_diff_block WITH DEFAULT KEY.
+
+    FIELD-SYMBOLS:
+      <ls_diff>       LIKE LINE OF mt_diff,
+      <ls_diff_begin> LIKE LINE OF mt_diff,
+      <ls_diff_end>   LIKE LINE OF mt_diff.
+
+    " Determine start and length of diff blocks
+    LOOP AT mt_diff ASSIGNING <ls_diff>.
+      IF <ls_diff>-result = zif_abapgit_definitions=>c_diff-insert OR
+         <ls_diff>-result = zif_abapgit_definitions=>c_diff-delete.
+        IF ls_diff_block IS INITIAL.
+          ls_diff_block-start = sy-tabix.
+        ENDIF.
+        ls_diff_block-len = ls_diff_block-len + 1.
+      ELSEIF ls_diff_block-start IS NOT INITIAL.
+        APPEND ls_diff_block TO lt_diff_block.
+        CLEAR ls_diff_block.
+      ENDIF.
+    ENDLOOP.
+
+    " For each diff block, check if beginning is same as end of block
+    " If yes, move diff block down
+    LOOP AT lt_diff_block INTO ls_diff_block.
+      DO ls_diff_block-len TIMES.
+        lv_block_begin = ls_diff_block-start + sy-index - 1.
+        READ TABLE mt_diff ASSIGNING <ls_diff_begin> INDEX lv_block_begin.
+        IF sy-subrc <> 0.
+          EXIT.
+        ENDIF.
+        lv_block_end = ls_diff_block-start + ls_diff_block-len + sy-index - 1.
+        READ TABLE mt_diff ASSIGNING <ls_diff_end> INDEX lv_block_end.
+        IF sy-subrc <> 0.
+          EXIT.
+        ENDIF.
+        CASE <ls_diff_begin>-result.
+          WHEN zif_abapgit_definitions=>c_diff-insert.
+            IF <ls_diff_begin>-new = <ls_diff_end>-new.
+              <ls_diff_begin>-old_num = <ls_diff_end>-old_num.
+              <ls_diff_begin>-old     = <ls_diff_end>-old.
+              <ls_diff_end>-result    = <ls_diff_begin>-result.
+              CLEAR: <ls_diff_begin>-result, <ls_diff_end>-old_num, <ls_diff_end>-old.
+            ELSE.
+              EXIT.
+            ENDIF.
+          WHEN zif_abapgit_definitions=>c_diff-delete.
+            IF <ls_diff_begin>-old = <ls_diff_end>-old.
+              <ls_diff_begin>-new_num = <ls_diff_end>-new_num.
+              <ls_diff_begin>-new     = <ls_diff_end>-new.
+              <ls_diff_end>-result    = <ls_diff_begin>-result.
+              CLEAR: <ls_diff_begin>-result, <ls_diff_end>-new_num, <ls_diff_end>-new.
+            ELSE.
+              EXIT.
+            ENDIF.
+          WHEN OTHERS.
+            EXIT.
+        ENDCASE.
+      ENDDO.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD calculate_stats.
 
     FIELD-SYMBOLS: <ls_diff> LIKE LINE OF mt_diff.
 
-
     LOOP AT mt_diff ASSIGNING <ls_diff>.
-      <ls_diff>-new_num = lv_new.
-      <ls_diff>-old_num = lv_old.
-
-      CASE <ls_diff>-result. " Line nums
-        WHEN zif_abapgit_definitions=>c_diff-delete.
-          lv_old = lv_old + 1.
-          CLEAR <ls_diff>-new_num.
-        WHEN zif_abapgit_definitions=>c_diff-insert.
-          lv_new = lv_new + 1.
-          CLEAR <ls_diff>-old_num.
-        WHEN OTHERS.
-          lv_new = lv_new + 1.
-          lv_old = lv_old + 1.
-      ENDCASE.
-
-      CASE <ls_diff>-result. " Stats
+      CASE <ls_diff>-result.
         WHEN zif_abapgit_definitions=>c_diff-insert.
           ms_stats-insert = ms_stats-insert + 1.
         WHEN zif_abapgit_definitions=>c_diff-delete.
@@ -118,51 +182,113 @@ CLASS zcl_abapgit_diff IMPLEMENTATION.
         WHEN zif_abapgit_definitions=>c_diff-update.
           ms_stats-update = ms_stats-update + 1.
       ENDCASE.
-
     ENDLOOP.
 
   ENDMETHOD.
 
 
-  METHOD compute.
+  METHOD compute_and_render.
 
-    DATA: lt_trdirtab_old TYPE TABLE OF trdir,
-          lt_trdirtab_new TYPE TABLE OF trdir,
-          lt_trdir_delta  TYPE TABLE OF xtrdir.
+    DATA:
+      lv_i     TYPE i,
+      ls_diff  LIKE LINE OF rt_diff,
+      lt_delta TYPE STANDARD TABLE OF rsedcresul WITH DEFAULT KEY.
 
+    FIELD-SYMBOLS:
+      <ls_old>   LIKE LINE OF it_old,
+      <ls_new>   LIKE LINE OF it_new,
+      <ls_delta> LIKE LINE OF lt_delta.
 
-    CALL FUNCTION 'SVRS_COMPUTE_DELTA_REPS'
+    " Note: Ignore case is for keywords, variables, types etc, but not for literals
+    CALL FUNCTION 'RS_CMP_COMPUTE_DELTA'
+      EXPORTING
+        compare_mode            = mv_compare_mode
+        ignore_case_differences = mv_ignore_case
       TABLES
-        texttab_old  = it_old
-        texttab_new  = it_new
-        trdirtab_old = lt_trdirtab_old
-        trdirtab_new = lt_trdirtab_new
-        trdir_delta  = lt_trdir_delta
-        text_delta   = rt_delta.
+        text_tab1               = it_new
+        text_tab2               = it_old
+        text_tab_res            = lt_delta
+      EXCEPTIONS
+        parameter_invalid       = 1
+        difference_not_found    = 2
+        OTHERS                  = 3.
+
+    IF sy-subrc = 0.
+      " Process delta
+      LOOP AT lt_delta ASSIGNING <ls_delta>.
+        CLEAR ls_diff.
+        IF <ls_delta>-line1 > 0.
+          lv_i = <ls_delta>-line1.
+          ls_diff-old_num = lv_i.
+          ls_diff-old     = <ls_delta>-text1.
+        ENDIF.
+        IF <ls_delta>-line2 > 0.
+          lv_i = <ls_delta>-line2.
+          ls_diff-new_num = lv_i.
+          ls_diff-new     = <ls_delta>-text2.
+        ENDIF.
+        IF <ls_delta>-flag1 = 'D'.
+          ls_diff-result = zif_abapgit_definitions=>c_diff-delete.
+        ELSEIF <ls_delta>-flag2 = 'I'.
+          ls_diff-result = zif_abapgit_definitions=>c_diff-insert.
+        ELSEIF <ls_delta>-flag1 = 'M' AND <ls_delta>-flag2 = 'M'.
+          ls_diff-result = zif_abapgit_definitions=>c_diff-update.
+        ELSEIF <ls_delta>-flag1 = '' AND <ls_delta>-flag2 = ''.
+          ls_diff-result = zif_abapgit_definitions=>c_diff-unchanged.
+        ELSE.
+          ASSERT 0 = 1. " unknown comparison result
+        ENDIF.
+        APPEND ls_diff TO rt_diff.
+      ENDLOOP.
+    ELSEIF sy-subrc = 2.
+      " Copy input... but it might not be identical
+      LOOP AT it_old ASSIGNING <ls_old>.
+        CLEAR ls_diff.
+        ls_diff-old_num = sy-tabix.
+        ls_diff-old     = <ls_old>.
+        READ TABLE it_new ASSIGNING <ls_new> INDEX sy-tabix.
+        ASSERT sy-subrc = 0.
+        ls_diff-new_num = sy-tabix.
+        ls_diff-new     = <ls_new>.
+        " SAP function ignores lines that contain only whitespace so we compare directly
+        IF ( mv_compare_mode = 1 OR mv_compare_mode = 3 ) AND <ls_old> <> <ls_new> AND
+           ( strlen( condense( <ls_old> ) ) = 0 OR strlen( condense( <ls_new> ) ) = 0 ).
+          ls_diff-result = zif_abapgit_definitions=>c_diff-update.
+        ENDIF.
+        APPEND ls_diff TO rt_diff.
+      ENDLOOP.
+    ELSE.
+      ASSERT 0 = 1. " incorrect function call
+    ENDIF.
 
   ENDMETHOD.
 
 
   METHOD constructor.
 
-    DATA: lt_delta TYPE vxabapt255_tab,
-          lt_new   TYPE abaptxt255_tab,
-          lt_old   TYPE abaptxt255_tab.
+    DATA: lt_new TYPE rswsourcet,
+          lt_old TYPE rswsourcet.
 
+    mv_compare_mode = 1.
+    IF iv_ignore_indentation = abap_true.
+      mv_compare_mode = mv_compare_mode + 1.
+    ENDIF.
+    IF iv_ignore_comments = abap_true.
+      mv_compare_mode = mv_compare_mode + 2.
+    ENDIF.
+    mv_ignore_case = iv_ignore_case.
 
     unpack( EXPORTING iv_new = iv_new
                       iv_old = iv_old
             IMPORTING et_new = lt_new
                       et_old = lt_old ).
 
-    lt_delta = compute( it_new = lt_new
-                        it_old = lt_old ).
+    mt_diff = compute_and_render( it_new = lt_new
+                                  it_old = lt_old ).
 
-    mt_diff = render( it_new   = lt_new
-                      it_old   = lt_old
-                      it_delta = lt_delta ).
+    adjust_diff( ).
 
-    calculate_line_num_and_stats( ).
+    calculate_stats( ).
     map_beacons( ).
     shortlist( ).
 
@@ -272,80 +398,12 @@ CLASS zcl_abapgit_diff IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD render.
-
-    DATA: lv_oindex TYPE i VALUE 1,
-          lv_nindex TYPE i VALUE 1,
-          ls_new    LIKE LINE OF it_new,
-          ls_old    LIKE LINE OF it_old,
-          ls_diff   LIKE LINE OF rt_diff,
-          lt_delta  LIKE it_delta,
-          ls_delta  LIKE LINE OF it_delta.
-
-
-    lt_delta = it_delta.
-
-    DO.
-      READ TABLE lt_delta INTO ls_delta WITH KEY number = lv_oindex.
-      IF sy-subrc = 0.
-        DELETE lt_delta INDEX sy-tabix.
-
-        CASE ls_delta-vrsflag.
-          WHEN zif_abapgit_definitions=>c_diff-delete.
-            ls_diff-new = ''.
-            ls_diff-result = zif_abapgit_definitions=>c_diff-delete.
-            ls_diff-old = ls_delta-line.
-
-            lv_oindex = lv_oindex + 1.
-          WHEN zif_abapgit_definitions=>c_diff-insert.
-            ls_diff-new = ls_delta-line.
-            ls_diff-result = zif_abapgit_definitions=>c_diff-insert.
-            ls_diff-old = ''.
-
-            lv_nindex = lv_nindex + 1.
-          WHEN zif_abapgit_definitions=>c_diff-update.
-            CLEAR ls_new.
-            READ TABLE it_new INTO ls_new INDEX lv_nindex.
-            ASSERT sy-subrc = 0.
-
-            ls_diff-new = ls_new.
-            ls_diff-result = zif_abapgit_definitions=>c_diff-update.
-            ls_diff-old = ls_delta-line.
-
-            lv_nindex = lv_nindex + 1.
-            lv_oindex = lv_oindex + 1.
-          WHEN OTHERS.
-            ASSERT 0 = 1.
-        ENDCASE.
-      ELSE.
-        CLEAR ls_new.
-        READ TABLE it_new INTO ls_new INDEX lv_nindex.    "#EC CI_SUBRC
-        lv_nindex = lv_nindex + 1.
-        CLEAR ls_old.
-        READ TABLE it_old INTO ls_old INDEX lv_oindex.    "#EC CI_SUBRC
-        lv_oindex = lv_oindex + 1.
-
-        ls_diff-new = ls_new.
-        ls_diff-result = ''.
-        ls_diff-old = ls_old.
-      ENDIF.
-
-      APPEND ls_diff TO rt_diff.
-      CLEAR ls_diff.
-
-      IF lv_nindex > lines( it_new ) AND lv_oindex > lines( it_old ).
-        EXIT.
-      ENDIF.
-    ENDDO.
-
-  ENDMETHOD.
-
-
   METHOD set_patch_by_old_diff.
 
     FIELD-SYMBOLS: <ls_diff> TYPE zif_abapgit_definitions=>ty_diff.
 
     LOOP AT mt_diff ASSIGNING <ls_diff>
+                    USING KEY new_num
                     WHERE old     = is_diff_old-old
                     AND   new     = is_diff_old-new
                     AND   new_num = is_diff_old-new_num
@@ -361,19 +419,11 @@ CLASS zcl_abapgit_diff IMPLEMENTATION.
 
   METHOD set_patch_new.
 
-    DATA: lv_new_num TYPE i.
     FIELD-SYMBOLS: <ls_diff> TYPE zif_abapgit_definitions=>ty_diff.
 
-    LOOP AT mt_diff ASSIGNING <ls_diff>.
-
-      lv_new_num = <ls_diff>-new_num.
-
-      IF lv_new_num = iv_line_new.
-        EXIT.
-      ENDIF.
-
-    ENDLOOP.
-
+    READ TABLE mt_diff WITH TABLE KEY new_num
+                       COMPONENTS new_num = iv_line_new
+                       ASSIGNING <ls_diff>.
     IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise( |Invalid new line number { iv_line_new }| ).
     ENDIF.
@@ -385,19 +435,11 @@ CLASS zcl_abapgit_diff IMPLEMENTATION.
 
   METHOD set_patch_old.
 
-    DATA: lv_old_num TYPE i.
     FIELD-SYMBOLS: <ls_diff> TYPE zif_abapgit_definitions=>ty_diff.
 
-    LOOP AT mt_diff ASSIGNING <ls_diff>.
-
-      lv_old_num = <ls_diff>-old_num.
-
-      IF lv_old_num = iv_line_old.
-        EXIT.
-      ENDIF.
-
-    ENDLOOP.
-
+    READ TABLE mt_diff WITH TABLE KEY old_num
+                       COMPONENTS old_num = iv_line_old
+                       ASSIGNING <ls_diff>.
     IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise( |Invalid old line number { iv_line_old }| ).
     ENDIF.
@@ -452,12 +494,34 @@ CLASS zcl_abapgit_diff IMPLEMENTATION.
 
   METHOD unpack.
 
-    DATA: lv_new TYPE string,
-          lv_old TYPE string.
-
+    DATA: lv_new      TYPE string,
+          lv_old      TYPE string,
+          lv_new_last TYPE c LENGTH 1,
+          lv_old_last TYPE c LENGTH 1.
 
     lv_new = zcl_abapgit_convert=>xstring_to_string_utf8( iv_new ).
     lv_old = zcl_abapgit_convert=>xstring_to_string_utf8( iv_old ).
+
+    " Check if one value contains a final newline but the other not
+    " If yes, add a special characters that's visible in diff render
+    IF lv_new IS NOT INITIAL.
+      lv_new_last = substring(
+        val = lv_new
+        off = strlen( lv_new ) - 1 ).
+    ENDIF.
+    IF lv_old IS NOT INITIAL.
+      lv_old_last = substring(
+        val = lv_old
+        off = strlen( lv_old ) - 1 ).
+    ENDIF.
+
+    IF lv_new_last = zif_abapgit_definitions=>c_newline AND lv_old_last <> zif_abapgit_definitions=>c_newline
+      AND lv_old IS NOT INITIAL.
+      lv_old = lv_old && cl_abap_char_utilities=>form_feed.
+    ELSEIF lv_new_last <> zif_abapgit_definitions=>c_newline AND lv_old_last = zif_abapgit_definitions=>c_newline
+      AND lv_new IS NOT INITIAL.
+      lv_new = lv_new && cl_abap_char_utilities=>form_feed.
+    ENDIF.
 
     SPLIT lv_new AT zif_abapgit_definitions=>c_newline INTO TABLE et_new.
     SPLIT lv_old AT zif_abapgit_definitions=>c_newline INTO TABLE et_old.

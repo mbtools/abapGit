@@ -59,9 +59,7 @@ CLASS zcl_abapgit_objects_files DEFINITION
       IMPORTING
         !iv_extra TYPE clike OPTIONAL
         !iv_ext   TYPE string
-        !iv_data  TYPE xstring
-      RAISING
-        zcx_abapgit_exception .
+        !iv_data  TYPE xstring.
     METHODS read_raw
       IMPORTING
         !iv_extra      TYPE clike OPTIONAL
@@ -79,7 +77,7 @@ CLASS zcl_abapgit_objects_files DEFINITION
     METHODS get_accessed_files
       RETURNING
         VALUE(rt_files) TYPE zif_abapgit_definitions=>ty_file_signatures_tt .
-    METHODS contains
+    METHODS contains_file
       IMPORTING
         !iv_extra         TYPE clike OPTIONAL
         !iv_ext           TYPE string
@@ -88,6 +86,9 @@ CLASS zcl_abapgit_objects_files DEFINITION
     METHODS get_file_pattern
       RETURNING
         VALUE(rv_pattern) TYPE string .
+    METHODS is_json_metadata
+      RETURNING
+        VALUE(rv_result) TYPE abap_bool.
   PROTECTED SECTION.
 
     METHODS read_file
@@ -203,7 +204,7 @@ CLASS zcl_abapgit_objects_files IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD contains.
+  METHOD contains_file.
     DATA: lv_filename TYPE string.
 
     lv_filename = zcl_abapgit_filename_logic=>object_to_file(
@@ -212,10 +213,14 @@ CLASS zcl_abapgit_objects_files IMPLEMENTATION.
       iv_ext   = iv_ext ).
 
     IF mv_path IS NOT INITIAL.
-      READ TABLE mt_files TRANSPORTING NO FIELDS WITH KEY path     = mv_path
-                                                          filename = lv_filename.
+      READ TABLE mt_files TRANSPORTING NO FIELDS
+          WITH KEY file_path
+          COMPONENTS path     = mv_path
+                     filename = lv_filename.
     ELSE.
-      READ TABLE mt_files TRANSPORTING NO FIELDS WITH KEY filename = lv_filename.
+      READ TABLE mt_files TRANSPORTING NO FIELDS
+          WITH KEY file
+          COMPONENTS filename = lv_filename.
     ENDIF.
 
     IF sy-subrc = 0.
@@ -241,6 +246,22 @@ CLASS zcl_abapgit_objects_files IMPLEMENTATION.
     " Escape special characters for use with 'covers pattern' (CP)
     REPLACE ALL OCCURRENCES OF '#' IN rv_pattern WITH '##'.
     REPLACE ALL OCCURRENCES OF '+' IN rv_pattern WITH '#+'.
+  ENDMETHOD.
+
+
+  METHOD is_json_metadata.
+
+    DATA lv_pattern TYPE string.
+
+    FIELD-SYMBOLS <ls_file> LIKE LINE OF mt_files.
+
+    lv_pattern = |*.{ to_lower( ms_item-obj_type ) }.json|.
+
+    LOOP AT mt_files ASSIGNING <ls_file> WHERE filename CP lv_pattern.
+      rv_result = abap_true.
+      EXIT.
+    ENDLOOP.
+
   ENDMETHOD.
 
 
@@ -277,10 +298,14 @@ CLASS zcl_abapgit_objects_files IMPLEMENTATION.
 
 
     IF mv_path IS NOT INITIAL.
-      READ TABLE mt_files ASSIGNING <ls_file> WITH KEY path     = mv_path
-                                                       filename = iv_filename.
+      READ TABLE mt_files ASSIGNING <ls_file>
+          WITH KEY file_path
+          COMPONENTS path     = mv_path
+                     filename = iv_filename.
     ELSE.
-      READ TABLE mt_files ASSIGNING <ls_file> WITH KEY filename = iv_filename.
+      READ TABLE mt_files ASSIGNING <ls_file>
+          WITH KEY file
+          COMPONENTS filename = iv_filename.
     ENDIF.
 
     IF sy-subrc <> 0.

@@ -85,6 +85,12 @@ CLASS zcl_abapgit_settings DEFINITION
     METHODS get_commitmsg_body_size
       RETURNING
         VALUE(rv_length) TYPE i .
+    METHODS set_commitmsg_hide_author
+      IMPORTING
+        !iv_hide_author TYPE abap_bool.
+    METHODS get_commitmsg_hide_author
+      RETURNING
+        VALUE(rv_hide_author) TYPE abap_bool.
     METHODS get_settings_xml
       RETURNING
         VALUE(rv_settings_xml) TYPE string
@@ -162,6 +168,7 @@ CLASS zcl_abapgit_settings DEFINITION
              commitmsg_comment_length TYPE i,
              commitmsg_comment_deflt  TYPE string,
              commitmsg_body_size      TYPE i,
+             commitmsg_hide_author    TYPE abap_bool,
            END OF ty_s_settings.
 
     DATA: ms_settings      TYPE ty_s_settings,
@@ -202,8 +209,15 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD get_commitmsg_hide_author.
+    rv_hide_author = ms_settings-commitmsg_hide_author.
+  ENDMETHOD.
+
+
   METHOD get_experimental_features.
-    rv_run = ms_settings-experimental_features.
+    IF zcl_abapgit_factory=>get_environment( )->is_merged( ) = abap_false.
+      rv_run = ms_settings-experimental_features.
+    ENDIF.
   ENDMETHOD.
 
 
@@ -253,7 +267,9 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
 
 
   METHOD get_run_critical_tests.
-    rv_run = ms_settings-run_critical_tests.
+    IF zcl_abapgit_factory=>get_environment( )->is_merged( ) = abap_false.
+      rv_run = ms_settings-run_critical_tests.
+    ENDIF.
   ENDMETHOD.
 
 
@@ -336,6 +352,11 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
 
   METHOD set_commitmsg_comment_length.
     ms_settings-commitmsg_comment_length = iv_length.
+  ENDMETHOD.
+
+
+  METHOD set_commitmsg_hide_author.
+    ms_settings-commitmsg_hide_author = iv_hide_author.
   ENDMETHOD.
 
 

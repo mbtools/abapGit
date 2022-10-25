@@ -4,14 +4,12 @@ CLASS zcl_abapgit_object_enhc DEFINITION
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
 
     METHODS:
       constructor
         IMPORTING
           is_item     TYPE zif_abapgit_definitions=>ty_item
           iv_language TYPE spras.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     DATA:
@@ -136,10 +134,6 @@ CLASS zcl_abapgit_object_enhc IMPLEMENTATION.
         li_enh_composite->if_enh_object~activate( ).
         li_enh_composite->if_enh_object~unlock( ).
 
-        zcl_abapgit_sotr_handler=>create_sotr(
-          iv_package = iv_package
-          io_xml     = io_xml ).
-
       CATCH cx_enh_root INTO lx_enh_root.
         zcx_abapgit_exception=>raise_with_text( lx_enh_root ).
     ENDTRY.
@@ -196,20 +190,7 @@ CLASS zcl_abapgit_object_enhc IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation     = 'SHOW'
-        object_name   = ms_item-obj_name
-        object_type   = ms_item-obj_type
-        in_new_window = abap_true
-      EXCEPTIONS
-        OTHERS        = 1.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -241,12 +222,6 @@ CLASS zcl_abapgit_object_enhc IMPLEMENTATION.
                      ig_data = lt_enh_childs ).
         io_xml->add( iv_name = 'LONGTEXT_ID'
                      ig_data = lv_longtext_id ).
-
-        zcl_abapgit_sotr_handler=>read_sotr(
-          iv_pgmid    = 'R3TR'
-          iv_object   = ms_item-obj_type
-          iv_obj_name = ms_item-obj_name
-          io_xml      = io_xml ).
 
       CATCH cx_enh_root INTO lx_enh_root.
         zcx_abapgit_exception=>raise_with_text( lx_enh_root ).

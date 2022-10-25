@@ -2,7 +2,7 @@ INTERFACE zif_abapgit_dot_abapgit PUBLIC.
 
   TYPES:
     BEGIN OF ty_requirement,
-      component   TYPE dlvunit,
+      component   TYPE tdevc-dlvunit,
       min_release TYPE saprelease,
       min_patch   TYPE sappatchlv,
     END OF ty_requirement .
@@ -17,12 +17,14 @@ INTERFACE zif_abapgit_dot_abapgit PUBLIC.
       folder_logic                 TYPE string,
       ignore                       TYPE STANDARD TABLE OF string WITH DEFAULT KEY,
       requirements                 TYPE ty_requirement_tt,
+      version_constant             TYPE string,
     END OF ty_dot_abapgit .
 
   CONSTANTS:
     BEGIN OF c_folder_logic,
       prefix TYPE string VALUE 'PREFIX',
       full   TYPE string VALUE 'FULL',
+      mixed  TYPE string VALUE 'MIXED',
     END OF c_folder_logic .
 
 ENDINTERFACE.

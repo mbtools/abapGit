@@ -3,10 +3,6 @@ CLASS zcl_abapgit_object_sots DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
   PUBLIC SECTION.
     INTERFACES:
       zif_abapgit_object.
-
-    ALIASES:
-      mo_files FOR zif_abapgit_object~mo_files.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES:
@@ -104,9 +100,18 @@ CLASS zcl_abapgit_object_sots IMPLEMENTATION.
 
   METHOD get_raw_text_filename.
 
+    DATA lv_langu TYPE string.
+
+    " Lower case language codes can cause duplicate filenames therefore add suffix to make them unique
+    " Note: Using ISO code would be better but is not compatible with existing files
+    lv_langu = is_entry-langu.
+    IF lv_langu = to_lower( lv_langu ).
+      lv_langu = lv_langu && '-'.
+    ENDIF.
+
     rv_filename =
         to_lower( |{ is_entry-concept }_|
-               && |{ is_entry-langu   }_|
+               && |{ lv_langu         }_|
                && |{ is_entry-object  }_|
                && |{ is_entry-lfd_num }| ).
 
@@ -250,8 +255,9 @@ CLASS zcl_abapgit_object_sots IMPLEMENTATION.
       LOOP AT <ls_sots>-entries ASSIGNING <ls_entry>.
 
         TRY.
-            <ls_entry>-text = mo_files->read_string( iv_extra = get_raw_text_filename( <ls_entry> )
-                                                     iv_ext   = 'txt' ).
+            <ls_entry>-text = zif_abapgit_object~mo_files->read_string(
+              iv_extra = get_raw_text_filename( <ls_entry> )
+              iv_ext   = 'txt' ).
 
           CATCH zcx_abapgit_exception.
             " Most probably file not found -> ignore
@@ -322,28 +328,7 @@ CLASS zcl_abapgit_object_sots IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    DATA: lv_object_name TYPE eu_lname,
-          lv_object_type TYPE seu_obj.
-
-    lv_object_name = ms_item-obj_name.
-    lv_object_type = ms_item-obj_type.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS_REMOTE'
-      DESTINATION 'NONE'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = lv_object_name
-        object_type         = lv_object_type
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -360,9 +345,10 @@ CLASS zcl_abapgit_object_sots IMPLEMENTATION.
 
       LOOP AT <ls_sots>-entries ASSIGNING <ls_entry>.
 
-        mo_files->add_string( iv_extra  = get_raw_text_filename( <ls_entry> )
-                              iv_ext    = 'txt'
-                              iv_string = <ls_entry>-text ).
+        zif_abapgit_object~mo_files->add_string(
+          iv_extra  = get_raw_text_filename( <ls_entry> )
+          iv_ext    = 'txt'
+          iv_string = <ls_entry>-text ).
 
         CLEAR: <ls_entry>-text.
 

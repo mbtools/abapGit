@@ -6,13 +6,11 @@ CLASS zcl_abapgit_object_chdo DEFINITION
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
 
     METHODS constructor
       IMPORTING
         is_item     TYPE zif_abapgit_definitions=>ty_item
         iv_language TYPE spras.
-
   PROTECTED SECTION.
 
     METHODS after_import
@@ -96,6 +94,7 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
           wi_tadir_pgmid           = 'R3TR'
           wi_tadir_object          = 'PROG'
           wi_tadir_obj_name        = lv_obj_name
+          wi_test_modus            = abap_false
         EXCEPTIONS
           tadir_entry_not_existing = 1
           OTHERS                   = 2.
@@ -112,6 +111,7 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
           wi_tadir_pgmid           = 'R3TR'
           wi_tadir_object          = 'PROG'
           wi_tadir_obj_name        = lv_obj_name
+          wi_test_modus            = abap_false
         EXCEPTIONS
           tadir_entry_not_existing = 1
           OTHERS                   = 2.
@@ -128,6 +128,7 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
           wi_tadir_pgmid           = 'R3TR'
           wi_tadir_object          = 'PROG'
           wi_tadir_obj_name        = lv_obj_name
+          wi_test_modus            = abap_false
         EXCEPTIONS
           tadir_entry_not_existing = 1
           OTHERS                   = 2.
@@ -144,6 +145,7 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
           wi_tadir_pgmid           = 'R3TR'
           wi_tadir_object          = 'PROG'
           wi_tadir_obj_name        = lv_obj_name
+          wi_test_modus            = abap_false
         EXCEPTIONS
           tadir_entry_not_existing = 1
           OTHERS                   = 2.
@@ -160,6 +162,7 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
           wi_tadir_pgmid           = 'R3TR'
           wi_tadir_object          = 'FUGR'
           wi_tadir_obj_name        = lv_obj_name
+          wi_test_modus            = abap_false
         EXCEPTIONS
           tadir_entry_not_existing = 1
           OTHERS                   = 2.
@@ -181,8 +184,9 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
         EXPORTING
           wi_delete_tadir_entry    = abap_true
           wi_tadir_pgmid           = 'R3TR'
-          wi_tadir_object          = 'FUGR'
+          wi_tadir_object          = 'TABL'
           wi_tadir_obj_name        = lv_obj_name
+          wi_test_modus            = abap_false
         EXCEPTIONS
           tadir_entry_not_existing = 1
           OTHERS                   = 2.
@@ -252,6 +256,8 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
       delete_tadir_tabl( ls_tcdrs ).
     ENDLOOP.
 
+    corr_insert( iv_package ).
+
   ENDMETHOD.
 
 
@@ -274,6 +280,8 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
     INSERT tcdobs  FROM TABLE ls_change_object-objects.
     INSERT tcdobts FROM TABLE ls_change_object-objects_text.
     INSERT tcdrps  FROM TABLE ls_change_object-reports_generated.
+
+    tadir_insert( iv_package ).
 
     after_import( ).
 
@@ -339,22 +347,11 @@ CLASS zcl_abapgit_object_chdo IMPLEMENTATION.
     ls_bdcdata-fval = '=DISP'.
     APPEND ls_bdcdata TO lt_bdcdata.
 
-    CALL FUNCTION 'ABAP4_CALL_TRANSACTION'
-      STARTING NEW TASK 'GIT'
-      EXPORTING
-        tcode                 = 'SCDO'
-        mode_val              = 'E'
-      TABLES
-        using_tab             = lt_bdcdata
-      EXCEPTIONS
-        system_failure        = 1
-        communication_failure = 2
-        resource_failure      = 3
-        OTHERS                = 4.
+    zcl_abapgit_ui_factory=>get_gui_jumper( )->jump_batch_input(
+      iv_tcode   = 'SCDO'
+      it_bdcdata = lt_bdcdata ).
 
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |ERROR: Jump { mv_object }| ).
-    ENDIF.
+    rv_exit = abap_true.
 
   ENDMETHOD.
 

@@ -2,8 +2,6 @@ CLASS zcl_abapgit_object_wapa DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES: BEGIN OF ty_page,
@@ -24,10 +22,12 @@ CLASS zcl_abapgit_object_wapa DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
         RAISING   zcx_abapgit_exception,
       to_page_content
         IMPORTING iv_content        TYPE xstring
-        RETURNING VALUE(rt_content) TYPE o2pageline_table,
+        RETURNING VALUE(rt_content) TYPE o2pageline_table
+        RAISING   zcx_abapgit_exception,
       read_page
-        IMPORTING is_page        TYPE o2pagattr
-        RETURNING VALUE(rs_page) TYPE ty_page
+        IMPORTING is_page         TYPE o2pagattr
+                  iv_no_files_add TYPE abap_bool OPTIONAL
+        RETURNING VALUE(rs_page)  TYPE ty_page
         RAISING   zcx_abapgit_exception,
       create_new_application
         IMPORTING is_attributes TYPE o2applattr
@@ -53,7 +53,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_WAPA IMPLEMENTATION.
+CLASS zcl_abapgit_object_wapa IMPLEMENTATION.
 
 
   METHOD create_new_application.
@@ -233,10 +233,12 @@ CLASS ZCL_ABAPGIT_OBJECT_WAPA IMPLEMENTATION.
       SPLIT is_page-pagename AT '.' INTO lv_extra lv_ext.
       REPLACE ALL OCCURRENCES OF '/' IN lv_ext WITH '_-'.
       REPLACE ALL OCCURRENCES OF '/' IN lv_extra WITH '_-'.
-      mo_files->add_raw(
-        iv_extra = lv_extra
-        iv_ext   = lv_ext
-        iv_data  = lv_content ).
+      IF iv_no_files_add = abap_false.
+        zif_abapgit_object~mo_files->add_raw(
+          iv_extra = lv_extra
+          iv_ext   = lv_ext
+          iv_data  = lv_content ).
+      ENDIF.
 
       CLEAR: rs_page-attributes-implclass.
 
@@ -466,7 +468,8 @@ CLASS ZCL_ABAPGIT_OBJECT_WAPA IMPLEMENTATION.
       CASE sy-subrc.
         WHEN 0.
 
-          ls_local_page = read_page( <ls_remote_page>-attributes ).
+          ls_local_page = read_page( is_page = <ls_remote_page>-attributes
+                                     iv_no_files_add = abap_true ).
 
         WHEN 1.
 
@@ -486,8 +489,8 @@ CLASS ZCL_ABAPGIT_OBJECT_WAPA IMPLEMENTATION.
       REPLACE ALL OCCURRENCES OF '/' IN lv_extra WITH '_-'.
       REPLACE ALL OCCURRENCES OF '/' IN lv_ext WITH '_-'.
 
-      lt_remote_content = to_page_content( mo_files->read_raw( iv_extra = lv_extra
-                                                               iv_ext   = lv_ext ) ).
+      lt_remote_content = to_page_content( zif_abapgit_object~mo_files->read_raw( iv_extra = lv_extra
+                                                                                  iv_ext   = lv_ext ) ).
       lt_local_content = to_page_content( get_page_content( lo_page ) ).
 
       IF ls_local_page = <ls_remote_page> AND lt_local_content = lt_remote_content.
@@ -574,14 +577,7 @@ CLASS ZCL_ABAPGIT_OBJECT_WAPA IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation     = 'SHOW'
-        object_name   = ms_item-obj_name
-        object_type   = ms_item-obj_type
-        in_new_window = abap_true.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 

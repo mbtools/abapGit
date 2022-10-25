@@ -15,12 +15,14 @@ INTERFACE zif_abapgit_oo_object_fnc PUBLIC.
 
   TYPES:
     ty_seocompotx_tt TYPE STANDARD TABLE OF seocompotx WITH DEFAULT KEY .
+  TYPES:
+    ty_seosubcotx_tt TYPE STANDARD TABLE OF seosubcotx WITH DEFAULT KEY .
 
   METHODS:
     create
       IMPORTING
+        iv_check      TYPE abap_bool
         iv_package    TYPE devclass
-        iv_overwrite  TYPE abap_bool DEFAULT abap_true
         it_attributes TYPE zif_abapgit_definitions=>ty_obj_attribute_tt OPTIONAL
       CHANGING
         cg_properties TYPE any
@@ -54,6 +56,10 @@ INTERFACE zif_abapgit_oo_object_fnc PUBLIC.
       IMPORTING
         is_key          TYPE seoclskey
         it_descriptions TYPE ty_seocompotx_tt,
+    update_descriptions_sub
+      IMPORTING
+        is_key          TYPE seoclskey
+        it_descriptions TYPE ty_seosubcotx_tt,
     add_to_activation_list
       IMPORTING
         is_item TYPE zif_abapgit_definitions=>ty_item
@@ -69,9 +75,17 @@ INTERFACE zif_abapgit_oo_object_fnc PUBLIC.
     create_documentation
       IMPORTING
         it_lines         TYPE tlinetab
+        iv_id            TYPE dokhl-id
         iv_object_name   TYPE dokhl-object
         iv_language      TYPE spras
         iv_no_masterlang TYPE abap_bool OPTIONAL
+      RAISING
+        zcx_abapgit_exception,
+    delete_documentation
+      IMPORTING
+        iv_id          TYPE dokhl-id
+        iv_object_name TYPE dokhl-object
+        iv_language    TYPE spras
       RAISING
         zcx_abapgit_exception,
     get_includes
@@ -120,7 +134,8 @@ INTERFACE zif_abapgit_oo_object_fnc PUBLIC.
         VALUE(rt_text_pool) TYPE textpool_table,
     read_documentation
       IMPORTING
-        iv_class_name   TYPE seoclsname
+        iv_id           TYPE dokhl-id
+        iv_object_name  TYPE dokhl-object
         iv_language     TYPE spras
       RETURNING
         VALUE(rt_lines) TYPE tlinetab,
@@ -132,10 +147,16 @@ INTERFACE zif_abapgit_oo_object_fnc PUBLIC.
         zcx_abapgit_exception,
     read_descriptions
       IMPORTING
-        iv_obejct_name         TYPE seoclsname
+        iv_object_name         TYPE seoclsname
         iv_language            TYPE spras OPTIONAL
       RETURNING
         VALUE(rt_descriptions) TYPE ty_seocompotx_tt,
+    read_descriptions_sub
+      IMPORTING
+        iv_object_name         TYPE seoclsname
+        iv_language            TYPE spras OPTIONAL
+      RETURNING
+        VALUE(rt_descriptions) TYPE ty_seosubcotx_tt,
     delete
       IMPORTING
         is_deletion_key TYPE seoclskey

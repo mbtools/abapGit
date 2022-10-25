@@ -334,11 +334,11 @@ CLASS ltcl_popups_mock IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD zif_abapgit_popups~branch_popup_callback.
+  METHOD zif_abapgit_popups~choose_pr_popup.
 
   ENDMETHOD.
 
-  METHOD zif_abapgit_popups~choose_pr_popup.
+  METHOD zif_abapgit_popups~commit_list_popup.
 
   ENDMETHOD.
 
@@ -404,6 +404,18 @@ CLASS ltcl_popups_mock IMPLEMENTATION.
   METHOD set_package.
 
     mv_package = iv_package.
+
+  ENDMETHOD.
+
+  METHOD zif_abapgit_popups~popup_select_tr_requests.
+
+  ENDMETHOD.
+
+  METHOD zif_abapgit_popups~popup_select_wb_tc_tr_and_tsk.
+
+  ENDMETHOD.
+
+  METHOD zif_abapgit_popups~tag_list_popup.
 
   ENDMETHOD.
 

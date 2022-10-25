@@ -184,6 +184,11 @@ CLASS zcl_abapgit_persistence_user IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_persist_user~get_diff_first.
+    rv_diff_first = ms_user-diff_first.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_persist_user~get_diff_unified.
 
     rv_diff_unified = ms_user-diff_unified.
@@ -202,6 +207,16 @@ CLASS zcl_abapgit_persistence_user IMPLEMENTATION.
 
     rv_hide = ms_user-hide_files.
 
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_user~get_order_by.
+    rv_order_by = ms_user-order_by.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_user~get_order_descending.
+    rv_order_descending = ms_user-order_descending.
   ENDMETHOD.
 
 
@@ -262,6 +277,13 @@ CLASS zcl_abapgit_persistence_user IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_persist_user~get_show_folders.
+
+    rv_folders = ms_user-show_folders.
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_persist_user~is_favorite_repo.
 
     READ TABLE ms_user-favorites TRANSPORTING NO FIELDS
@@ -285,6 +307,27 @@ CLASS zcl_abapgit_persistence_user IMPLEMENTATION.
     ms_user-default_git_user-name = iv_username.
     update( ).
 
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_user~set_diff_first.
+    ms_user-diff_first = iv_diff_first.
+    update( ).
+    rv_diff_first = ms_user-diff_first.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_user~set_order_by.
+    ms_user-order_by = iv_order_by.
+    update( ).
+    rv_order_by = ms_user-order_by.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_user~set_order_descending.
+    ms_user-order_descending = iv_order_descending.
+    update( ).
+    rv_order_descending = ms_user-order_descending.
   ENDMETHOD.
 
 
@@ -395,5 +438,13 @@ CLASS zcl_abapgit_persistence_user IMPLEMENTATION.
 
     rv_hide = ms_user-hide_files.
 
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_user~toggle_show_folders.
+    ms_user-show_folders = boolc( ms_user-show_folders = abap_false ).
+    update( ).
+
+    rv_folders = ms_user-show_folders.
   ENDMETHOD.
 ENDCLASS.

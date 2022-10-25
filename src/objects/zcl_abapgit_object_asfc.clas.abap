@@ -38,12 +38,16 @@ CLASS zcl_abapgit_object_asfc IMPLEMENTATION.
 
   METHOD zif_abapgit_object~delete.
 
-    get_generic( )->delete( ).
+    set_default_transport( iv_transport ).
+
+    get_generic( )->delete( iv_package ).
 
   ENDMETHOD.
 
 
   METHOD zif_abapgit_object~deserialize.
+
+    set_default_transport( iv_transport ).
 
     get_generic( )->deserialize(
       iv_package = iv_package
@@ -90,9 +94,6 @@ CLASS zcl_abapgit_object_asfc IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    zcx_abapgit_exception=>raise( |TODO: Jump| ).
-
   ENDMETHOD.
 
 

@@ -2,9 +2,8 @@ CLASS zcl_abapgit_object_ssst DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-    CONSTANTS: c_style_active TYPE tdactivate VALUE 'A'.
 
+    CONSTANTS: c_style_active TYPE tdactivate VALUE 'A'.
   PROTECTED SECTION.
   PRIVATE SECTION.
     METHODS validate_font
@@ -123,6 +122,7 @@ CLASS zcl_abapgit_object_ssst IMPLEMENTATION.
       CALL FUNCTION 'SSF_ACTIVATE_STYLE'
         EXPORTING
           i_stylename          = ls_header-stylename
+          redirect_error_msg   = abap_true " otherwise warnings write list output
         EXCEPTIONS
           no_name              = 1
           no_style             = 2
@@ -200,19 +200,11 @@ CLASS zcl_abapgit_object_ssst IMPLEMENTATION.
     ls_bcdata-fval = '=DISPLAY'.
     APPEND ls_bcdata TO lt_bcdata.
 
-    CALL FUNCTION 'ABAP4_CALL_TRANSACTION'
-      STARTING NEW TASK 'GIT'
-      EXPORTING
-        tcode     = 'SMARTSTYLES'
-        mode_val  = 'E'
-      TABLES
-        using_tab = lt_bcdata
-      EXCEPTIONS
-        OTHERS    = 1.
+    zcl_abapgit_ui_factory=>get_gui_jumper( )->jump_batch_input(
+      iv_tcode   = 'SMARTSTYLES'
+      it_bdcdata = lt_bcdata ).
 
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'error from ABAP4_CALL_TRANSACTION, SSST' ).
-    ENDIF.
+    rv_exit = abap_true.
 
   ENDMETHOD.
 

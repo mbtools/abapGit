@@ -63,6 +63,7 @@ span.separator {
 .center       { text-align:center; }
 .paddings     { padding: 0.5em 0.5em; }
 .pad-sides    { padding-left: 0.3em; padding-right: 0.3em; }
+.pad-1em      { padding: 1em 1em; }
 .margin-v5    { margin-top: 0.5em; margin-bottom: 0.5em; }
 .margin-v1    { margin-top: 1em; margin-bottom: 1em; }
 .indent5em    { padding-left: 0.5em; }
@@ -187,8 +188,6 @@ div.log .icon { padding-right: 6px; }
 
 /* REPOSITORY */
 div.repo {
-  margin-top: 3px;
-  margin-bottom: 3px;
   padding: 0.5em 1em 0.5em 1em;
   position: relative;
 }
@@ -225,10 +224,12 @@ div.repo {
 span.branch,
 span.user-box,
 span.package-box,
+span.path-box,
 span.transport-box {
   padding: 2px 4px;
   border: 1px solid;
   border-radius: 4px;
+  display: inline-block;
 }
 
 /* MISC AND REFACTOR */
@@ -277,7 +278,7 @@ table.repo_tab {
   border: 1px solid;
   border-radius: 3px;
   width: 100%;
-  line-height: 1.5;
+  line-height: 1.2;
 }
 .repo_tab th {
   text-align: left;
@@ -286,44 +287,59 @@ table.repo_tab {
   font-weight: normal;
 }
 .repo_tab td {
-  border-top: 1px solid;
   vertical-align: middle;
   padding-top: 2px;
   padding-bottom: 2px;
 }
+
 .repo_tab td.icon {
   width: 1px;
   text-align: center;
   padding-left: 8px;
   padding-right: 4px;
 }
-.repo_tab td.icon:not(:first-child) {
-  width: 26px;
+
+.repo_tab td.transport {
+  width: 140px;
   text-align: left;
 }
 .repo_tab td.type {
   width: 4em;
   padding-left: 0.5em;
 }
+
+.repo_tab td.filename{
+  padding-left: 1em;
+  word-break: break-all;
+}
+
 .repo_tab td.object {
   padding-left: 0.5em;
 }
+
 .repo_tab td.files {
   padding-left: 0.5em;
   line-height: 1.5;
 }
+
+.repo_tab tr.object_row{
+  border-top: 1px solid;
+}
+
 .repo_tab td.cmd, .repo_tab th.cmd {
   text-align: right;
   padding-left: 0.5em;
   padding-right: 0.7em;
+  min-width: 70px;
 }
+
 .repo_tab th.cmd .icon{
   padding-right: 8px;
 }
 .repo_tab tr:first-child td { border-top: 0px; }
 
-.repo_tab tr:hover {
-  background-color: var(--theme-greyscale-dark) !important;
+.repo_tab tr:hover td {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.075), rgba(0, 0, 0, 0.075));
 }
 
 
@@ -347,6 +363,7 @@ input.stage-filter { width: 18em; }
   text-align: left;
   font-weight: normal;
   padding: 4px 0.5em;
+  border-bottom: 1px solid;
 }
 .stage_tab td.status {
   width: 2em;
@@ -355,9 +372,14 @@ input.stage-filter { width: 18em; }
 .stage_tab td.highlight {
   font-weight: bold;
 }
+.stage_tab td.name {
+  word-break: break-all;
+}
 
-.stage_tab tr:hover {
-  background-color: rgb(245, 245, 245) !important;
+.stage_tab tr:first-child td { border-top: 0px; }
+
+.stage_tab tr:hover td {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.075), rgba(0, 0, 0, 0.075));
 }
 
 .stage_tab td.cmd {  cursor: pointer; }
@@ -462,7 +484,8 @@ table.diff_tab {
   font-size: 10pt;
   width: 100%;
 }
-table.diff_tab td,th {
+table.diff_tab td,
+table.diff_tab th {
   padding-left: 0.5em;
   padding-right: 0.5em;
 }
@@ -591,7 +614,7 @@ div.db_list {
   overflow-x: auto;
 }
 
-table.db_tab{
+table.db_tab {
   table-layout: fixed;
 }
 table.db_tab pre {
@@ -602,35 +625,39 @@ table.db_tab pre {
   margin: 0px;
   width: 30em;
 }
-
 table.db_tab tr.firstrow td { padding-top: 0.5em; }
 table.db_tab th {
   text-align: left;
   padding: 0.5em;
+}
+table.db_tab thead tr {
   border-bottom: 1px solid;
+}
+table.db_tab tfoot tr {
+  border-top: 1px solid;
 }
 table.db_tab td {
   padding: 4px 8px;
   vertical-align: middle;
   word-break: break-all;
 }
-
 table.db_tab th.package {
     width: 45ch;
 }
-
 table.db_tab td.data {
   font-style: italic;
 }
 
-span.action_link.enabled{
+li.action_link.enabled{
   visibility: visible;
   position: relative;
+  display: block;
 }
 
-span.action_link:not(enabled){
+li.action_link:not(enabled){
   visibility: hidden;
   position: fixed; /* so it does not take up space when hidden */
+  display: none;
 }
 
 
@@ -649,12 +676,15 @@ div.db_entry pre {
   border-radius: 3px;
   padding: 0.5em;
   margin: 0.5em 0em;
-  width: 60em;
+  width: 98%;
 }
 
-div.db_entry textarea { margin: 0.5em 0em; }
+div.db_entry textarea {
+  margin: 0.5em 0em;
+  width: 98%;
+}
 div.db_entry table.toolbar {
-  width: 50em;
+  width: 100%;
 }
 
 table.tag {
@@ -872,17 +902,23 @@ div.info-panel div.info-list td { padding-right: 1em }
 div.message-panel {
   z-index: 99;
   box-shadow: 2px 2px 4px 0px hsla(0, 0%, 0%, .1);
-  padding: 12px;
-  margin-left: -48%;
+  padding: 0.5em 1em;
   position: fixed;
   bottom: 12px;
-  width: 94%;
-  left: 50%;
+  width: 95%;
+  margin: 0 auto;
+  max-width: 1248px;
 
   border: 1px solid;
   border-radius: 5px;
   border-color: hsl(0, 42%, 64%);
   background-color: hsla(0, 42%, 90%, 1);
+}
+
+.message-panel-bar {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
 }
 
 .message-panel-commands {
@@ -923,6 +959,10 @@ div.message-panel:hover .message-panel-commands {
 }
 
 .link-hint-input {
+  margin-left: -30px;
+}
+
+.link-hint-i {
   margin-left: -30px;
 }
 
@@ -981,10 +1021,44 @@ table.commit tr .title {
 }
 
 /* Repo overview */
-.repo-overview { font-size: smaller; }
-.repo-overview tbody td { height: 2em; }
-.ro-detail { display: none; }
-.ro-go { font-size: 150%; }
+.repo-overview { 
+  font-size: 90%;
+  padding: 0.5em 0.7em;
+}
+.repo-overview-toolbar {
+  padding: 1em;
+  /*margin-top: -0.5em;*/
+}
+.repo-overview th {
+  text-align: left;
+  font-weight: normal;
+}
+.repo-overview table {
+  border: 1px solid;
+}
+.repo-overview thead tr {
+  border-bottom: 1px solid;
+  line-height: 1.5;
+}
+.repo-overview tfoot tr {
+  border-top: 1px solid;
+}
+.repo-overview tr.favorite .icon-star {
+  color: #5e8dc9 !important;
+}
+.repo-overview td,
+.repo-overview th { 
+  padding: 6px 6px; /* maybe use height ? */
+}
+.repo-overview .ro-detail { display: none; }
+.repo-overview .ro-go a {
+  padding: 0px 0.15em;
+}
+.repo-overview .ro-go a:hover { 
+  color: #ff721e;
+  text-decoration: none;
+}
+
 
 /* Branch Overview Page */
 .gitGraph-scrollWrapper, .gitGraph-Wrapper{
@@ -1141,6 +1215,7 @@ settings_tab tr:first-child td { border-top: 0px; }
   border-radius: 3px;
   font-size: smaller;
 }
+.dialog li.dialog-commands input[type="button"],
 .dialog li.dialog-commands input[type="submit"] {
   border: 1px solid;
   padding: 6px 12px;
@@ -1163,6 +1238,9 @@ settings_tab tr:first-child td { border-top: 0px; }
   margin: 4px 0px;
   padding-left: 0.5em;
 }
+.dialog li.hidden {
+  padding: 0px 0px;
+}
 .dialog .radio-container {
   border: 1px solid;
   display: inline-block;
@@ -1172,6 +1250,7 @@ settings_tab tr:first-child td { border-top: 0px; }
 .dialog input[type="checkbox"] + label {
   display: inline-block;
 }
+.dialog input[type="password"],
 .dialog input[type="text"] {
   width: 100%;
   box-sizing: border-box;
@@ -1231,6 +1310,7 @@ settings_tab tr:first-child td { border-top: 0px; }
 .dialog li.with-command div.command-container {
   display: table-cell;
 }
+.dialog li.with-command input[type="button"],
 .dialog li.with-command input[type="submit"] {
   height: 2.5em;
 }
@@ -1254,4 +1334,57 @@ settings_tab tr:first-child td { border-top: 0px; }
 }
 .dialog .dialog-help {
   float: left;
+}
+
+/* STICKY HEADERS */
+
+/* https://www.w3schools.com/howto/howto_js_navbar_sticky.asp */
+/* Note: We have to use JS since IE does not support CSS position:sticky */
+
+/* The sticky class is added to the navbar with JS when it reaches its scroll position */
+.sticky {
+  position: fixed;
+  top: 0;
+  z-index: 10;
+  width: 100%;
+  padding: 0.5em;
+  margin-bottom: 3px;
+  max-height: 47px;
+  max-width: 1265px; /* if set to 1280px, then actual width will be 1296px (strange) */
+}
+
+.sticky_full_width {
+  position: fixed;
+  top: 0;
+  z-index: 10;
+  width: 100%;
+  padding: 0.5em 0.5em;
+  margin-bottom: 3px;
+  max-height: 47px;
+}
+.sticky_full_width .nav-container {
+  margin-right: 18px;
+}
+
+/* Add some top padding to the page content to prevent sudden quick movement
+   as the navigation bar gets a new position at the top of the page */
+.sticky + .not_sticky {
+  padding-top: 50px;
+}
+
+.sticky_full_width + .not_sticky {
+  padding-top: 50px;
+}
+
+/* Light toolbar or blocks with separators */
+.toolbar-light a {
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  border-left: 1px solid;
+  border-left-color: #ccc;
+}
+
+.toolbar-light a:first-child {
+  padding-left: 0;
+  border-left: none;
 }

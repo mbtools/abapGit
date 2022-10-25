@@ -33,6 +33,9 @@ ENDCLASS.
 CLASS ltcl_run_checks DEFINITION FOR TESTING RISK LEVEL HARMLESS
   DURATION SHORT FINAL.
 
+  PUBLIC SECTION.
+    INTERFACES: zif_abapgit_sap_package.
+
   PRIVATE SECTION.
     DATA: mt_results TYPE zif_abapgit_definitions=>ty_results_tt,
           mo_dot     TYPE REF TO zcl_abapgit_dot_abapgit,
@@ -55,11 +58,52 @@ CLASS ltcl_run_checks DEFINITION FOR TESTING RISK LEVEL HARMLESS
       neg_similar_filenames FOR TESTING RAISING zcx_abapgit_exception,
       neg_empty_filenames FOR TESTING RAISING zcx_abapgit_exception,
       package_move FOR TESTING RAISING zcx_abapgit_exception,
-      check_namespace FOR TESTING RAISING zcx_abapgit_exception.
+      check_namespace FOR TESTING RAISING zcx_abapgit_exception,
+      check_sub_package FOR TESTING RAISING zcx_abapgit_exception.
 
 ENDCLASS.
 
 CLASS ltcl_run_checks IMPLEMENTATION.
+
+  METHOD zif_abapgit_sap_package~list_subpackages.
+    RETURN.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~list_superpackages.
+    RETURN.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~read_parent.
+    rv_parentcl = '$MAIN'.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~create_child.
+    RETURN.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~exists.
+    rv_bool = abap_true.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~are_changes_recorded_in_tr_req.
+    RETURN.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~get_transport_type.
+    RETURN.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~get_transport_layer.
+    RETURN.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~create.
+    RETURN.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_sap_package~create_local.
+    RETURN.
+  ENDMETHOD.
 
   METHOD append_result.
 
@@ -87,6 +131,12 @@ CLASS ltcl_run_checks IMPLEMENTATION.
 
     mo_dot = zcl_abapgit_dot_abapgit=>build_default( ).
     mo_dot->set_starting_folder( '/' ).  " assumed by unit tests
+
+    zcl_abapgit_injector=>set_sap_package( iv_package     = '$MAIN'
+                                           ii_sap_package = me ).
+
+    zcl_abapgit_injector=>set_sap_package( iv_package     = '$MAIN_SUB'
+                                           ii_sap_package = me ).
 
   ENDMETHOD.
 
@@ -249,7 +299,7 @@ CLASS ltcl_run_checks IMPLEMENTATION.
 
     ltcl_util=>check_contains(
       ii_log     = mi_log
-      iv_pattern = |Package and path does not match for object, *| ).
+      iv_pattern = |Package and path do not match for object*| ).
 
   ENDMETHOD.
 
@@ -459,6 +509,42 @@ CLASS ltcl_run_checks IMPLEMENTATION.
     ltcl_util=>check_contains(
       ii_log     = mi_log
       iv_pattern = |Namespace *| ).
+
+  ENDMETHOD.
+
+  METHOD check_sub_package.
+
+    append_result( iv_obj_type = 'DEVC'
+                   iv_obj_name = '$MAIN'
+                   iv_match    = 'X'
+                   iv_lstate   = ' '
+                   iv_rstate   = ' '
+                   iv_package  = '$MAIN'
+                   iv_path     = '/'
+                   iv_filename = 'package.devc.xml' ).
+
+    append_result( iv_obj_type = 'DEVC'
+                   iv_obj_name = '$MAIN_SUB'
+                   iv_match    = ' '
+                   iv_lstate   = ' '
+                   iv_rstate   = 'X'
+                   iv_package  = ''
+                   iv_path     = ''
+                   iv_filename = 'package.devc.xml' ).
+
+    zcl_abapgit_file_status=>run_checks(
+      ii_log     = mi_log
+      it_results = mt_results
+      io_dot     = mo_dot
+      iv_top     = '$MAIN' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mi_log->count( )
+      exp = 1 ).
+
+    ltcl_util=>check_contains(
+      ii_log     = mi_log
+      iv_pattern = |Package $MAIN_SUB already exists but is not a sub-package of $MAIN*| ).
 
   ENDMETHOD.
 
@@ -686,18 +772,19 @@ CLASS ltcl_calculate_status DEFINITION FOR TESTING RISK LEVEL HARMLESS
 
     METHODS:
       setup,
+      complete_local,
+      complete_remote,
+      complete_state,
       only_remote FOR TESTING RAISING zcx_abapgit_exception,
       only_local FOR TESTING RAISING zcx_abapgit_exception,
-      match FOR TESTING RAISING zcx_abapgit_exception,
+      match_file FOR TESTING RAISING zcx_abapgit_exception,
       diff FOR TESTING RAISING zcx_abapgit_exception,
       moved FOR TESTING RAISING zcx_abapgit_exception,
       local_outside_main FOR TESTING RAISING zcx_abapgit_exception,
       complete FOR TESTING RAISING zcx_abapgit_exception,
-      complete_local,
-      complete_remote,
-      complete_state,
-      deleted_remotely FOR TESTING RAISING zcx_abapgit_exception.
-
+      only_local2 FOR TESTING RAISING zcx_abapgit_exception,
+      only_remote2 FOR TESTING RAISING zcx_abapgit_exception,
+      only_remote3 FOR TESTING RAISING zcx_abapgit_exception.
 ENDCLASS.
 
 CLASS ltcl_calculate_status IMPLEMENTATION.
@@ -770,7 +857,7 @@ CLASS ltcl_calculate_status IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD match.
+  METHOD match_file.
 
     mo_helper->add_local(
       iv_obj_type = 'DOMA'
@@ -1137,7 +1224,7 @@ CLASS ltcl_calculate_status IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD deleted_remotely.
+  METHOD only_local2.
 
     mo_helper->add_local(
       iv_path     = '/src/'
@@ -1155,8 +1242,89 @@ CLASS ltcl_calculate_status IMPLEMENTATION.
 
     " it should appear as deleted remotely
     cl_abap_unit_assert=>assert_equals(
-      act = mo_result->get_line( 1 )-rstate
-      exp = zif_abapgit_definitions=>c_state-deleted ).
+      act = mo_result->get_line( 1 )-lstate
+      exp = zif_abapgit_definitions=>c_state-added ).
 
   ENDMETHOD.
+
+  METHOD only_remote2.
+
+    " Add local class implementation
+    mo_helper->add_local(
+      iv_path     = '/src/sub/'
+      iv_obj_name = 'ZCL_CLAS'
+      iv_obj_type = 'CLAS'
+      iv_filename = 'zcl_clas.clas.abap'
+      iv_sha1     = '112233' ).
+
+    mo_helper->add_remote(
+      iv_path     = '/src/sub/'
+      iv_filename = 'zcl_clas.clas.abap'
+      iv_sha1     = '332211' ).
+
+    mo_helper->add_remote(
+      iv_path     = '/src/sub/'
+      iv_filename = 'zcl_clas.clas.locals_imp.abap'
+      iv_sha1     = '1111' ).
+
+    mo_helper->add_state(
+      iv_path     = '/src/sub/'
+      iv_filename = 'zcl_clas.clas.locals_imp.abap'
+      iv_sha1     = '1111' ).
+
+    mo_result = mo_helper->run( iv_devclass = '$DIFFERENT' ).
+
+    mo_result->assert_lines( 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_result->get_line( 2 )-match
+      exp = abap_false ).
+
+  ENDMETHOD.
+
+  METHOD only_remote3.
+
+    " Add subpackage remotely
+    mo_helper->add_local(
+      iv_path     = '/src/'
+      iv_obj_name = '$DIFFERENT'
+      iv_obj_type = 'DEVC'
+      iv_filename = 'package.devc.xml'
+      iv_sha1     = '112233' ).
+
+    mo_helper->add_remote(
+      iv_path     = '/src/'
+      iv_filename = 'package.devc.xml'
+      iv_sha1     = '112233' ).
+
+    mo_helper->add_remote(
+      iv_path     = '/src/sub/'
+      iv_filename = 'package.devc.xml'
+      iv_sha1     = '332211' ).
+
+    mo_helper->add_state(
+      iv_path     = '/src/'
+      iv_filename = 'package.devc.xml'
+      iv_sha1     = '112233' ).
+
+    mo_result = mo_helper->run( iv_devclass = '$DIFFERENT' ).
+
+    mo_result->assert_lines( 2 ).
+
+    " main package matches
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_result->get_line( 1 )-match
+      exp = abap_true ).
+
+    " subpackage should appear as added remotely
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_result->get_line( 2 )-lstate
+      exp = zif_abapgit_definitions=>c_state-unchanged ).
+
+    cl_abap_unit_assert=>assert_equals(
+      act = mo_result->get_line( 2 )-rstate
+      exp = zif_abapgit_definitions=>c_state-added ).
+
+  ENDMETHOD.
+
 ENDCLASS.

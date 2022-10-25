@@ -28,12 +28,10 @@ CLASS zcl_abapgit_repo_online DEFINITION
       FOR zif_abapgit_repo_online~set_url .
     ALIASES switch_origin
       FOR zif_abapgit_repo_online~switch_origin .
+    ALIASES get_switched_origin
+      FOR zif_abapgit_repo_online~get_switched_origin.
 
-    METHODS check_and_create_package
-      IMPORTING
-        !iv_package TYPE devclass
-      RAISING
-        zcx_abapgit_exception .
+
 
     METHODS get_files_remote
         REDEFINITION .
@@ -41,6 +39,7 @@ CLASS zcl_abapgit_repo_online DEFINITION
         REDEFINITION .
     METHODS has_remote_source
         REDEFINITION .
+
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -74,32 +73,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_repo_online IMPLEMENTATION.
-
-
-  METHOD check_and_create_package.
-
-    DATA ls_item TYPE zif_abapgit_definitions=>ty_item.
-    DATA lv_package TYPE devclass.
-
-    ls_item-obj_type = 'DEVC'.
-    ls_item-obj_name = iv_package.
-
-    IF zcl_abapgit_objects=>exists( ls_item ) = abap_false.
-      " Check if any package is included in remote
-      READ TABLE mt_remote TRANSPORTING NO FIELDS
-        WITH KEY filename = zcl_abapgit_filename_logic=>c_package_file.
-      IF sy-subrc <> 0.
-        " If not, prompt to create it
-        lv_package = zcl_abapgit_services_basis=>create_package( iv_package ).
-        IF lv_package IS NOT INITIAL.
-          COMMIT WORK AND WAIT.
-        ENDIF.
-      ENDIF.
-    ENDIF.
-
-  ENDMETHOD.
-
+CLASS ZCL_ABAPGIT_REPO_ONLINE IMPLEMENTATION.
 
   METHOD fetch_remote.
 
@@ -132,7 +106,9 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
 
   METHOD get_files_remote.
     fetch_remote( ).
-    rt_files = super->get_files_remote( ).
+    rt_files = super->get_files_remote(
+      ii_obj_filter   = ii_obj_filter
+      iv_ignore_files = iv_ignore_files ).
   ENDMETHOD.
 
 
@@ -311,7 +287,7 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
 
     mv_current_commit = ls_push-branch.
 
-    update_local_checksums( ls_push-updated_files ).
+    zif_abapgit_repo~checksums( )->update( ls_push-updated_files ).
 
     reset_status( ).
 
@@ -322,7 +298,7 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
 
     reset_remote( ).
     set( iv_branch_name     = iv_branch_name
-         iv_selected_commit = space  ).
+         iv_selected_commit = space ).
 
   ENDMETHOD.
 
@@ -347,7 +323,8 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
 
     DATA lv_offs TYPE i.
 
-    IF iv_overwrite = abap_true. " For repo settings page
+    " For repo settings page
+    IF iv_overwrite = abap_true.
       set( iv_switched_origin = iv_url ).
       RETURN.
     ENDIF.
@@ -379,5 +356,9 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'Cannot switch origin twice' ).
     ENDIF.
 
+  ENDMETHOD.
+
+  METHOD zif_abapgit_repo_online~get_switched_origin.
+    rv_switched_origin = ms_data-switched_origin.
   ENDMETHOD.
 ENDCLASS.

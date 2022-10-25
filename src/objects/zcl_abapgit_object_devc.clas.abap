@@ -5,8 +5,7 @@ CLASS zcl_abapgit_object_devc DEFINITION PUBLIC
   PUBLIC SECTION.
     INTERFACES:
       zif_abapgit_object.
-    ALIASES:
-      mo_files FOR zif_abapgit_object~mo_files.
+
     METHODS:
       constructor IMPORTING is_item     TYPE zif_abapgit_definitions=>ty_item
                             iv_language TYPE spras.
@@ -360,7 +359,12 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~changed_by.
-    rv_user = get_package( )->changed_by.
+    DATA li_package TYPE REF TO if_package.
+
+    li_package = get_package( ).
+    IF li_package IS BOUND.
+      rv_user = li_package->changed_by.
+    ENDIF.
   ENDMETHOD.
 
 
@@ -380,6 +384,9 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
     " in the package has to be released.
 
     lv_package = ms_item-obj_name.
+
+    " Remove remaining OTR entries
+    zcl_abapgit_sotr_handler=>delete_sotr_package( iv_package ).
 
     remove_obsolete_tadir( lv_package ).
 
@@ -482,6 +489,14 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
       CHANGING
         cg_data = ls_package_data ).
 
+    IF mv_local_devclass(1) = '$'.
+      IF ls_package_data-mainpack = 'X'.
+        zcx_abapgit_exception=>raise( |Main package { iv_package } cannot be used in local package| ).
+      ELSEIF ls_package_data-mainpack = 'S'.
+        zcx_abapgit_exception=>raise( |Structure package { iv_package } cannot be used in local package| ).
+      ENDIF.
+    ENDIF.
+
     li_package = get_package( ).
 
     " Swap out repository package name with the local installation package name
@@ -530,7 +545,7 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
       ls_package_data-dlvunit = 'HOME'.
     ENDIF.
 
-    ls_package_data-as4user = cl_abap_syst=>get_user_name( ).
+    ls_package_data-as4user = sy-uname.
 
     IF li_package IS BOUND.
       " Package already exists, change it
@@ -620,10 +635,15 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
     update_pinf_usages( ii_package    = li_package
                         it_usage_data = lt_usage_data ).
 
-    ls_save_sign-pack = ls_save_sign-permis = ls_save_sign-elems = ls_save_sign-interf = abap_true.
+    ls_save_sign-pack = abap_true.
+    ls_save_sign-permis = abap_true.
+    ls_save_sign-elems = abap_true.
+    ls_save_sign-interf = abap_true.
     li_package->save_generic(
       EXPORTING
         i_save_sign           = ls_save_sign
+        i_transport_request   = iv_transport
+        i_suppress_dialog     = abap_true
       EXCEPTIONS
         cancelled_in_corr     = 1
         permission_failure    = 2
@@ -697,19 +717,7 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name
-        object_type         = 'DEVC'
-        in_new_window       = abap_true
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 

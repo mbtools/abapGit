@@ -2,14 +2,13 @@ CLASS zcl_abapgit_object_idoc DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
+
     METHODS:
       constructor
         IMPORTING
           is_item     TYPE zif_abapgit_definitions=>ty_item
           iv_language TYPE spras.
     CLASS-METHODS clear_idoc_segement_fields CHANGING cg_structure TYPE any.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES:
@@ -28,7 +27,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_IDOC IMPLEMENTATION.
+CLASS zcl_abapgit_object_idoc IMPLEMENTATION.
 
 
   METHOD clear_idoc_segement_field.
@@ -213,19 +212,11 @@ CLASS ZCL_ABAPGIT_OBJECT_IDOC IMPLEMENTATION.
     <ls_bdcdata>-fnam = 'BDC_OKCODE'.
     <ls_bdcdata>-fval = '=DISP'.
 
-    CALL FUNCTION 'ABAP4_CALL_TRANSACTION'
-      STARTING NEW TASK 'GIT'
-      EXPORTING
-        tcode     = 'WE30'
-        mode_val  = 'E'
-      TABLES
-        using_tab = lt_bdcdata
-      EXCEPTIONS
-        OTHERS    = 1.
+    zcl_abapgit_ui_factory=>get_gui_jumper( )->jump_batch_input(
+      iv_tcode   = 'WE30'
+      it_bdcdata = lt_bdcdata ).
 
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
+    rv_exit = abap_true.
 
   ENDMETHOD.
 

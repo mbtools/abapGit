@@ -5,6 +5,8 @@ CLASS zcl_abapgit_object_sfbf DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PROTECTED SECTION.
   PRIVATE SECTION.
+    CONSTANTS c_longtext_id_sfbf TYPE dokil-id VALUE 'BF'.
+
     METHODS:
       get
         RETURNING VALUE(ro_bf) TYPE REF TO cl_sfw_bf
@@ -14,7 +16,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_SFBF IMPLEMENTATION.
+CLASS zcl_abapgit_object_sfbf IMPLEMENTATION.
 
 
   METHOD get.
@@ -134,6 +136,9 @@ CLASS ZCL_ABAPGIT_OBJECT_SFBF IMPLEMENTATION.
 
     lo_bf->save_all( ).
 
+    deserialize_longtexts( ii_xml         = io_xml
+                           iv_longtext_id = c_longtext_id_sfbf ).
+
     zcl_abapgit_objects_activation=>add_item( ms_item ).
 
   ENDMETHOD.
@@ -173,7 +178,6 @@ CLASS ZCL_ABAPGIT_OBJECT_SFBF IMPLEMENTATION.
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-    rs_metadata-ddic = abap_true.
     rs_metadata-delete_tadir = abap_true.
   ENDMETHOD.
 
@@ -191,14 +195,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SFBF IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation     = 'SHOW'
-        object_name   = ms_item-obj_name
-        object_type   = 'SFBF'
-        in_new_window = abap_true.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -262,6 +259,9 @@ CLASS ZCL_ABAPGIT_OBJECT_SFBF IMPLEMENTATION.
                  iv_name = 'CONTENT_RN' ).
     io_xml->add( ig_data = lt_parent_bfs
                  iv_name = 'PARENT_BFS' ).
+
+    serialize_longtexts( ii_xml         = io_xml
+                         iv_longtext_id = c_longtext_id_sfbf ).
 
   ENDMETHOD.
 ENDCLASS.

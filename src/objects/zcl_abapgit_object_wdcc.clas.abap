@@ -7,16 +7,13 @@ CLASS zcl_abapgit_object_wdcc DEFINITION
   PUBLIC SECTION.
 
     INTERFACES zif_abapgit_object .
-
-    ALIASES mo_files
-      FOR zif_abapgit_object~mo_files .
   PROTECTED SECTION.
   PRIVATE SECTION.
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_WDCC IMPLEMENTATION.
+CLASS zcl_abapgit_object_wdcc IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -64,6 +61,8 @@ CLASS ZCL_ABAPGIT_OBJECT_WDCC IMPLEMENTATION.
       CATCH cx_root.
         zcx_abapgit_exception=>raise( 'Object type WDCC not supported for this release' ).
     ENDTRY.
+
+    corr_insert( iv_package ).
 
   ENDMETHOD.
 
@@ -119,8 +118,10 @@ CLASS ZCL_ABAPGIT_OBJECT_WDCC IMPLEMENTATION.
     io_xml->read( EXPORTING iv_name = 'WDA_COMPONENT'
                   CHANGING  cg_data = ls_orig_config-component ).
 
-    lv_xml_string = mo_files->read_string( iv_extra = 'comp_config'
-                                           iv_ext   = 'xml' ).
+    lv_xml_string = zif_abapgit_object~mo_files->read_string(
+      iv_extra = 'comp_config'
+      iv_ext   = 'xml' ).
+
     TRY.
         lv_xml_string = zcl_abapgit_xml_pretty=>print( iv_xml           = lv_xml_string
                                                        iv_ignore_errors = abap_false
@@ -227,7 +228,9 @@ CLASS ZCL_ABAPGIT_OBJECT_WDCC IMPLEMENTATION.
         x_config_type        = 'X'
         x_config_var         = 'X'.
 
-    tadir_insert( iv_package = iv_package ).
+    tadir_insert( iv_package ).
+
+    corr_insert( iv_package ).
 
   ENDMETHOD.
 
@@ -314,14 +317,7 @@ CLASS ZCL_ABAPGIT_OBJECT_WDCC IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation     = 'SHOW'
-        object_name   = ms_item-obj_name
-        object_type   = 'WDCC'
-        in_new_window = abap_true.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -416,9 +412,10 @@ CLASS ZCL_ABAPGIT_OBJECT_WDCC IMPLEMENTATION.
       ASSERT sy-subrc = 0.
     ENDIF.
 
-    mo_files->add_string( iv_extra  = 'comp_config'
-                          iv_ext    = 'xml'
-                          iv_string = lv_xml_string ).
+    zif_abapgit_object~mo_files->add_string(
+      iv_extra  = 'comp_config'
+      iv_ext    = 'xml'
+      iv_string = lv_xml_string ).
 
     SELECT * FROM wdy_config_compt INTO TABLE lt_otr_texts
       WHERE config_id   = ls_orig_config-config_id

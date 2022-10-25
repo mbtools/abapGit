@@ -97,6 +97,10 @@
        <TYP>TADIR-DEVCLASS</TYP>
       </RSIMP>
       <RSIMP>
+       <PARAMETER>IV_SRCSYSTEM</PARAMETER>
+       <TYP>TADIR-SRCSYSTEM</TYP>
+      </RSIMP>
+      <RSIMP>
        <PARAMETER>IV_LANGUAGE</PARAMETER>
        <TYP>SY-LANGU</TYP>
       </RSIMP>
@@ -107,6 +111,10 @@
       <RSIMP>
        <PARAMETER>IV_MAIN_LANGUAGE_ONLY</PARAMETER>
        <TYP>CHAR1</TYP>
+      </RSIMP>
+      <RSIMP>
+       <PARAMETER>IT_TRANSLATION_LANGS</PARAMETER>
+       <TYP>TFPLAISO</TYP>
       </RSIMP>
      </IMPORT>
      <EXPORT>
@@ -141,6 +149,11 @@
        <STEXT>Package</STEXT>
       </RSFDO>
       <RSFDO>
+       <PARAMETER>IV_SRCSYSTEM</PARAMETER>
+       <KIND>P</KIND>
+       <STEXT>Original System of Object</STEXT>
+      </RSFDO>
+      <RSFDO>
        <PARAMETER>IV_LANGUAGE</PARAMETER>
        <KIND>P</KIND>
        <STEXT>ABAP System Field: Language Key of Text Environment</STEXT>
@@ -153,6 +166,11 @@
        <PARAMETER>IV_MAIN_LANGUAGE_ONLY</PARAMETER>
        <KIND>P</KIND>
        <STEXT>Single-Character Indicator</STEXT>
+      </RSFDO>
+      <RSFDO>
+       <PARAMETER>IT_TRANSLATION_LANGS</PARAMETER>
+       <KIND>P</KIND>
+       <STEXT>Language Table in ISO Format</STEXT>
       </RSFDO>
       <RSFDO>
        <PARAMETER>EV_RESULT</PARAMETER>

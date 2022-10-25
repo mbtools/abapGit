@@ -4,17 +4,20 @@ CLASS zcl_abapgit_gui_page_diff DEFINITION
   CREATE PUBLIC.
 
   PUBLIC SECTION.
+    INTERFACES:
+      zif_abapgit_gui_hotkeys.
+
     TYPES:
       BEGIN OF ty_file_diff,
         path       TYPE string,
         filename   TYPE string,
         obj_type   TYPE string,
         obj_name   TYPE string,
-        lstate     TYPE char1,
-        rstate     TYPE char1,
-        fstate     TYPE char1, " FILE state - Abstraction for shorter ifs
+        lstate     TYPE c LENGTH 1,
+        rstate     TYPE c LENGTH 1,
+        fstate     TYPE c LENGTH 1, " FILE state - Abstraction for shorter ifs
         o_diff     TYPE REF TO zcl_abapgit_diff,
-        changed_by TYPE xubname,
+        changed_by TYPE syuname,
         type       TYPE string,
       END OF ty_file_diff.
     TYPES:
@@ -25,9 +28,9 @@ CLASS zcl_abapgit_gui_page_diff DEFINITION
 
     CONSTANTS:
       BEGIN OF c_fstate,
-        local  TYPE char1 VALUE 'L',
-        remote TYPE char1 VALUE 'R',
-        both   TYPE char1 VALUE 'B',
+        local  TYPE c LENGTH 1 VALUE 'L',
+        remote TYPE c LENGTH 1 VALUE 'R',
+        both   TYPE c LENGTH 1 VALUE 'B',
       END OF c_fstate.
 
     METHODS constructor
@@ -42,6 +45,27 @@ CLASS zcl_abapgit_gui_page_diff DEFINITION
     METHODS zif_abapgit_gui_event_handler~on_event
         REDEFINITION.
   PROTECTED SECTION.
+
+    CONSTANTS:
+      BEGIN OF c_actions,
+        toggle_unified         TYPE string VALUE 'toggle_unified',
+        toggle_hidden_chars    TYPE string VALUE 'toggle_hidden_chars',
+        toggle_ignore_indent   TYPE string VALUE 'toggle_ignore_indent',
+        toggle_ignore_comments TYPE string VALUE 'toggle_ignore_comments',
+        toggle_ignore_case     TYPE string VALUE 'toggle_ignore_case',
+        refresh_prefix         TYPE string VALUE 'refresh',
+        refresh_all            TYPE string VALUE 'refresh_all',
+        refresh_local          TYPE string VALUE 'refresh_local',
+        refresh_local_object   TYPE string VALUE 'refresh_local_object',
+      END OF c_actions ,
+      BEGIN OF c_action_texts,
+        refresh_all   TYPE string VALUE `Refresh All`,
+        refresh_local TYPE string VALUE `Refresh Local`,
+      END OF c_action_texts,
+      BEGIN OF c_action_titles,
+        refresh_local TYPE string VALUE `Refresh all local objects, without refreshing the remote`,
+        refresh_all   TYPE string VALUE `Complete refresh of all objects, local and remote`,
+      END OF c_action_titles.
 
     DATA mv_unified TYPE abap_bool VALUE abap_true ##NO_TEXT.
     DATA mo_repo TYPE REF TO zcl_abapgit_repo .
@@ -105,20 +129,50 @@ CLASS zcl_abapgit_gui_page_diff DEFINITION
       RETURNING
         VALUE(ro_menu) TYPE REF TO zcl_abapgit_html_toolbar .
     METHODS set_layout.
+    METHODS refresh
+      IMPORTING
+        iv_action TYPE clike
+      RAISING
+        zcx_abapgit_exception .
+    METHODS refresh_full
+      RAISING
+        zcx_abapgit_exception .
+    METHODS refresh_local
+      RAISING
+        zcx_abapgit_exception .
+    METHODS refresh_local_object
+      IMPORTING
+        iv_action TYPE clike
+      RAISING
+        zcx_abapgit_exception .
+    METHODS is_refresh
+      IMPORTING
+        iv_action            TYPE string
+      RETURNING
+        VALUE(rv_is_refrseh) TYPE abap_bool.
+    METHODS modify_files_before_diff_calc
+      IMPORTING
+        it_diff_files_old TYPE ty_file_diffs
+      RETURNING
+        VALUE(rt_files)   TYPE zif_abapgit_definitions=>ty_stage_tt.
+    METHODS add_view_sub_menu
+      IMPORTING
+        io_menu TYPE REF TO zcl_abapgit_html_toolbar .
 
     METHODS render_content
         REDEFINITION .
   PRIVATE SECTION.
-
-    CONSTANTS:
-      BEGIN OF c_actions,
-        toggle_unified      TYPE string VALUE 'toggle_unified',
-        toggle_hidden_chars TYPE string VALUE 'toggle_hidden_chars',
-      END OF c_actions .
+    TYPES:
+      BEGIN OF ty_view,
+        hidden_chars    TYPE abap_bool,
+        ignore_indent   TYPE abap_bool,
+        ignore_comments TYPE abap_bool,
+        ignore_case     TYPE abap_bool,
+      END OF ty_view.
     DATA mt_delayed_lines TYPE zif_abapgit_definitions=>ty_diffs_tt .
     DATA mv_repo_key TYPE zif_abapgit_persistence=>ty_repo-key .
     DATA mv_seed TYPE string .                    " Unique page id to bind JS sessionStorage
-    DATA mv_hidden_chars TYPE abap_bool .
+    DATA ms_view TYPE ty_view.
 
     METHODS render_diff
       IMPORTING
@@ -147,6 +201,11 @@ CLASS zcl_abapgit_gui_page_diff DEFINITION
         !is_diff       TYPE ty_file_diff
       RETURNING
         VALUE(ri_html) TYPE REF TO zif_abapgit_html .
+    METHODS render_line_no_diffs
+      RETURNING
+        VALUE(ri_html) TYPE REF TO zif_abapgit_html
+      RAISING
+        zcx_abapgit_exception .
     METHODS render_line_split
       IMPORTING
         !is_diff_line  TYPE zif_abapgit_definitions=>ty_diff
@@ -202,6 +261,12 @@ CLASS zcl_abapgit_gui_page_diff DEFINITION
         is_status                   TYPE zif_abapgit_definitions=>ty_result
       RETURNING
         VALUE(rv_is_file_requested) TYPE abap_bool.
+    METHODS has_diffs
+      IMPORTING
+        !it_diffs           TYPE zif_abapgit_definitions=>ty_diffs_tt
+      RETURNING
+        VALUE(rv_has_diffs) TYPE abap_bool.
+
 ENDCLASS.
 
 
@@ -213,24 +278,23 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
     DATA:
       lo_sub_filter TYPE REF TO zcl_abapgit_html_toolbar,
-      lt_types      TYPE string_table,
-      lt_users      TYPE string_table.
+      lv_user       TYPE string,
+      lt_extensions TYPE SORTED TABLE OF string WITH UNIQUE DEFAULT KEY,
+      lt_obj_types  TYPE SORTED TABLE OF string WITH UNIQUE DEFAULT KEY,
+      lt_users      TYPE SORTED TABLE OF string WITH UNIQUE DEFAULT KEY.
 
     FIELD-SYMBOLS: <ls_diff> LIKE LINE OF mt_diff_files,
                    <lv_i>    TYPE string.
-    " Get unique
+
+    " Get unique filter values
     LOOP AT mt_diff_files ASSIGNING <ls_diff>.
-      APPEND <ls_diff>-type TO lt_types.
-      APPEND <ls_diff>-changed_by TO lt_users.
+      lv_user = <ls_diff>-changed_by.
+      INSERT <ls_diff>-type INTO TABLE lt_extensions.
+      INSERT <ls_diff>-obj_type INTO TABLE lt_obj_types.
+      INSERT lv_user INTO TABLE lt_users.
     ENDLOOP.
 
-    SORT lt_types.
-    DELETE ADJACENT DUPLICATES FROM lt_types.
-
-    SORT lt_users.
-    DELETE ADJACENT DUPLICATES FROM lt_users.
-
-    IF lines( lt_types ) > 1 OR lines( lt_users ) > 1.
+    IF lines( lt_extensions ) > 1 OR lines( lt_obj_types ) > 1 OR lines( lt_users ) > 1.
       CREATE OBJECT lo_sub_filter EXPORTING iv_id = 'diff-filter'.
 
       IF lines( lt_users ) > 1.
@@ -240,21 +304,33 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
                             iv_chk = abap_false ).
       ENDIF.
 
-      " File types
-      IF lines( lt_types ) > 1.
-        lo_sub_filter->add( iv_txt = 'TYPE'
+      " File extensions
+      IF lines( lt_extensions ) > 1.
+        lo_sub_filter->add( iv_txt = 'Extension'
                             iv_typ = zif_abapgit_html=>c_action_type-separator ).
-        LOOP AT lt_types ASSIGNING <lv_i>.
+        LOOP AT lt_extensions ASSIGNING <lv_i>.
           lo_sub_filter->add( iv_txt = <lv_i>
                        iv_typ = zif_abapgit_html=>c_action_type-onclick
-                       iv_aux = 'type'
+                       iv_aux = 'extension'
+                       iv_chk = abap_true ).
+        ENDLOOP.
+      ENDIF.
+
+      " Object types
+      IF lines( lt_obj_types ) > 1.
+        lo_sub_filter->add( iv_txt = 'Object Type'
+                            iv_typ = zif_abapgit_html=>c_action_type-separator ).
+        LOOP AT lt_obj_types ASSIGNING <lv_i>.
+          lo_sub_filter->add( iv_txt = <lv_i>
+                       iv_typ = zif_abapgit_html=>c_action_type-onclick
+                       iv_aux = 'object-type'
                        iv_chk = abap_true ).
         ENDLOOP.
       ENDIF.
 
       " Changed by
       IF lines( lt_users ) > 1.
-        lo_sub_filter->add( iv_txt = 'CHANGED BY'
+        lo_sub_filter->add( iv_txt = 'Changed By'
                             iv_typ = zif_abapgit_html=>c_action_type-separator ).
         LOOP AT lt_users ASSIGNING <lv_i>.
           lo_sub_filter->add( iv_txt = <lv_i>
@@ -298,6 +374,20 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
   METHOD add_menu_begin.
 
+    io_menu->add(
+        iv_txt   = c_action_texts-refresh_local
+        iv_typ   = zif_abapgit_html=>c_action_type-sapevent
+        iv_act   = c_actions-refresh_local
+        iv_id    = c_actions-refresh_local
+        iv_title = c_action_titles-refresh_local ).
+
+    io_menu->add(
+        iv_txt   = c_action_texts-refresh_all
+        iv_typ   = zif_abapgit_html=>c_action_type-sapevent
+        iv_act   = c_actions-refresh_all
+        iv_id    = c_actions-refresh_all
+        iv_title = c_action_titles-refresh_all ).
+
   ENDMETHOD.
 
 
@@ -306,9 +396,35 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
     io_menu->add( iv_txt = 'Split/Unified'
                   iv_act = c_actions-toggle_unified ).
 
-    io_menu->add( iv_txt   = '&para;'
-                  iv_title = 'Toggle Hidden Characters'
-                  iv_act   = c_actions-toggle_hidden_chars ).
+    add_view_sub_menu( io_menu ).
+
+  ENDMETHOD.
+
+
+  METHOD add_view_sub_menu.
+
+    DATA lo_sub_view TYPE REF TO zcl_abapgit_html_toolbar.
+
+    CREATE OBJECT lo_sub_view EXPORTING iv_id = 'diff-view'.
+
+    lo_sub_view->add( iv_txt = 'Show Hidden Characters'
+                      iv_act = c_actions-toggle_hidden_chars
+                      iv_chk = ms_view-hidden_chars ).
+
+    lo_sub_view->add( iv_txt = 'Ignore Whitespace'
+                      iv_act = c_actions-toggle_ignore_indent
+                      iv_chk = ms_view-ignore_indent ).
+
+    lo_sub_view->add( iv_txt = 'Ignore Comments'
+                      iv_act = c_actions-toggle_ignore_comments
+                      iv_chk = ms_view-ignore_comments ).
+
+    lo_sub_view->add( iv_txt = 'Ignore Pretty-Print Case'
+                      iv_act = c_actions-toggle_ignore_case
+                      iv_chk = ms_view-ignore_case ).
+
+    io_menu->add( iv_txt = 'View'
+                  io_sub = lo_sub_view ).
 
   ENDMETHOD.
 
@@ -326,8 +442,9 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
 
     READ TABLE it_remote ASSIGNING <ls_remote>
-      WITH KEY filename = is_status-filename
-               path     = is_status-path.
+      WITH KEY file_path
+       COMPONENTS path     = is_status-path
+                  filename = is_status-filename.
     IF sy-subrc <> 0.
       ASSIGN ls_r_dummy TO <ls_remote>.
     ENDIF.
@@ -392,13 +509,19 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
       IF <ls_diff>-fstate = c_fstate-remote. " Remote file leading changes
         CREATE OBJECT <ls_diff>-o_diff
           EXPORTING
-            iv_new = <ls_remote>-data
-            iv_old = <ls_local>-file-data.
+            iv_new                = <ls_remote>-data
+            iv_old                = <ls_local>-file-data
+            iv_ignore_indentation = ms_view-ignore_indent
+            iv_ignore_comments    = ms_view-ignore_comments
+            iv_ignore_case        = ms_view-ignore_case.
       ELSE.             " Local leading changes or both were modified
         CREATE OBJECT <ls_diff>-o_diff
           EXPORTING
-            iv_new = <ls_local>-file-data
-            iv_old = <ls_remote>-data.
+            iv_new                = <ls_local>-file-data
+            iv_old                = <ls_remote>-data
+            iv_ignore_indentation = ms_view-ignore_indent
+            iv_ignore_comments    = ms_view-ignore_comments
+            iv_ignore_case        = ms_view-ignore_case.
       ENDIF.
     ENDIF.
 
@@ -407,7 +530,7 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
   METHOD build_menu.
 
-    CREATE OBJECT ro_menu.
+    CREATE OBJECT ro_menu EXPORTING iv_id = 'toolbar-main'.
 
     add_menu_begin( ro_menu ).
     add_jump_sub_menu( ro_menu ).
@@ -446,6 +569,9 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
       READ TABLE lt_status ASSIGNING <ls_status>
         WITH KEY path = is_file-path filename = is_file-filename.
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise( |File { is_file-path }{ is_file-filename } not found| ).
+      ENDIF.
 
       append_diff( it_remote = lt_remote
                    it_local  = lt_local
@@ -491,7 +617,7 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
     super->constructor( ).
     ms_control-page_title = 'Diff'.
-    mv_unified            = zcl_abapgit_persist_factory=>get_user( )->get_diff_unified( ).
+    mv_unified            = zcl_abapgit_persistence_user=>get_instance( )->get_diff_unified( ).
     set_layout( ).
     mv_repo_key           = iv_key.
     mo_repo              ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
@@ -507,7 +633,8 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
         it_files  = it_files ).
 
     IF lines( mt_diff_files ) = 0.
-      zcx_abapgit_exception=>raise( 'PAGE_DIFF ERROR: No diff files found' ).
+      zcx_abapgit_exception=>raise(
+        'There are no differences to show. The local state completely matches the remote repository.' ).
     ENDIF.
 
     ms_control-page_menu = build_menu( ).
@@ -520,6 +647,16 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
     rv_filename = normalize_path( is_diff-path )
                && `_`
                && normalize_filename( is_diff-filename ).
+
+  ENDMETHOD.
+
+
+  METHOD has_diffs.
+
+    LOOP AT it_diffs TRANSPORTING NO FIELDS WHERE result IS NOT INITIAL.
+      rv_has_diffs = abap_true.
+      EXIT.
+    ENDLOOP.
 
   ENDMETHOD.
 
@@ -559,6 +696,33 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD is_refresh.
+
+    FIND FIRST OCCURRENCE OF REGEX |^{ c_actions-refresh_prefix }| IN iv_action.
+    rv_is_refrseh = boolc( sy-subrc = 0 ).
+
+  ENDMETHOD.
+
+
+  METHOD modify_files_before_diff_calc.
+
+    DATA ls_file LIKE LINE OF rt_files.
+
+    FIELD-SYMBOLS <ls_diff_file_old> TYPE ty_file_diff.
+
+    " We need to supply files again in calculate_diff. Because
+    " we only want to refresh the visible files. Otherwise all
+    " diff files would appear.
+    " Which is not wanted when we previously only selected particular files.
+    LOOP AT it_diff_files_old ASSIGNING <ls_diff_file_old>.
+      CLEAR ls_file.
+      MOVE-CORRESPONDING <ls_diff_file_old> TO ls_file-file.
+      INSERT ls_file INTO TABLE rt_files.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
   METHOD normalize_filename.
 
     rv_normalized = replace( val  = iv_filename
@@ -575,6 +739,65 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
                              sub  = '/'
                              occ  = 0
                              with = '_' ).
+
+  ENDMETHOD.
+
+
+  METHOD refresh.
+
+    DATA:
+      lt_diff_files_old TYPE ty_file_diffs,
+      lt_files          TYPE zif_abapgit_definitions=>ty_stage_tt.
+
+
+    lt_diff_files_old = mt_diff_files.
+
+    CASE iv_action.
+      WHEN c_actions-refresh_all.
+        refresh_full( ).
+      WHEN c_actions-refresh_local.
+        refresh_local( ).
+      WHEN OTHERS.
+        refresh_local_object( iv_action ).
+    ENDCASE.
+
+    lt_files = modify_files_before_diff_calc( lt_diff_files_old ).
+
+    calculate_diff( it_files = lt_files ).
+
+  ENDMETHOD.
+
+
+  METHOD refresh_full.
+    mo_repo->refresh( abap_true ).
+  ENDMETHOD.
+
+
+  METHOD refresh_local.
+    mo_repo->refresh_local_objects( ).
+  ENDMETHOD.
+
+
+  METHOD refresh_local_object.
+
+    DATA:
+      lv_regex    TYPE string,
+      lv_obj_type TYPE tadir-object,
+      lv_obj_name TYPE tadir-obj_name.
+
+    lv_regex = c_actions-refresh_local_object && `_(\w{4})_(.*)`.
+
+    FIND FIRST OCCURRENCE OF REGEX lv_regex
+      IN iv_action
+      SUBMATCHES lv_obj_type lv_obj_name.
+
+    IF sy-subrc = 0.
+      mo_repo->refresh_local_object(
+          iv_obj_type = lv_obj_type
+          iv_obj_name = lv_obj_name ).
+    ELSE.
+      zcx_abapgit_exception=>raise( |Invalid refresh action { iv_action }| ).
+    ENDIF.
 
   ENDMETHOD.
 
@@ -652,6 +875,8 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
     li_progress->off( ).
 
+    gui_services( )->get_hotkeys_ctl( )->register_hotkeys( zif_abapgit_gui_hotkeys~get_hotkey_actions( ) ).
+
   ENDMETHOD.
 
 
@@ -659,7 +884,8 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 
-    ri_html->add( |<div class="diff" data-type="{ is_diff-type
+    ri_html->add( |<div class="diff" data-extension="{ is_diff-type
+      }" data-object-type="{ is_diff-obj_type
       }" data-changed-by="{ is_diff-changed_by
       }" data-file="{ is_diff-path && is_diff-filename }">| ).
     ri_html->add( render_diff_head( is_diff ) ).
@@ -750,12 +976,25 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
                  && ' highlighting for MM assumes local file is newer ! </span>' ).
     ENDIF.
 
+    IF is_diff-obj_type IS NOT INITIAL AND is_diff-obj_name IS NOT INITIAL.
+      ii_html->add( '<span class="repo_name">' ).
+      ii_html->add_a( iv_txt   = ii_html->icon( iv_name  = 'redo-alt-solid'
+                                                iv_class = 'pad-sides'
+                                                iv_hint  = 'Local refresh of this object' )
+                      iv_act   = |{ c_actions-refresh_local_object }_{ is_diff-obj_type }_{ is_diff-obj_name }|
+                      iv_class = |url| ).
+      ii_html->add( '</span>' ).
+    ENDIF.
+
   ENDMETHOD.
 
 
   METHOD render_lines.
 
     DATA: lo_highlighter TYPE REF TO zcl_abapgit_syntax_highlighter,
+          li_htmldiff    TYPE REF TO zif_abapgit_htmldiff,
+          lv_new         TYPE string,
+          lv_old         TYPE string,
           lt_diffs       TYPE zif_abapgit_definitions=>ty_diffs_tt,
           lv_insert_nav  TYPE abap_bool,
           lv_tabix       TYPE syst-tabix.
@@ -763,10 +1002,20 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
     FIELD-SYMBOLS <ls_diff> LIKE LINE OF lt_diffs.
 
     lo_highlighter = zcl_abapgit_syntax_factory=>create( iv_filename     = is_diff-filename
-                                                         iv_hidden_chars = mv_hidden_chars ).
+                                                         iv_hidden_chars = ms_view-hidden_chars ).
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 
+    CREATE OBJECT li_htmldiff TYPE zcl_abapgit_htmldiff
+      EXPORTING
+        iv_inserts = abap_true
+        iv_deletes = abap_false.
+
     lt_diffs = is_diff-o_diff->get( ).
+
+    IF has_diffs( lt_diffs ) = abap_false.
+      ri_html->add( render_line_no_diffs( ) ).
+      RETURN.
+    ENDIF.
 
     lv_insert_nav = insert_nav( ).
 
@@ -789,10 +1038,21 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
         <ls_diff>-new = lo_highlighter->process_line( <ls_diff>-new ).
         <ls_diff>-old = lo_highlighter->process_line( <ls_diff>-old ).
       ELSE.
-        <ls_diff>-new = escape( val = <ls_diff>-new
+        <ls_diff>-new = escape( val    = <ls_diff>-new
                                 format = cl_abap_format=>e_html_attr ).
-        <ls_diff>-old = escape( val = <ls_diff>-old
+        <ls_diff>-old = escape( val    = <ls_diff>-old
                                 format = cl_abap_format=>e_html_attr ).
+      ENDIF.
+
+      IF <ls_diff>-new <> <ls_diff>-old AND <ls_diff>-new IS NOT INITIAL AND <ls_diff>-old IS NOT INITIAL.
+        lv_new = li_htmldiff->htmldiff(
+          iv_before = <ls_diff>-old
+          iv_after  = <ls_diff>-new ).
+        <ls_diff>-new = lv_new.
+        lv_old = li_htmldiff->htmldiff(
+          iv_before = <ls_diff>-new
+          iv_after  = <ls_diff>-old ).
+        <ls_diff>-old = lv_old.
       ENDIF.
 
       CONDENSE <ls_diff>-new_num. "get rid of leading spaces
@@ -811,6 +1071,26 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
     IF mv_unified = abap_true.
       ri_html->add( render_line_unified( ) ). " Release delayed lines
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD render_line_no_diffs.
+
+    DATA ls_diff_line TYPE zif_abapgit_definitions=>ty_diff.
+
+    CREATE OBJECT ri_html TYPE zcl_abapgit_html.
+
+    IF mv_unified = abap_true.
+      ls_diff_line-old = 'No diffs found'.
+      ri_html->add( render_line_unified( is_diff_line = ls_diff_line ) ).
+    ELSE.
+      ls_diff_line-new = 'No diffs found'.
+      ri_html->add( render_line_split( is_diff_line = ls_diff_line
+                                       iv_filename  = ''
+                                       iv_fstate    = ''
+                                       iv_index     = 1 ) ).
     ENDIF.
 
   ENDMETHOD.
@@ -857,7 +1137,7 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
           && |<td class="code{ lv_bg } diff_right">{ is_diff_line-old }</td>|.
 
     " render line, inverse sides if remote is newer
-    ri_html->add( '<tr class="diff_line_split">' ).
+    ri_html->add( '<tr class="diff_line">' ).
 
     render_line_split_row(
         ii_html                = ri_html
@@ -895,7 +1175,7 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
     " Release delayed subsequent update lines
     IF is_diff_line-result <> zif_abapgit_definitions=>c_diff-update.
       LOOP AT mt_delayed_lines ASSIGNING <ls_diff_line>.
-        ri_html->add( '<tr class="diff_line_split">' ).
+        ri_html->add( '<tr class="diff_line">' ).
         ri_html->add( |<td class="num diff_others" line-num="{ <ls_diff_line>-old_num }"></td>|
                    && |<td class="num diff_others" line-num=""></td>|
                    && |<td class="mark diff_others">-</td>|
@@ -903,7 +1183,7 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
         ri_html->add( '</tr>' ).
       ENDLOOP.
       LOOP AT mt_delayed_lines ASSIGNING <ls_diff_line>.
-        ri_html->add( '<tr class="diff_line_split">' ).
+        ri_html->add( '<tr class="diff_line">' ).
         ri_html->add( |<td class="num diff_others" line-num=""></td>|
                    && |<td class="num diff_others" line-num="{ <ls_diff_line>-new_num }"></td>|
                    && |<td class="mark diff_others">+</td>|
@@ -913,7 +1193,7 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
       CLEAR mt_delayed_lines.
     ENDIF.
 
-    ri_html->add( '<tr class="diff_line_split">' ).
+    ri_html->add( '<tr class="diff_line">' ).
     CASE is_diff_line-result.
       WHEN zif_abapgit_definitions=>c_diff-update.
         APPEND is_diff_line TO mt_delayed_lines. " Delay output of subsequent updates
@@ -1026,23 +1306,83 @@ CLASS zcl_abapgit_gui_page_diff IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_event_handler~on_event.
 
+    DATA ls_view LIKE ms_view.
+
+    ls_view = ms_view.
+
     CASE ii_event->mv_action.
       WHEN c_actions-toggle_unified. " Toggle file diplay
 
-        mv_unified = zcl_abapgit_persist_factory=>get_user( )->toggle_diff_unified( ).
+        mv_unified = zcl_abapgit_persistence_user=>get_instance( )->toggle_diff_unified( ).
         set_layout( ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
 
       WHEN c_actions-toggle_hidden_chars. " Toggle display of hidden characters
 
-        mv_hidden_chars = boolc( mv_hidden_chars = abap_false ).
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+        ms_view-hidden_chars = boolc( ms_view-hidden_chars = abap_false ).
+
+      WHEN c_actions-toggle_ignore_indent. " Toggle ignore indentation
+
+        ms_view-ignore_indent = boolc( ms_view-ignore_indent = abap_false ).
+
+      WHEN c_actions-toggle_ignore_comments. " Toggle ignore comments
+
+        ms_view-ignore_comments = boolc( ms_view-ignore_comments = abap_false ).
+
+      WHEN c_actions-toggle_ignore_case. " Toggle case sensitivity
+
+        ms_view-ignore_case = boolc( ms_view-ignore_case = abap_false ).
 
       WHEN OTHERS.
 
-        rs_handled = super->zif_abapgit_gui_event_handler~on_event( ii_event ).
+        IF is_refresh( ii_event->mv_action ) = abap_true.
+
+          refresh( ii_event->mv_action ).
+          rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+
+        ELSE.
+
+          rs_handled = super->zif_abapgit_gui_event_handler~on_event( ii_event ).
+
+        ENDIF.
 
     ENDCASE.
+
+    " If view has changed, refresh local files recalculating diff, and update menu
+    IF ms_view <> ls_view.
+      refresh( c_actions-refresh_local ).
+      ms_control-page_menu = build_menu( ).
+      rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_gui_hotkeys~get_hotkey_actions.
+
+    DATA: ls_hotkey_action LIKE LINE OF rt_hotkey_actions.
+
+    ls_hotkey_action-ui_component = 'Diff'.
+
+    ls_hotkey_action-description = |Refresh Local|.
+    ls_hotkey_action-action      = c_actions-refresh_local.
+    ls_hotkey_action-hotkey      = |r|.
+    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+
+    ls_hotkey_action-description = |Refresh All|.
+    ls_hotkey_action-action      = c_actions-refresh_all.
+    ls_hotkey_action-hotkey      = |a|.
+    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+
+    ls_hotkey_action-description = |Toogle Split/Unified|.
+    ls_hotkey_action-action      = c_actions-toggle_unified.
+    ls_hotkey_action-hotkey      = |u|.
+    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+
+    ls_hotkey_action-description = |Toogle Hidden Characters|.
+    ls_hotkey_action-action      = c_actions-toggle_hidden_chars.
+    ls_hotkey_action-hotkey      = |h|.
+    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
   ENDMETHOD.
 ENDCLASS.

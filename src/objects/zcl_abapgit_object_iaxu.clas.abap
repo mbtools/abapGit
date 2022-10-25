@@ -39,7 +39,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_IAXU IMPLEMENTATION.
+CLASS zcl_abapgit_object_iaxu IMPLEMENTATION.
 
 
   METHOD read.
@@ -240,7 +240,8 @@ CLASS ZCL_ABAPGIT_OBJECT_IAXU IMPLEMENTATION.
     ls_attr-devclass = iv_package.
 
     IF zif_abapgit_object~exists( ) = abap_true.
-      zif_abapgit_object~delete( iv_package ).
+      zif_abapgit_object~delete( iv_package   = iv_package
+                                 iv_transport = iv_transport ).
     ENDIF.
 
     save( is_attr = ls_attr ).
@@ -290,13 +291,7 @@ CLASS ZCL_ABAPGIT_OBJECT_IAXU IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation   = 'SHOW'
-        object_name = ms_item-obj_name
-        object_type = ms_item-obj_type.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 

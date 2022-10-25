@@ -95,6 +95,8 @@ CLASS zcl_abapgit_object_srfc IMPLEMENTATION.
         zcx_abapgit_exception=>raise_with_text( lx_error ).
     ENDTRY.
 
+    corr_insert( iv_package ).
+
   ENDMETHOD.
 
 
@@ -142,6 +144,8 @@ CLASS zcl_abapgit_object_srfc IMPLEMENTATION.
         li_srfc_persist->save( li_object_data ).
 
         tadir_insert( iv_package ).
+
+        corr_insert( iv_package ).
 
       CATCH cx_root INTO lx_error.
         zcx_abapgit_exception=>raise_with_text( lx_error ).
@@ -202,22 +206,7 @@ CLASS zcl_abapgit_object_srfc IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name    " Object Name
-        object_type         = ms_item-obj_type    " Object Type
-        in_new_window       = abap_true
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 

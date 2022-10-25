@@ -112,7 +112,7 @@ CLASS zcl_abapgit_syntax_highlighter IMPLEMENTATION.
     DATA lv_escaped TYPE string.
 
     lv_escaped = escape( val    = iv_line
-                         format = cl_abap_format=>e_html_attr ).
+                         format = cl_abap_format=>e_html_text ).
 
     lv_escaped = show_hidden_chars( lv_escaped ).
 
@@ -285,9 +285,14 @@ CLASS zcl_abapgit_syntax_highlighter IMPLEMENTATION.
       REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN rv_line WITH '&nbsp;&rarr;&nbsp;'.
       REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf(1)       IN rv_line WITH '&para;'.
       REPLACE ALL OCCURRENCES OF ` `                                    IN rv_line WITH '&middot;'.
+      REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>form_feed IN rv_line
+        WITH '<span class="red">&odash;</span>'.
 
       IF strlen( rv_line ) BETWEEN 1 AND 2.
-        lv_bom = zcl_abapgit_convert=>string_to_xstring( rv_line ).
+        TRY.
+            lv_bom = zcl_abapgit_convert=>string_to_xstring( rv_line ).
+          CATCH zcx_abapgit_exception ##NO_HANDLER.
+        ENDTRY.
         IF lv_bom(2) = cl_abap_char_utilities=>byte_order_mark_big.
           rv_line = '<span class="red">&squf;</span>'. " UTF-16 big-endian (FE FF)
         ENDIF.

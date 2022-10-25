@@ -7,6 +7,7 @@ CLASS zcl_abapgit_ajson DEFINITION
     INTERFACES zif_abapgit_ajson .
 
     ALIASES:
+      is_empty FOR zif_abapgit_ajson~is_empty,
       exists FOR zif_abapgit_ajson~exists,
       members FOR zif_abapgit_ajson~members,
       get FOR zif_abapgit_ajson~get,
@@ -37,6 +38,7 @@ CLASS zcl_abapgit_ajson DEFINITION
     ALIASES:
       mt_json_tree FOR zif_abapgit_ajson~mt_json_tree,
       keep_item_order FOR zif_abapgit_ajson~keep_item_order,
+      format_datetime FOR zif_abapgit_ajson~format_datetime,
       freeze FOR zif_abapgit_ajson~freeze.
 
     CLASS-METHODS parse
@@ -55,16 +57,27 @@ CLASS zcl_abapgit_ajson DEFINITION
       RETURNING
         VALUE(ro_instance) TYPE REF TO zcl_abapgit_ajson.
 
+    " Experimental ! May change
+    CLASS-METHODS create_from
+      IMPORTING
+        !ii_source_json TYPE REF TO zif_abapgit_ajson
+        !ii_filter TYPE REF TO zif_abapgit_ajson_filter OPTIONAL
+      RETURNING
+        VALUE(ro_instance) TYPE REF TO zcl_abapgit_ajson
+      RAISING
+        zcx_abapgit_ajson_error .
+
+    METHODS constructor.
+
   PROTECTED SECTION.
 
   PRIVATE SECTION.
 
-    TYPES:
-      tty_node_stack TYPE STANDARD TABLE OF REF TO zif_abapgit_ajson=>ty_node WITH DEFAULT KEY.
-
     DATA mv_read_only TYPE abap_bool.
     DATA mi_custom_mapping TYPE REF TO zif_abapgit_ajson_mapping.
     DATA mv_keep_item_order TYPE abap_bool.
+    DATA mv_format_datetime TYPE abap_bool.
+    " TODO restructure into zif_ajson=>ty_opts
 
     METHODS get_item
       IMPORTING
@@ -75,21 +88,34 @@ CLASS zcl_abapgit_ajson DEFINITION
       IMPORTING
         iv_path              TYPE string
       RETURNING
-        VALUE(rt_node_stack) TYPE tty_node_stack
+        VALUE(rr_end_node) TYPE REF TO zif_abapgit_ajson=>ty_node
       RAISING
         zcx_abapgit_ajson_error.
     METHODS delete_subtree
       IMPORTING
         iv_path           TYPE string
         iv_name           TYPE string
+        ir_parent         TYPE REF TO zif_abapgit_ajson=>ty_node OPTIONAL
       RETURNING
-        VALUE(rv_deleted) TYPE abap_bool.
-
+        VALUE(rs_top_node) TYPE zif_abapgit_ajson=>ty_node.
+    METHODS read_only_watchdog
+      RAISING
+        zcx_abapgit_ajson_error.
 ENDCLASS.
 
 
 
 CLASS zcl_abapgit_ajson IMPLEMENTATION.
+
+  METHOD zif_abapgit_ajson~opts.
+    rs_opts-read_only       = mv_read_only.
+    rs_opts-format_datetime = mv_format_datetime.
+    rs_opts-keep_item_order = mv_keep_item_order.
+  ENDMETHOD.
+
+  METHOD constructor.
+    format_datetime( abap_true ).
+  ENDMETHOD.
 
 
   METHOD create_empty.
@@ -98,39 +124,59 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD create_from.
+
+    DATA lo_filter_runner TYPE REF TO lcl_filter_runner.
+
+    IF ii_source_json IS NOT BOUND.
+      zcx_abapgit_ajson_error=>raise( 'Source not bound' ).
+    ENDIF.
+
+    CREATE OBJECT ro_instance.
+
+    IF ii_filter IS BOUND.
+      CREATE OBJECT lo_filter_runner.
+      lo_filter_runner->run(
+        EXPORTING
+          ii_filter = ii_filter
+          it_source_tree = ii_source_json->mt_json_tree
+        CHANGING
+          ct_dest_tree = ro_instance->mt_json_tree ).
+    ELSE.
+      ro_instance->mt_json_tree = ii_source_json->mt_json_tree.
+      " Copy keep order and custom mapping ???
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD delete_subtree.
 
     DATA lv_parent_path TYPE string.
-    DATA lv_parent_path_len TYPE i.
-    FIELD-SYMBOLS <node> LIKE LINE OF mt_json_tree.
-    READ TABLE mt_json_tree ASSIGNING <node>
+    DATA lr_parent LIKE ir_parent.
+
+    READ TABLE mt_json_tree INTO rs_top_node
       WITH KEY
         path = iv_path
         name = iv_name.
-    IF sy-subrc = 0. " Found ? delete !
-      IF <node>-children > 0. " only for objects and arrays
-        lv_parent_path = iv_path && iv_name && '/'.
-        lv_parent_path_len = strlen( lv_parent_path ).
-        LOOP AT mt_json_tree ASSIGNING <node>.
-          IF strlen( <node>-path ) >= lv_parent_path_len
-            AND substring( val = <node>-path
-                           len = lv_parent_path_len ) = lv_parent_path.
-            DELETE mt_json_tree INDEX sy-tabix.
-          ENDIF.
-        ENDLOOP.
-      ENDIF.
+    IF sy-subrc <> 0.
+      RETURN. " Not found ? nothing to delete !
+    ENDIF.
 
-      DELETE mt_json_tree WHERE path = iv_path AND name = iv_name.
-      rv_deleted = abap_true.
+    DELETE mt_json_tree INDEX sy-tabix. " where path = iv_path and name = iv_name.
 
-      DATA ls_path TYPE zif_abapgit_ajson=>ty_path_name.
-      ls_path = lcl_utils=>split_path( iv_path ).
-      READ TABLE mt_json_tree ASSIGNING <node>
-        WITH KEY
-          path = ls_path-path
-          name = ls_path-name.
-      IF sy-subrc = 0.
-        <node>-children = <node>-children - 1.
+    IF rs_top_node-children > 0. " only for objects and arrays
+      lv_parent_path = iv_path && iv_name && '/*'.
+      DELETE mt_json_tree WHERE path CP lv_parent_path.
+    ENDIF.
+
+    " decrement parent children
+    IF ir_parent IS SUPPLIED.
+      ir_parent->children = ir_parent->children - 1.
+    ELSE.
+      lr_parent = get_item( iv_path ).
+      IF lr_parent IS NOT INITIAL.
+        lr_parent->children = lr_parent->children - 1.
       ENDIF.
     ENDIF.
 
@@ -174,8 +220,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
   METHOD prove_path_exists.
 
     DATA lt_path TYPE string_table.
-    DATA lr_node LIKE LINE OF rt_node_stack.
-    DATA lr_node_parent LIKE LINE OF rt_node_stack.
+    DATA lr_node_parent LIKE rr_end_node.
     DATA lv_cur_path TYPE string.
     DATA lv_cur_name TYPE string.
     DATA ls_new_node LIKE LINE OF mt_json_tree.
@@ -184,8 +229,8 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     DELETE lt_path WHERE table_line IS INITIAL.
 
     DO.
-      lr_node_parent = lr_node.
-      READ TABLE mt_json_tree REFERENCE INTO lr_node
+      lr_node_parent = rr_end_node.
+      READ TABLE mt_json_tree REFERENCE INTO rr_end_node
         WITH KEY
           path = lv_cur_path
           name = lv_cur_name.
@@ -202,9 +247,8 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
         ls_new_node-path = lv_cur_path.
         ls_new_node-name = lv_cur_name.
         ls_new_node-type = zif_abapgit_ajson=>node_type-object.
-        INSERT ls_new_node INTO TABLE mt_json_tree REFERENCE INTO lr_node.
+        INSERT ls_new_node INTO TABLE mt_json_tree REFERENCE INTO rr_end_node.
       ENDIF.
-      INSERT lr_node INTO rt_node_stack INDEX 1.
       lv_cur_path = lv_cur_path && lv_cur_name && '/'.
       READ TABLE lt_path INDEX sy-index INTO lv_cur_name.
       IF sy-subrc <> 0.
@@ -212,8 +256,13 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
       ENDIF.
     ENDDO.
 
-    ASSERT lv_cur_path = iv_path. " Just in case
+  ENDMETHOD.
 
+
+  METHOD read_only_watchdog.
+    IF mv_read_only = abap_true.
+      zcx_abapgit_ajson_error=>raise( 'This json instance is read only' ).
+    ENDIF.
   ENDMETHOD.
 
 
@@ -258,10 +307,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~clear.
 
-    IF mv_read_only = abap_true.
-      zcx_abapgit_ajson_error=>raise( 'This json instance is read only' ).
-    ENDIF.
-
+    read_only_watchdog( ).
     CLEAR mt_json_tree.
 
   ENDMETHOD.
@@ -269,9 +315,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~delete.
 
-    IF mv_read_only = abap_true.
-      zcx_abapgit_ajson_error=>raise( 'This json instance is read only' ).
-    ENDIF.
+    read_only_watchdog( ).
 
     DATA ls_split_path TYPE zif_abapgit_ajson=>ty_path_name.
     ls_split_path = lcl_utils=>split_path( iv_path ).
@@ -286,13 +330,13 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
 
   METHOD zif_abapgit_ajson~exists.
+    rv_exists = boolc( get_item( iv_path ) IS NOT INITIAL ).
+  ENDMETHOD.
 
-    DATA lv_item TYPE REF TO zif_abapgit_ajson=>ty_node.
-    lv_item = get_item( iv_path ).
-    IF lv_item IS NOT INITIAL.
-      rv_exists = abap_true.
-    ENDIF.
 
+  METHOD zif_abapgit_ajson~format_datetime.
+    mv_format_datetime = iv_use_iso.
+    ri_json = me.
   ENDMETHOD.
 
 
@@ -303,10 +347,10 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~get.
 
-    DATA lv_item TYPE REF TO zif_abapgit_ajson=>ty_node.
-    lv_item = get_item( iv_path ).
-    IF lv_item IS NOT INITIAL.
-      rv_value = lv_item->value.
+    DATA lr_item TYPE REF TO zif_abapgit_ajson=>ty_node.
+    lr_item = get_item( iv_path ).
+    IF lr_item IS NOT INITIAL.
+      rv_value = lr_item->value.
     ENDIF.
 
   ENDMETHOD.
@@ -314,13 +358,13 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~get_boolean.
 
-    DATA lv_item TYPE REF TO zif_abapgit_ajson=>ty_node.
-    lv_item = get_item( iv_path ).
-    IF lv_item IS INITIAL OR lv_item->type = zif_abapgit_ajson=>node_type-null.
+    DATA lr_item TYPE REF TO zif_abapgit_ajson=>ty_node.
+    lr_item = get_item( iv_path ).
+    IF lr_item IS INITIAL OR lr_item->type = zif_abapgit_ajson=>node_type-null.
       RETURN.
-    ELSEIF lv_item->type = zif_abapgit_ajson=>node_type-boolean.
-      rv_value = boolc( lv_item->value = 'true' ).
-    ELSEIF lv_item->value IS NOT INITIAL.
+    ELSEIF lr_item->type = zif_abapgit_ajson=>node_type-boolean.
+      rv_value = boolc( lr_item->value = 'true' ).
+    ELSEIF lr_item->value IS NOT INITIAL.
       rv_value = abap_true.
     ENDIF.
 
@@ -329,16 +373,16 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~get_date.
 
-    DATA lv_item TYPE REF TO zif_abapgit_ajson=>ty_node.
+    DATA lr_item TYPE REF TO zif_abapgit_ajson=>ty_node.
     DATA lv_y TYPE c LENGTH 4.
     DATA lv_m TYPE c LENGTH 2.
     DATA lv_d TYPE c LENGTH 2.
 
-    lv_item = get_item( iv_path ).
+    lr_item = get_item( iv_path ).
 
-    IF lv_item IS NOT INITIAL AND lv_item->type = zif_abapgit_ajson=>node_type-string.
+    IF lr_item IS NOT INITIAL AND lr_item->type = zif_abapgit_ajson=>node_type-string.
       FIND FIRST OCCURRENCE OF REGEX '^(\d{4})-(\d{2})-(\d{2})(T|$)'
-        IN lv_item->value
+        IN lr_item->value
         SUBMATCHES lv_y lv_m lv_d.
       CONCATENATE lv_y lv_m lv_d INTO rv_value.
     ENDIF.
@@ -348,10 +392,10 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~get_integer.
 
-    DATA lv_item TYPE REF TO zif_abapgit_ajson=>ty_node.
-    lv_item = get_item( iv_path ).
-    IF lv_item IS NOT INITIAL AND lv_item->type = zif_abapgit_ajson=>node_type-number.
-      rv_value = lv_item->value.
+    DATA lr_item TYPE REF TO zif_abapgit_ajson=>ty_node.
+    lr_item = get_item( iv_path ).
+    IF lr_item IS NOT INITIAL AND lr_item->type = zif_abapgit_ajson=>node_type-number.
+      rv_value = lr_item->value.
     ENDIF.
 
   ENDMETHOD.
@@ -359,10 +403,10 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~get_node_type.
 
-    DATA lv_item TYPE REF TO zif_abapgit_ajson=>ty_node.
-    lv_item = get_item( iv_path ).
-    IF lv_item IS NOT INITIAL.
-      rv_node_type = lv_item->type.
+    DATA lr_item TYPE REF TO zif_abapgit_ajson=>ty_node.
+    lr_item = get_item( iv_path ).
+    IF lr_item IS NOT INITIAL.
+      rv_node_type = lr_item->type.
     ENDIF.
 
   ENDMETHOD.
@@ -370,10 +414,10 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~get_number.
 
-    DATA lv_item TYPE REF TO zif_abapgit_ajson=>ty_node.
-    lv_item = get_item( iv_path ).
-    IF lv_item IS NOT INITIAL AND lv_item->type = zif_abapgit_ajson=>node_type-number.
-      rv_value = lv_item->value.
+    DATA lr_item TYPE REF TO zif_abapgit_ajson=>ty_node.
+    lr_item = get_item( iv_path ).
+    IF lr_item IS NOT INITIAL AND lr_item->type = zif_abapgit_ajson=>node_type-number.
+      rv_value = lr_item->value.
     ENDIF.
 
   ENDMETHOD.
@@ -381,10 +425,10 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~get_string.
 
-    DATA lv_item TYPE REF TO zif_abapgit_ajson=>ty_node.
-    lv_item = get_item( iv_path ).
-    IF lv_item IS NOT INITIAL AND lv_item->type <> zif_abapgit_ajson=>node_type-null.
-      rv_value = lv_item->value.
+    DATA lr_item TYPE REF TO zif_abapgit_ajson=>ty_node.
+    lr_item = get_item( iv_path ).
+    IF lr_item IS NOT INITIAL AND lr_item->type <> zif_abapgit_ajson=>node_type-null.
+      rv_value = lr_item->value.
     ENDIF.
 
   ENDMETHOD.
@@ -404,11 +448,16 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     CREATE OBJECT lo_to_abap.
 
     TRY.
-        rv_value = lo_to_abap->to_timestamp( is_path = lr_item->* ).
+        rv_value = lo_to_abap->to_timestamp( lr_item->value ).
       CATCH zcx_abapgit_ajson_error.
         RETURN.
     ENDTRY.
 
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_ajson~is_empty.
+    rv_yes = boolc( lines( mt_json_tree ) = 0 ).
   ENDMETHOD.
 
 
@@ -437,9 +486,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     DATA lr_parent TYPE REF TO zif_abapgit_ajson=>ty_node.
     DATA lr_new_node TYPE REF TO zif_abapgit_ajson=>ty_node.
 
-    IF mv_read_only = abap_true.
-      zcx_abapgit_ajson_error=>raise( 'This json instance is read only' ).
-    ENDIF.
+    read_only_watchdog( ).
 
     lr_parent = get_item( iv_path ).
 
@@ -453,9 +500,11 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
     DATA lt_new_nodes TYPE zif_abapgit_ajson=>ty_nodes_tt.
     DATA ls_new_path TYPE zif_abapgit_ajson=>ty_path_name.
+    DATA lv_new_index TYPE i.
 
+    lv_new_index     = lr_parent->children + 1.
     ls_new_path-path = lcl_utils=>normalize_path( iv_path ).
-    ls_new_path-name = |{ lr_parent->children + 1 }|.
+    ls_new_path-name = |{ lv_new_index }|.
 
     lt_new_nodes = lcl_abap_to_json=>convert(
       iv_keep_item_order = mv_keep_item_order
@@ -463,10 +512,10 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
       is_prefix = ls_new_path ).
     READ TABLE lt_new_nodes INDEX 1 REFERENCE INTO lr_new_node. " assume first record is the array item - not ideal !
     ASSERT sy-subrc = 0.
-    lr_new_node->index = lr_parent->children + 1.
+    lr_new_node->index = lv_new_index.
 
     " update data
-    lr_parent->children = lr_parent->children + 1.
+    lr_parent->children = lv_new_index.
     INSERT LINES OF lt_new_nodes INTO TABLE mt_json_tree.
 
     ri_json = me.
@@ -478,11 +527,9 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
     DATA ls_split_path TYPE zif_abapgit_ajson=>ty_path_name.
     DATA lr_parent TYPE REF TO zif_abapgit_ajson=>ty_node.
-    DATA lt_node_stack TYPE tty_node_stack.
+    DATA ls_deleted_node TYPE zif_abapgit_ajson=>ty_node.
 
-    IF mv_read_only = abap_true.
-      zcx_abapgit_ajson_error=>raise( 'This json instance is read only' ).
-    ENDIF.
+    read_only_watchdog( ).
 
     ri_json = me.
 
@@ -500,6 +547,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     IF ls_split_path IS INITIAL. " Assign root, exceptional processing
       IF iv_node_type IS NOT INITIAL.
         mt_json_tree = lcl_abap_to_json=>insert_with_type(
+          iv_format_datetime = mv_format_datetime
           iv_keep_item_order = mv_keep_item_order
           iv_data            = iv_val
           iv_type            = iv_node_type
@@ -507,6 +555,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
           ii_custom_mapping  = mi_custom_mapping ).
       ELSE.
         mt_json_tree = lcl_abap_to_json=>convert(
+          iv_format_datetime = mv_format_datetime
           iv_keep_item_order = mv_keep_item_order
           iv_data            = iv_val
           is_prefix          = ls_split_path
@@ -516,14 +565,14 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     ENDIF.
 
     " Ensure whole path exists
-    lt_node_stack = prove_path_exists( ls_split_path-path ).
-    READ TABLE lt_node_stack INDEX 1 INTO lr_parent.
-    ASSERT sy-subrc = 0.
+    lr_parent = prove_path_exists( ls_split_path-path ).
+    ASSERT lr_parent IS NOT INITIAL.
 
     " delete if exists with subtree
-    delete_subtree(
-      iv_path = ls_split_path-path
-      iv_name = ls_split_path-name ).
+    ls_deleted_node = delete_subtree(
+      ir_parent = lr_parent
+      iv_path   = ls_split_path-path
+      iv_name   = ls_split_path-name ).
 
     " convert to json
     DATA lt_new_nodes TYPE zif_abapgit_ajson=>ty_nodes_tt.
@@ -537,7 +586,9 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
     IF iv_node_type IS NOT INITIAL.
       lt_new_nodes = lcl_abap_to_json=>insert_with_type(
+        iv_format_datetime = mv_format_datetime
         iv_keep_item_order = mv_keep_item_order
+        iv_item_order      = ls_deleted_node-order
         iv_data            = iv_val
         iv_type            = iv_node_type
         iv_array_index     = lv_array_index
@@ -545,16 +596,20 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
         ii_custom_mapping  = mi_custom_mapping ).
     ELSE.
       lt_new_nodes = lcl_abap_to_json=>convert(
+        iv_format_datetime = mv_format_datetime
         iv_keep_item_order = mv_keep_item_order
+        iv_item_order      = ls_deleted_node-order
         iv_data            = iv_val
         iv_array_index     = lv_array_index
         is_prefix          = ls_split_path
         ii_custom_mapping  = mi_custom_mapping ).
     ENDIF.
 
-    " update data
-    lr_parent->children = lr_parent->children + 1.
-    INSERT LINES OF lt_new_nodes INTO TABLE mt_json_tree.
+    " update nodes
+    IF lines( lt_new_nodes ) > 0.
+      lr_parent->children = lr_parent->children + 1.
+      INSERT LINES OF lt_new_nodes INTO TABLE mt_json_tree.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -578,9 +633,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     ri_json = me.
 
     DATA lv_val TYPE string.
-    IF iv_val IS NOT INITIAL.
-      lv_val = iv_val+0(4) && '-' && iv_val+4(2) && '-' && iv_val+6(2).
-    ENDIF.
+    lv_val = lcl_abap_to_json=>format_date( iv_val ).
 
     zif_abapgit_ajson~set(
       iv_ignore_empty = abap_false
@@ -631,30 +684,10 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
   METHOD zif_abapgit_ajson~set_timestamp.
 
-    CONSTANTS lc_utc TYPE c LENGTH 6 VALUE 'UTC'.
-
-    DATA:
-      lv_date          TYPE d,
-      lv_time          TYPE t,
-      lv_timestamp_iso TYPE string.
-
     ri_json = me.
 
-    IF iv_val IS INITIAL.
-      " The zero value is January 1, year 1, 00:00:00.000000000 UTC.
-      lv_date = '00010101'.
-    ELSE.
-
-      CONVERT TIME STAMP iv_val TIME ZONE lc_utc
-        INTO DATE lv_date TIME lv_time.
-
-    ENDIF.
-
-    lv_timestamp_iso =
-        lv_date+0(4) && '-' && lv_date+4(2) && '-' && lv_date+6(2) &&
-        'T' &&
-        lv_time+0(2) && '-' && lv_time+2(2) && '-' && lv_time+4(2) &&
-        'Z'.
+    DATA lv_timestamp_iso TYPE string.
+    lv_timestamp_iso = lcl_abap_to_json=>format_timestamp( iv_val ).
 
     zif_abapgit_ajson~set(
       iv_ignore_empty = abap_false
@@ -709,12 +742,11 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
   METHOD zif_abapgit_ajson~touch_array.
 
     DATA lr_node TYPE REF TO zif_abapgit_ajson=>ty_node.
+    DATA ls_deleted_node TYPE zif_abapgit_ajson=>ty_node.
     DATA ls_new_node LIKE LINE OF mt_json_tree.
     DATA ls_split_path TYPE zif_abapgit_ajson=>ty_path_name.
 
-    IF mv_read_only = abap_true.
-      zcx_abapgit_ajson_error=>raise( 'This json instance is read only' ).
-    ENDIF.
+    read_only_watchdog( ).
 
     ls_split_path = lcl_utils=>split_path( iv_path ).
     IF ls_split_path IS INITIAL. " Assign root, exceptional processing
@@ -726,7 +758,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     ENDIF.
 
     IF iv_clear = abap_true.
-      delete_subtree(
+      ls_deleted_node = delete_subtree(
         iv_path = ls_split_path-path
         iv_name = ls_split_path-name ).
     ELSE.
@@ -736,16 +768,19 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     IF lr_node IS INITIAL. " Or node was cleared
 
       DATA lr_parent TYPE REF TO zif_abapgit_ajson=>ty_node.
-      DATA lt_node_stack TYPE tty_node_stack.
+      lr_parent = prove_path_exists( ls_split_path-path ).
+      ASSERT lr_parent IS NOT INITIAL.
 
-      lt_node_stack = prove_path_exists( ls_split_path-path ).
-      READ TABLE lt_node_stack INDEX 1 INTO lr_parent.
-      ASSERT sy-subrc = 0.
       lr_parent->children = lr_parent->children + 1.
 
       ls_new_node-path = ls_split_path-path.
       ls_new_node-name = ls_split_path-name.
       ls_new_node-type = zif_abapgit_ajson=>node_type-array.
+
+      IF mv_keep_item_order = abap_true AND ls_deleted_node IS NOT INITIAL.
+        ls_new_node-order = ls_deleted_node-order.
+      ENDIF.
+
       INSERT ls_new_node INTO TABLE mt_json_tree.
 
     ELSEIF lr_node->type <> zif_abapgit_ajson=>node_type-array.
@@ -762,13 +797,15 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     DATA lo_to_abap TYPE REF TO lcl_json_to_abap.
 
     CLEAR ev_container.
-    lcl_json_to_abap=>bind(
+    CREATE OBJECT lo_to_abap
       EXPORTING
-        ii_custom_mapping = mi_custom_mapping
+        ii_custom_mapping = mi_custom_mapping.
+
+    lo_to_abap->to_abap(
+      EXPORTING
+        it_nodes    = zif_abapgit_ajson~mt_json_tree
       CHANGING
-        c_obj             = ev_container
-        co_instance       = lo_to_abap ).
-    lo_to_abap->to_abap( mt_json_tree ).
+        c_container = ev_container ).
 
   ENDMETHOD.
 ENDCLASS.

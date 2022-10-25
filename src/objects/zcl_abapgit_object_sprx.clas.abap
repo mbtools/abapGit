@@ -49,7 +49,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_SPRX IMPLEMENTATION.
+CLASS zcl_abapgit_object_sprx IMPLEMENTATION.
 
 
   METHOD check_sprx_tadir.
@@ -234,24 +234,44 @@ CLASS ZCL_ABAPGIT_OBJECT_SPRX IMPLEMENTATION.
     DATA:
       lv_object      TYPE sproxhdr-object,
       lv_obj_name    TYPE sproxhdr-obj_name,
+      lv_transp_flag TYPE abap_bool,
       lv_return_code TYPE i,
       lt_log         TYPE sprx_log_t.
+
+    IF iv_package(1) <> '$'.
+      lv_transp_flag = abap_true.
+    ENDIF.
 
     get_object_and_name(
       IMPORTING
         ev_object   = lv_object
         ev_obj_name = lv_obj_name ).
 
-    cl_proxy_data=>delete_single_proxy(
-       EXPORTING
-         object           = lv_object
-         obj_name         = lv_obj_name
-       CHANGING
-         c_return_code    = lv_return_code
-         ct_log           = lt_log ).
+    TRY.
+        CALL METHOD ('CL_PROXY_DATA')=>('DELETE_SINGLE_PROXY')
+          EXPORTING
+            object           = lv_object
+            obj_name         = lv_obj_name
+            i_transport      = lv_transp_flag
+            suppress_dialogs = abap_true
+          CHANGING
+            c_return_code    = lv_return_code
+            ct_log           = lt_log.
+      CATCH cx_root.
+        cl_proxy_data=>delete_single_proxy(
+           EXPORTING
+             object           = lv_object
+             obj_name         = lv_obj_name
+             i_transport      = lv_transp_flag
+           CHANGING
+             c_return_code    = lv_return_code
+             ct_log           = lt_log ).
+    ENDTRY.
     IF lv_return_code <> 0.
       zcx_abapgit_exception=>raise( 'SPRX: Error from DELETE_SINGLE_PROXY' ).
     ENDIF.
+
+    corr_insert( iv_package ).
 
   ENDMETHOD.
 
@@ -262,6 +282,8 @@ CLASS ZCL_ABAPGIT_OBJECT_SPRX IMPLEMENTATION.
           lt_sproxdat_new TYPE sprx_dat_t.
 
     tadir_insert( iv_package ).
+
+    corr_insert( iv_package ).
 
     delta_handling(
       EXPORTING
@@ -326,14 +348,7 @@ CLASS ZCL_ABAPGIT_OBJECT_SPRX IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation     = 'SHOW'
-        object_name   = ms_item-obj_name
-        object_type   = ms_item-obj_type
-        in_new_window = abap_true.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 

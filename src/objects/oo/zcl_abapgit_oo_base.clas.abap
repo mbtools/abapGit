@@ -14,8 +14,9 @@ CLASS zcl_abapgit_oo_base DEFINITION
         RETURNING VALUE(rt_vseoattrib) TYPE seoo_attributes_r.
 
   PRIVATE SECTION.
-
+    CONSTANTS c_docu_state_active TYPE dokstate VALUE 'A'. " See include SDOC_CONSTANTS
     DATA mv_skip_test_classes TYPE abap_bool .
+
 ENDCLASS.
 
 
@@ -31,6 +32,8 @@ CLASS zcl_abapgit_oo_base IMPLEMENTATION.
       INSERT INITIAL LINE INTO TABLE rt_vseoattrib ASSIGNING <ls_vseoattrib>.
       MOVE-CORRESPONDING <ls_attribute> TO <ls_vseoattrib>.
       <ls_vseoattrib>-clsname = iv_clsname.
+      <ls_vseoattrib>-state = seoc_state_implemented.
+      <ls_vseoattrib>-exposure = <ls_attribute>-exposure.
       UNASSIGN <ls_vseoattrib>.
     ENDLOOP.
     UNASSIGN <ls_attribute>.
@@ -50,10 +53,11 @@ CLASS zcl_abapgit_oo_base IMPLEMENTATION.
   METHOD zif_abapgit_oo_object_fnc~create_documentation.
     CALL FUNCTION 'DOCU_UPD'
       EXPORTING
-        id            = 'CL'
+        id            = iv_id
         langu         = iv_language
         object        = iv_object_name
         no_masterlang = iv_no_masterlang
+        state         = c_docu_state_active
       TABLES
         line          = it_lines
       EXCEPTIONS
@@ -72,6 +76,22 @@ CLASS zcl_abapgit_oo_base IMPLEMENTATION.
 
   METHOD zif_abapgit_oo_object_fnc~delete.
     ASSERT 0 = 1. "Subclass responsibility
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_oo_object_fnc~delete_documentation.
+    CALL FUNCTION 'DOCU_DEL'
+      EXPORTING
+        id       = iv_id
+        langu    = iv_language
+        object   = iv_object_name
+        typ      = 'E'
+      EXCEPTIONS
+        ret_code = 1
+        OTHERS   = 2.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise( 'Error from DOCU_DEL' ).
+    ENDIF.
   ENDMETHOD.
 
 
@@ -116,7 +136,7 @@ CLASS zcl_abapgit_oo_base IMPLEMENTATION.
 
 
   METHOD zif_abapgit_oo_object_fnc~read_attributes.
-    SELECT cmpname attbusobj attkeyfld
+    SELECT cmpname attbusobj attkeyfld exposure
       FROM seocompodf
       INTO CORRESPONDING FIELDS OF TABLE rt_attributes
       WHERE clsname = iv_object_name
@@ -127,46 +147,74 @@ CLASS zcl_abapgit_oo_base IMPLEMENTATION.
 
 
   METHOD zif_abapgit_oo_object_fnc~read_descriptions.
+    FIELD-SYMBOLS <ls_description> LIKE LINE OF rt_descriptions.
+
     IF iv_language IS INITIAL.
       " load all languages
       SELECT * FROM seocompotx INTO TABLE rt_descriptions
-             WHERE clsname   = iv_obejct_name
+             WHERE clsname   = iv_object_name
                AND descript <> ''
              ORDER BY PRIMARY KEY.                        "#EC CI_SUBRC
     ELSE.
       " load main language
       SELECT * FROM seocompotx INTO TABLE rt_descriptions
-              WHERE clsname   = iv_obejct_name
-                AND langu = iv_language
+              WHERE clsname   = iv_object_name
+                AND langu     = iv_language
                 AND descript <> ''
               ORDER BY PRIMARY KEY.                       "#EC CI_SUBRC
     ENDIF.
+
+    LOOP AT rt_descriptions ASSIGNING <ls_description>.
+      CLEAR <ls_description>-clsname.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_oo_object_fnc~read_descriptions_sub.
+    FIELD-SYMBOLS <ls_description> LIKE LINE OF rt_descriptions.
+
+    IF iv_language IS INITIAL.
+      " load all languages
+      SELECT * FROM seosubcotx INTO TABLE rt_descriptions
+             WHERE clsname   = iv_object_name
+               AND descript <> ''
+             ORDER BY PRIMARY KEY.                        "#EC CI_SUBRC
+    ELSE.
+      " load main language
+      SELECT * FROM seosubcotx INTO TABLE rt_descriptions
+              WHERE clsname   = iv_object_name
+                AND langu     = iv_language
+                AND descript <> ''
+              ORDER BY PRIMARY KEY.                       "#EC CI_SUBRC
+    ENDIF.
+
+    LOOP AT rt_descriptions ASSIGNING <ls_description>.
+      CLEAR <ls_description>-clsname.
+    ENDLOOP.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_oo_object_fnc~read_documentation.
     DATA: lv_state  TYPE dokstate,
-          lv_object TYPE dokhl-object,
           lt_lines  TYPE tlinetab.
-
-    lv_object = iv_class_name.
 
     CALL FUNCTION 'DOCU_GET'
       EXPORTING
-        id                = 'CL'
-        langu             = iv_language
-        object            = lv_object
+        id                     = iv_id
+        langu                  = iv_language
+        object                 = iv_object_name
+        version_active_or_last = space " retrieve active version
       IMPORTING
-        dokstate          = lv_state
+        dokstate               = lv_state
       TABLES
-        line              = lt_lines
+        line                   = lt_lines
       EXCEPTIONS
-        no_docu_on_screen = 1
-        no_docu_self_def  = 2
-        no_docu_temp      = 3
-        ret_code          = 4
-        OTHERS            = 5.
-    IF sy-subrc = 0 AND lv_state = 'R'.
+        no_docu_on_screen      = 1
+        no_docu_self_def       = 2
+        no_docu_temp           = 3
+        ret_code               = 4
+        OTHERS                 = 5.
+    IF sy-subrc = 0 AND lv_state = c_docu_state_active.
       rt_lines = lt_lines.
     ELSE.
       CLEAR rt_lines.
@@ -210,7 +258,27 @@ CLASS zcl_abapgit_oo_base IMPLEMENTATION.
 
 
   METHOD zif_abapgit_oo_object_fnc~update_descriptions.
+    DATA lt_descriptions LIKE it_descriptions.
+    FIELD-SYMBOLS <ls_description> LIKE LINE OF it_descriptions.
+
+    lt_descriptions = it_descriptions.
+    LOOP AT lt_descriptions ASSIGNING <ls_description>.
+      <ls_description>-clsname = is_key-clsname.
+    ENDLOOP.
     DELETE FROM seocompotx WHERE clsname = is_key-clsname. "#EC CI_SUBRC
-    INSERT seocompotx FROM TABLE it_descriptions.         "#EC CI_SUBRC
+    INSERT seocompotx FROM TABLE lt_descriptions.         "#EC CI_SUBRC
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_oo_object_fnc~update_descriptions_sub.
+    DATA lt_descriptions LIKE it_descriptions.
+    FIELD-SYMBOLS <ls_description> LIKE LINE OF it_descriptions.
+
+    lt_descriptions = it_descriptions.
+    LOOP AT lt_descriptions ASSIGNING <ls_description>.
+      <ls_description>-clsname = is_key-clsname.
+    ENDLOOP.
+    DELETE FROM seosubcotx WHERE clsname = is_key-clsname. "#EC CI_SUBRC
+    INSERT seosubcotx FROM TABLE lt_descriptions.         "#EC CI_SUBRC
   ENDMETHOD.
 ENDCLASS.

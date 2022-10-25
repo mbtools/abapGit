@@ -2,7 +2,7 @@ CLASS zcl_abapgit_object_amsd DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
+
     METHODS:
       constructor
         IMPORTING
@@ -10,7 +10,6 @@ CLASS zcl_abapgit_object_amsd DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
           iv_language TYPE spras
         RAISING
           zcx_abapgit_exception.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     METHODS:
@@ -30,14 +29,6 @@ CLASS zcl_abapgit_object_amsd DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
         RAISING
           zcx_abapgit_exception,
 
-      get_transport_req_if_needed
-        IMPORTING
-          iv_package                  TYPE devclass
-        RETURNING
-          VALUE(rv_transport_request) TYPE trkorr
-        RAISING
-          zcx_abapgit_exception,
-
       get_wb_object_operator
         RETURNING
           VALUE(ri_wb_object_operator) TYPE REF TO object
@@ -49,7 +40,6 @@ CLASS zcl_abapgit_object_amsd DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
       mv_logical_db_schema_key TYPE seu_objkey,
       mi_persistence           TYPE REF TO if_wb_object_persist,
       mi_wb_object_operator    TYPE REF TO object.
-
 ENDCLASS.
 
 
@@ -163,19 +153,6 @@ CLASS zcl_abapgit_object_amsd IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD get_transport_req_if_needed.
-
-    DATA: li_sap_package TYPE REF TO zif_abapgit_sap_package.
-
-    li_sap_package = zcl_abapgit_factory=>get_sap_package( iv_package ).
-
-    IF li_sap_package->are_changes_recorded_in_tr_req( ) = abap_true.
-      rv_transport_request = zcl_abapgit_default_transport=>get_instance( )->get( )-ordernum.
-    ENDIF.
-
-  ENDMETHOD.
-
-
   METHOD get_wb_object_operator.
 
     DATA:
@@ -233,16 +210,14 @@ CLASS zcl_abapgit_object_amsd IMPLEMENTATION.
 
     DATA:
       li_wb_object_operator TYPE REF TO object,
-      lx_error              TYPE REF TO cx_root,
-      lv_transport_request  TYPE trkorr.
+      lx_error              TYPE REF TO cx_root.
 
-    lv_transport_request = get_transport_req_if_needed( iv_package ).
     li_wb_object_operator = get_wb_object_operator( ).
 
     TRY.
         CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~DELETE')
           EXPORTING
-            transport_request = lv_transport_request.
+            transport_request = iv_transport.
 
       CATCH cx_root INTO lx_error.
         zcx_abapgit_exception=>raise_with_text( lx_error ).
@@ -256,8 +231,7 @@ CLASS zcl_abapgit_object_amsd IMPLEMENTATION.
     DATA:
       li_object_data_model  TYPE REF TO if_wb_object_data_model,
       li_wb_object_operator TYPE REF TO object,
-      lx_error              TYPE REF TO cx_root,
-      lv_transport_request  TYPE trkorr.
+      lx_error              TYPE REF TO cx_root.
 
     FIELD-SYMBOLS:
       <ls_logical_db_schema> TYPE any.
@@ -278,8 +252,6 @@ CLASS zcl_abapgit_object_amsd IMPLEMENTATION.
 
         tadir_insert( iv_package ).
 
-        lv_transport_request = get_transport_req_if_needed( iv_package ).
-
         IF zif_abapgit_object~exists( ) = abap_true.
 
           " We need to populate created_at, created_by, because otherwise update  is not possible
@@ -289,7 +261,7 @@ CLASS zcl_abapgit_object_amsd IMPLEMENTATION.
           CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
             EXPORTING
               io_object_data    = li_object_data_model
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
         ELSE.
 
@@ -300,13 +272,13 @@ CLASS zcl_abapgit_object_amsd IMPLEMENTATION.
               io_object_data    = li_object_data_model
               data_selection    = 'P' " if_wb_object_data_selection_co=>c_properties
               package           = iv_package
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
           CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
             EXPORTING
               io_object_data    = li_object_data_model
               data_selection    = 'D' " if_wb_object_data_selection_co=>c_data_content
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
         ENDIF.
 
@@ -343,14 +315,12 @@ CLASS zcl_abapgit_object_amsd IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~get_deserialize_steps.
-    APPEND zif_abapgit_object=>gc_step_id-ddic TO rt_steps.
+    APPEND zif_abapgit_object=>gc_step_id-abap TO rt_steps.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-
-    rs_metadata-ddic         = abap_true.
     rs_metadata-delete_tadir = abap_true.
   ENDMETHOD.
 
@@ -369,22 +339,7 @@ CLASS zcl_abapgit_object_amsd IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name
-        object_type         = ms_item-obj_type
-        in_new_window       = abap_true
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 

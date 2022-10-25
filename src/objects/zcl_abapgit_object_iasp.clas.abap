@@ -2,13 +2,12 @@ CLASS zcl_abapgit_object_iasp DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
+
     METHODS:
       constructor
         IMPORTING
           is_item     TYPE zif_abapgit_definitions=>ty_item
           iv_language TYPE spras.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     DATA:
@@ -40,8 +39,7 @@ CLASS zcl_abapgit_object_iasp DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
       w3_api_create_new
         IMPORTING is_attributes     TYPE w3servattr
         RETURNING VALUE(ri_service) TYPE REF TO if_w3_api_service
-        RAISING
-                  zcx_abapgit_exception,
+        RAISING   zcx_abapgit_exception,
 
       w3_api_set_attributes
         IMPORTING ii_service    TYPE REF TO if_w3_api_service
@@ -58,7 +56,8 @@ CLASS zcl_abapgit_object_iasp DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
         RAISING   zcx_abapgit_exception,
 
       w3_api_set_changeable
-        IMPORTING ii_service TYPE REF TO if_w3_api_service
+        IMPORTING ii_service    TYPE REF TO if_w3_api_service
+                  iv_changeable TYPE abap_bool DEFAULT abap_true
         RAISING   zcx_abapgit_exception,
 
       w3_api_delete
@@ -115,6 +114,11 @@ CLASS zcl_abapgit_object_iasp IMPLEMENTATION.
         it_parameters = it_parameters  ).
 
     w3_api_save( li_service ).
+
+    " Release locks
+    w3_api_set_changeable(
+      ii_service    = li_service
+      iv_changeable = abap_false ).
 
   ENDMETHOD.
 
@@ -235,7 +239,7 @@ CLASS zcl_abapgit_object_iasp IMPLEMENTATION.
 
     ii_service->if_w3_api_object~set_changeable(
       EXPORTING
-        p_changeable                 = abap_true
+        p_changeable                 = iv_changeable
       EXCEPTIONS
         action_cancelled             = 1
         object_locked_by_other_user  = 2
@@ -353,20 +357,7 @@ CLASS zcl_abapgit_object_iasp IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name
-        object_type         = ms_item-obj_type
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 

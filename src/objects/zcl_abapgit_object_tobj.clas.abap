@@ -2,8 +2,6 @@ CLASS zcl_abapgit_object_tobj DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES: BEGIN OF ty_tobj,
@@ -22,7 +20,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_TOBJ IMPLEMENTATION.
+CLASS zcl_abapgit_object_tobj IMPLEMENTATION.
 
 
   METHOD delete_extra.
@@ -256,9 +254,7 @@ CLASS ZCL_ABAPGIT_OBJECT_TOBJ IMPLEMENTATION.
         jump_not_possible = 1
         OTHERS            = 2.
 
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Jump not possible. Subrc={ sy-subrc } from TR_OBJECT_JUMP_TO_TOOL| ).
-    ENDIF.
+    rv_exit = boolc( sy-subrc = 0 ).
 
   ENDMETHOD.
 
@@ -318,6 +314,12 @@ CLASS ZCL_ABAPGIT_OBJECT_TOBJ IMPLEMENTATION.
                  ig_data = lt_objm ).
 
     ls_tobj = read_extra( ls_objh-objectname ).
+
+    IF ls_tobj-tvdir-detail = ``.
+      " to prevent xslt serialization error,
+      " force clear if numc field is empty
+      CLEAR ls_tobj-tvdir-detail.
+    ENDIF.
 
     io_xml->add( iv_name = 'TOBJ'
                  ig_data = ls_tobj ).

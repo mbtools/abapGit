@@ -5,13 +5,11 @@ INTERFACE zif_abapgit_object
 
   CONSTANTS:
     BEGIN OF gc_step_id,
-      abap TYPE zif_abapgit_definitions=>ty_deserialization_step VALUE `ABAP`,
-      ddic TYPE zif_abapgit_definitions=>ty_deserialization_step VALUE `DDIC`,
-      late TYPE zif_abapgit_definitions=>ty_deserialization_step VALUE `LATE`,
+      early TYPE zif_abapgit_definitions=>ty_deserialization_step VALUE `EARLY`,
+      abap  TYPE zif_abapgit_definitions=>ty_deserialization_step VALUE `ABAP`,
+      ddic  TYPE zif_abapgit_definitions=>ty_deserialization_step VALUE `DDIC`,
+      late  TYPE zif_abapgit_definitions=>ty_deserialization_step VALUE `LATE`,
     END OF gc_step_id.
-
-  CONSTANTS c_abap_version_sap_cp TYPE progdir-uccheck VALUE '5' ##NO_TEXT.
-  CONSTANTS c_abap_version_default TYPE progdir-uccheck VALUE 'X' ##NO_TEXT.
 
   METHODS serialize
     IMPORTING
@@ -20,15 +18,17 @@ INTERFACE zif_abapgit_object
       zcx_abapgit_exception .
   METHODS deserialize
     IMPORTING
-      !iv_package TYPE devclass
-      !io_xml     TYPE REF TO zif_abapgit_xml_input
-      !iv_step    TYPE zif_abapgit_definitions=>ty_deserialization_step
-      !ii_log     TYPE REF TO zif_abapgit_log
+      !iv_package   TYPE devclass
+      !io_xml       TYPE REF TO zif_abapgit_xml_input
+      !iv_step      TYPE zif_abapgit_definitions=>ty_deserialization_step
+      !ii_log       TYPE REF TO zif_abapgit_log
+      !iv_transport TYPE trkorr
     RAISING
       zcx_abapgit_exception .
   METHODS delete
     IMPORTING
-      iv_package TYPE devclass
+      !iv_package   TYPE devclass
+      !iv_transport TYPE trkorr
     RAISING
       zcx_abapgit_exception .
   METHODS exists
@@ -48,10 +48,12 @@ INTERFACE zif_abapgit_object
       zcx_abapgit_exception .
   METHODS changed_by
     RETURNING
-      VALUE(rv_user) TYPE xubname
+      VALUE(rv_user) TYPE syuname
     RAISING
       zcx_abapgit_exception .
   METHODS jump
+    RETURNING
+      VALUE(rv_exit) TYPE abap_bool
     RAISING
       zcx_abapgit_exception .
   METHODS get_metadata

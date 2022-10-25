@@ -2,13 +2,11 @@ CLASS zcl_abapgit_object_cus0 DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
 
     METHODS constructor
       IMPORTING
         is_item     TYPE zif_abapgit_definitions=>ty_item
         iv_language TYPE spras.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     TYPES: ty_img_activity_texts TYPE STANDARD TABLE OF cus_imgact
@@ -155,6 +153,8 @@ CLASS zcl_abapgit_object_cus0 IMPLEMENTATION.
         i_display    = abap_true
       CHANGING
         img_activity = lv_img_activity.
+
+    rv_exit = abap_true.
   ENDMETHOD.
 
 

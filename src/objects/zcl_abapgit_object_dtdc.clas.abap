@@ -2,7 +2,7 @@ CLASS zcl_abapgit_object_dtdc DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
+
     METHODS:
       constructor
         IMPORTING
@@ -10,7 +10,6 @@ CLASS zcl_abapgit_object_dtdc DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
           iv_language TYPE spras
         RAISING
           zcx_abapgit_exception.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     METHODS:
@@ -30,26 +29,22 @@ CLASS zcl_abapgit_object_dtdc DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
         RAISING
           zcx_abapgit_exception,
 
-      get_transport_req_if_needed
-        IMPORTING
-          iv_package                  TYPE devclass
-        RETURNING
-          VALUE(rv_transport_request) TYPE trkorr
-        RAISING
-          zcx_abapgit_exception,
-
       get_wb_object_operator
         RETURNING
           VALUE(ri_wb_object_operator) TYPE REF TO object
         RAISING
-          zcx_abapgit_exception.
+          zcx_abapgit_exception,
+
+      has_own_wb_data_class
+        RETURNING
+          VALUE(rv_supported) TYPE abap_bool.
 
     DATA:
-      mr_dynamic_cache      TYPE REF TO data,
-      mv_dynamic_cache_key  TYPE seu_objkey,
-      mi_persistence        TYPE REF TO if_wb_object_persist,
-      mi_wb_object_operator TYPE REF TO object.
-
+      mr_dynamic_cache         TYPE REF TO data,
+      mv_dynamic_cache_key     TYPE seu_objkey,
+      mv_has_own_wb_data_class TYPE abap_bool,
+      mi_persistence           TYPE REF TO if_wb_object_persist,
+      mi_wb_object_operator    TYPE REF TO object.
 ENDCLASS.
 
 
@@ -63,9 +58,9 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
 
     ASSIGN COMPONENT iv_fieldname OF STRUCTURE cs_dynamic_cache
            TO <lv_value>.
-    ASSERT sy-subrc = 0.
-
-    CLEAR: <lv_value>.
+    IF sy-subrc = 0.
+      CLEAR: <lv_value>.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -116,6 +111,17 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
 
     clear_field(
       EXPORTING
+        iv_fieldname          = 'METADATA-ABAP_LANGUAGE_VERSION'
+      CHANGING
+        cs_dynamic_cache = cs_dynamic_cache ).
+    clear_field(
+      EXPORTING
+        iv_fieldname          = 'METADATA-ABAP_LANGU_VERSION'
+      CHANGING
+        cs_dynamic_cache = cs_dynamic_cache ).
+
+    clear_field(
+      EXPORTING
         iv_fieldname          = 'CONTENT-SOURCE'
       CHANGING
         cs_dynamic_cache = cs_dynamic_cache ).
@@ -130,9 +136,14 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
         iv_language = iv_language ).
 
     mv_dynamic_cache_key = ms_item-obj_name.
+    mv_has_own_wb_data_class = has_own_wb_data_class( ).
 
     TRY.
-        CREATE DATA mr_dynamic_cache TYPE ('CL_DTDC_WB_OBJECT_DATA=>TY_DTDC_OBJECT_DATA').
+        IF mv_has_own_wb_data_class = abap_true.
+          CREATE DATA mr_dynamic_cache TYPE ('CL_DTDC_WB_OBJECT_DATA=>TY_DTDC_OBJECT_DATA').
+        ELSE.
+          CREATE DATA mr_dynamic_cache TYPE ('CL_BLUE_SOURCE_OBJECT_DATA=>TY_OBJECT_DATA').
+        ENDIF.
         CREATE OBJECT mi_persistence TYPE ('CL_DTDC_OBJECT_PERSIST').
 
       CATCH cx_sy_create_error.
@@ -157,7 +168,11 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
 
     li_wb_object_operator = get_wb_object_operator( ).
 
-    CREATE DATA lr_dynamic_cache_old TYPE ('CL_DTDC_WB_OBJECT_DATA=>TY_DTDC_OBJECT_DATA').
+    IF mv_has_own_wb_data_class = abap_true.
+      CREATE DATA lr_dynamic_cache_old TYPE ('CL_DTDC_WB_OBJECT_DATA=>TY_DTDC_OBJECT_DATA').
+    ELSE.
+      CREATE DATA lr_dynamic_cache_old TYPE ('CL_BLUE_SOURCE_OBJECT_DATA=>TY_OBJECT_DATA').
+    ENDIF.
     ASSIGN lr_dynamic_cache_old->* TO <ls_dynamic_cache_old>.
     ASSERT sy-subrc = 0.
 
@@ -183,19 +198,6 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
 
     <lv_created_at> = <lv_created_at_old>.
     <lv_created_by> = <lv_created_by_old>.
-
-  ENDMETHOD.
-
-
-  METHOD get_transport_req_if_needed.
-
-    DATA: li_sap_package TYPE REF TO zif_abapgit_sap_package.
-
-    li_sap_package = zcl_abapgit_factory=>get_sap_package( iv_package ).
-
-    IF li_sap_package->are_changes_recorded_in_tr_req( ) = abap_true.
-      rv_transport_request = zcl_abapgit_default_transport=>get_instance( )->get( )-ordernum.
-    ENDIF.
 
   ENDMETHOD.
 
@@ -230,6 +232,22 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD has_own_wb_data_class.
+
+    DATA:
+      lr_own_type TYPE REF TO data,
+      lx_error    TYPE REF TO cx_root.
+
+    TRY.
+        CREATE DATA lr_own_type TYPE ('CL_DTDC_WB_OBJECT_DATA=>TY_DTDC_OBJECT_DATA').
+        rv_supported = abap_true.
+      CATCH cx_root INTO lx_error.
+        rv_supported = abap_false.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_object~changed_by.
 
     DATA:
@@ -257,17 +275,14 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
 
     DATA:
       lx_error              TYPE REF TO cx_root,
-      lv_transport_request  TYPE trkorr,
       li_wb_object_operator TYPE REF TO object.
-
-    lv_transport_request = get_transport_req_if_needed( iv_package ).
 
     TRY.
         li_wb_object_operator = get_wb_object_operator( ).
 
         CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~DELETE')
           EXPORTING
-            transport_request = lv_transport_request.
+            transport_request = iv_transport.
 
       CATCH cx_root INTO lx_error.
         zcx_abapgit_exception=>raise_with_text( lx_error ).
@@ -281,8 +296,7 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
     DATA:
       li_object_data_model  TYPE REF TO if_wb_object_data_model,
       li_wb_object_operator TYPE REF TO object,
-      lx_error              TYPE REF TO cx_root,
-      lv_transport_request  TYPE trkorr.
+      lx_error              TYPE REF TO cx_root.
 
     FIELD-SYMBOLS:
       <ls_dynamic_cache> TYPE any,
@@ -300,17 +314,19 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
     li_wb_object_operator = get_wb_object_operator( ).
 
     TRY.
-        CREATE OBJECT li_object_data_model TYPE ('CL_DTDC_WB_OBJECT_DATA').
+        IF mv_has_own_wb_data_class = abap_true.
+          CREATE OBJECT li_object_data_model TYPE ('CL_DTDC_WB_OBJECT_DATA').
+        ELSE.
+          CREATE OBJECT li_object_data_model TYPE ('CL_BLUE_SOURCE_OBJECT_DATA').
+        ENDIF.
 
         ASSIGN COMPONENT 'CONTENT-SOURCE' OF STRUCTURE <ls_dynamic_cache>
                TO <lv_source>.
         ASSERT sy-subrc = 0.
 
-        <lv_source> = mo_files->read_string( 'asdtdc' ).
+        <lv_source> = zif_abapgit_object~mo_files->read_string( 'asdtdc' ).
 
         tadir_insert( iv_package ).
-
-        lv_transport_request = get_transport_req_if_needed( iv_package ).
 
         IF zif_abapgit_object~exists( ) = abap_true.
 
@@ -321,7 +337,7 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
           CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
             EXPORTING
               io_object_data    = li_object_data_model
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
         ELSE.
 
@@ -332,13 +348,13 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
               io_object_data    = li_object_data_model
               data_selection    = 'P' " if_wb_object_data_selection_co=>c_properties
               package           = iv_package
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
           CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
             EXPORTING
               io_object_data    = li_object_data_model
               data_selection    = 'D' " if_wb_object_data_selection_co=>c_data_content
-              transport_request = lv_transport_request.
+              transport_request = iv_transport.
 
         ENDIF.
 
@@ -381,8 +397,6 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-
-    rs_metadata-ddic         = abap_true.
     rs_metadata-delete_tadir = abap_true.
   ENDMETHOD.
 
@@ -401,22 +415,7 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name
-        object_type         = ms_item-obj_type
-        in_new_window       = abap_true
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -461,7 +460,7 @@ CLASS zcl_abapgit_object_dtdc IMPLEMENTATION.
         iv_name = 'DTDC'
         ig_data = <ls_dynamic_cache> ).
 
-    mo_files->add_string(
+    zif_abapgit_object~mo_files->add_string(
         iv_ext    = 'asdtdc'
         iv_string = lv_source ).
 

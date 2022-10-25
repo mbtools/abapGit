@@ -3,8 +3,7 @@ CLASS zcl_abapgit_object_enho_badi DEFINITION PUBLIC.
   PUBLIC SECTION.
     METHODS: constructor
       IMPORTING
-        is_item  TYPE zif_abapgit_definitions=>ty_item
-        io_files TYPE REF TO zcl_abapgit_objects_files.
+        is_item TYPE zif_abapgit_definitions=>ty_item.
     INTERFACES: zif_abapgit_object_enho.
 
   PROTECTED SECTION.
@@ -65,6 +64,10 @@ CLASS zcl_abapgit_object_enho_badi IMPLEMENTATION.
         lo_badi->if_enh_object~save( run_dark = abap_true ).
         lo_badi->if_enh_object~unlock( ).
       CATCH cx_enh_root INTO lx_enh_root.
+        TRY.
+            lo_badi->if_enh_object~unlock( ).
+          CATCH cx_sy_ref_is_initial cx_enh_mod_not_allowed ##NO_HANDLER.
+        ENDTRY.
         zcx_abapgit_exception=>raise_with_text( lx_enh_root ).
     ENDTRY.
 

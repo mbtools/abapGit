@@ -20,9 +20,9 @@ CLASS zcl_abapgit_gui_page_debuginfo DEFINITION
   PROTECTED SECTION.
   PRIVATE SECTION.
 
-    CONSTANTS c_exit_standalone TYPE progname VALUE 'ZABAPGIT_USER_EXIT' ##NO_TEXT.
-    CONSTANTS c_exit_class TYPE seoclsname VALUE 'ZCL_ABAPGIT_USER_EXIT' ##NO_TEXT.
-    CONSTANTS c_exit_interface TYPE seoclsname VALUE 'ZIF_ABAPGIT_EXIT' ##NO_TEXT.
+    CONSTANTS c_exit_standalone TYPE c LENGTH 30 VALUE 'ZABAPGIT_USER_EXIT' ##NO_TEXT.
+    CONSTANTS c_exit_class TYPE c LENGTH 30 VALUE 'ZCL_ABAPGIT_USER_EXIT' ##NO_TEXT.
+    CONSTANTS c_exit_interface TYPE c LENGTH 30 VALUE 'ZIF_ABAPGIT_EXIT' ##NO_TEXT.
     CONSTANTS:
       BEGIN OF c_action,
         save TYPE string VALUE 'save',
@@ -123,16 +123,21 @@ CLASS zcl_abapgit_gui_page_debuginfo IMPLEMENTATION.
 
   METHOD render_debug_info.
 
-    DATA: lt_ver_tab     TYPE filetable,
-          lv_rc          TYPE i,
-          ls_release     TYPE zif_abapgit_environment=>ty_release_sp,
-          lv_gui_version TYPE string,
-          ls_version     LIKE LINE OF lt_ver_tab,
-          lv_devclass    TYPE devclass.
+    DATA: lt_ver_tab       TYPE filetable,
+          lv_rc            TYPE i,
+          ls_release       TYPE zif_abapgit_environment=>ty_release_sp,
+          lv_gui_version   TYPE string,
+          ls_version       LIKE LINE OF lt_ver_tab,
+          lv_devclass      TYPE devclass,
+          lo_frontend_serv TYPE REF TO zif_abapgit_frontend_services.
 
-    cl_gui_frontend_services=>get_gui_version(
-      CHANGING version_table = lt_ver_tab rc = lv_rc
-      EXCEPTIONS OTHERS = 1 ).
+    lo_frontend_serv = zcl_abapgit_ui_factory=>get_frontend_services( ).
+    TRY.
+        lo_frontend_serv->get_gui_version( CHANGING ct_version_table = lt_ver_tab cv_rc = lv_rc ).
+      CATCH zcx_abapgit_exception ##NO_HANDLER.
+        " Continue rendering even if this fails
+    ENDTRY.
+
     READ TABLE lt_ver_tab INTO ls_version INDEX 1. " gui release
     lv_gui_version = ls_version-filename.
     READ TABLE lt_ver_tab INTO ls_version INDEX 2. " gui sp
@@ -317,7 +322,6 @@ CLASS zcl_abapgit_gui_page_debuginfo IMPLEMENTATION.
 
     rv_html = rv_html && |<table border="1px"><thead><tr>|.
     rv_html = rv_html && |<td>Object</td><td>Description</td><td>Class</td><td>Version</td>|.
-    rv_html = rv_html && |<td class="center">DDIC</td>|.
     rv_html = rv_html && |<td class="center">Delete TADIR</td><td>Steps</td>|.
     rv_html = rv_html && |</tr></thead><tbody>|.
 
@@ -363,7 +367,6 @@ CLASS zcl_abapgit_gui_page_debuginfo IMPLEMENTATION.
       ls_metadata = li_object->get_metadata( ).
 
       rv_html = rv_html && |<td>{ ls_metadata-version }</td>|.
-      rv_html = rv_html && |<td class="center">{ ls_metadata-ddic }</td>|.
       rv_html = rv_html && |<td class="center">{ ls_metadata-delete_tadir }</td>|.
 
       lt_steps = li_object->get_deserialize_steps( ).

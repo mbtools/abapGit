@@ -44,7 +44,9 @@ CLASS zcl_abapgit_news DEFINITION
       IMPORTING
         !iv_rawdata          TYPE xstring
         !iv_lastseen_version TYPE string
-        !iv_current_version  TYPE string .
+        !iv_current_version  TYPE string
+      RAISING
+        zcx_abapgit_exception .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -106,12 +108,13 @@ CLASS zcl_abapgit_news IMPLEMENTATION.
       lc_log_filename    TYPE string VALUE 'changelog*',
       lc_log_filename_up TYPE string VALUE 'CHANGELOG*'.
 
-    DATA: lo_apack       TYPE REF TO zcl_abapgit_apack_reader,
-          lt_remote      TYPE zif_abapgit_definitions=>ty_files_tt,
-          lv_version     TYPE string,
-          lv_last_seen   TYPE string,
-          lv_url         TYPE string,
-          lo_repo_online TYPE REF TO zcl_abapgit_repo_online.
+    DATA: lo_apack            TYPE REF TO zcl_abapgit_apack_reader,
+          lt_remote           TYPE zif_abapgit_definitions=>ty_files_tt,
+          lv_version          TYPE string,
+          lv_last_seen        TYPE string,
+          lv_url              TYPE string,
+          lo_repo_online      TYPE REF TO zcl_abapgit_repo_online,
+          lv_version_constant TYPE zif_abapgit_dot_abapgit=>ty_dot_abapgit-version_constant.
 
     FIELD-SYMBOLS <ls_file> LIKE LINE OF lt_remote.
 
@@ -123,24 +126,27 @@ CLASS zcl_abapgit_news IMPLEMENTATION.
     lo_repo_online ?= io_repo.
     lv_url          = lo_repo_online->get_url( ).
 
-    IF zcl_abapgit_url=>is_abapgit_repo( lv_url ) = abap_true.
-      lv_version = zif_abapgit_version=>c_abap_version. " TODO refactor
-    ELSE.
-
-      lo_apack = io_repo->get_dot_apack( ).
-      IF lo_apack IS NOT BOUND.
-        RETURN.
-      ENDIF.
-
+    lo_apack = io_repo->get_dot_apack( ).
+    IF lo_apack IS BOUND.
       lv_version = lo_apack->get_manifest_descriptor( )-version.
+    ENDIF.
 
+    IF lv_version IS INITIAL.
+      TRY.
+          lv_version_constant = io_repo->get_dot_abapgit( )->get_version_constant( ).
+          IF lv_version_constant IS NOT INITIAL.
+            lv_version = zcl_abapgit_version=>get_version_constant_value( lv_version_constant ).
+          ENDIF.
+        CATCH zcx_abapgit_exception.
+          CLEAR lv_version.
+      ENDTRY.
     ENDIF.
 
     IF lv_version IS INITIAL.
       RETURN.
     ENDIF.
 
-    lv_last_seen = zcl_abapgit_persist_factory=>get_user( )->get_repo_last_change_seen( lv_url ).
+    lv_last_seen = zcl_abapgit_persistence_user=>get_instance( )->get_repo_last_change_seen( lv_url ).
 
     TRY. " Find changelog
         lt_remote = io_repo->get_files_remote( ).
@@ -162,7 +168,7 @@ CLASS zcl_abapgit_news IMPLEMENTATION.
     ENDLOOP.
 
     IF ro_instance IS BOUND AND lv_last_seen <> ro_instance->latest_version( ).
-      zcl_abapgit_persist_factory=>get_user( )->set_repo_last_change_seen(
+      zcl_abapgit_persistence_user=>get_instance( )->set_repo_last_change_seen(
         iv_url     = lv_url
         iv_version = ro_instance->latest_version( ) ).
     ENDIF.

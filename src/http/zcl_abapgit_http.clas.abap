@@ -59,7 +59,7 @@ CLASS zcl_abapgit_http IMPLEMENTATION.
           lo_digest       TYPE REF TO zcl_abapgit_http_digest.
 
 
-    lv_default_user = zcl_abapgit_persist_factory=>get_user( )->get_repo_login( iv_url ).
+    lv_default_user = zcl_abapgit_persistence_user=>get_instance( )->get_repo_login( iv_url ).
     lv_user         = lv_default_user.
 
     zcl_abapgit_password_dialog=>popup(
@@ -74,7 +74,7 @@ CLASS zcl_abapgit_http IMPLEMENTATION.
     ENDIF.
 
     IF lv_user <> lv_default_user.
-      zcl_abapgit_persist_factory=>get_user( )->set_repo_login(
+      zcl_abapgit_persistence_user=>get_instance( )->set_repo_login(
         iv_url   = iv_url
         iv_login = lv_user ).
     ENDIF.
@@ -227,8 +227,6 @@ CLASS zcl_abapgit_http IMPLEMENTATION.
     DATA: lv_host TYPE string,
           lt_list TYPE zif_abapgit_definitions=>ty_string_tt,
           li_exit TYPE REF TO zif_abapgit_exit.
-
-    FIELD-SYMBOLS: <ls_list> LIKE LINE OF lt_list.
 
 
     cl_http_server=>get_location( IMPORTING host = lv_host ).

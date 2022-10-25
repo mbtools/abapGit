@@ -32,7 +32,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_data_serializer IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_DATA_SERIALIZER IMPLEMENTATION.
 
 
   METHOD convert_itab_to_json.
@@ -65,18 +65,25 @@ CLASS zcl_abapgit_data_serializer IMPLEMENTATION.
 
     DATA lv_records TYPE i.
     DATA lv_where LIKE LINE OF it_where.
+    DATA lx_sql TYPE REF TO cx_sy_sql_error.
 
     FIELD-SYMBOLS <lg_tab> TYPE ANY TABLE.
 
     rr_data = zcl_abapgit_data_utils=>build_table_itab( iv_name ).
     ASSIGN rr_data->* TO <lg_tab>.
 
-    LOOP AT it_where INTO lv_where.
-      SELECT * FROM (iv_name) APPENDING TABLE <lg_tab> WHERE (lv_where).
-    ENDLOOP.
-    IF lines( it_where ) = 0.
-      SELECT * FROM (iv_name) INTO TABLE <lg_tab>.
-    ENDIF.
+    TRY.
+        LOOP AT it_where INTO lv_where.
+          SELECT * FROM (iv_name) APPENDING TABLE <lg_tab> WHERE (lv_where).
+        ENDLOOP.
+        IF lines( it_where ) = 0.
+          SELECT * FROM (iv_name) INTO TABLE <lg_tab>.
+        ENDIF.
+      CATCH cx_sy_sql_error INTO lx_sql.
+        zcx_abapgit_exception=>raise(
+          iv_text     = lx_sql->get_text( )
+          ix_previous = lx_sql ).
+    ENDTRY.
 
     lv_records = lines( <lg_tab> ).
     IF lv_records > c_max_records.
@@ -109,7 +116,6 @@ CLASS zcl_abapgit_data_serializer IMPLEMENTATION.
       ls_file-data = convert_itab_to_json( lr_data ).
       ls_file-sha1 = zcl_abapgit_hash=>sha1_blob( ls_file-data ).
       APPEND ls_file TO rt_files.
-
     ENDLOOP.
 
   ENDMETHOD.

@@ -63,6 +63,31 @@ CLASS zcl_abapgit_lxe_texts DEFINITION
           iv_object_name     TYPE sobj_name
         RETURNING
           VALUE(rt_obj_list) TYPE lxe_tt_colob .
+    METHODS
+      read_lxe_object_text_pair
+        IMPORTING
+          iv_s_lang                TYPE lxeisolang
+          iv_t_lang                TYPE lxeisolang
+          iv_custmnr               TYPE lxecustmnr
+          iv_objtype               TYPE trobjtype
+          iv_objname               TYPE lxeobjname
+          iv_read_only             TYPE abap_bool DEFAULT abap_true
+        RETURNING
+          VALUE(rt_text_pairs_tmp) TYPE zif_abapgit_lxe_texts=>ty_lxe_i18n-text_pairs
+        RAISING
+          zcx_abapgit_exception.
+    METHODS
+      write_lxe_object_text_pair
+        IMPORTING
+          iv_s_lang  TYPE lxeisolang
+          iv_t_lang  TYPE lxeisolang
+          iv_custmnr TYPE lxecustmnr
+          iv_objtype TYPE trobjtype
+          iv_objname TYPE lxeobjname
+          it_pcx_s1  TYPE zif_abapgit_lxe_texts=>ty_lxe_i18n-text_pairs
+        RAISING
+          zcx_abapgit_exception.
+
     CLASS-METHODS
       langu_to_laiso_safe
         IMPORTING
@@ -83,7 +108,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_lxe_texts IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_LXE_TEXTS IMPLEMENTATION.
 
 
   METHOD check_langs_versus_installed.
@@ -186,7 +211,8 @@ CLASS zcl_abapgit_lxe_texts IMPLEMENTATION.
       lv_index               TYPE i,
       lv_langu               TYPE sy-langu,
       lv_laiso               TYPE laiso,
-      lv_installed_languages TYPE string.
+      lv_installed_languages TYPE string,
+      lt_language_filter     TYPE zif_abapgit_environment=>ty_system_language_filter.
 
     IF gt_installed_languages_cache IS INITIAL.
       CALL FUNCTION 'SYSTEM_INSTALLED_LANGUAGES'
@@ -199,9 +225,16 @@ CLASS zcl_abapgit_lxe_texts IMPLEMENTATION.
         zcx_abapgit_exception=>raise( 'Fail to get system SYSTEM_INSTALLED_LANGUAGES' ).
       ENDIF.
 
+      lt_language_filter = zcl_abapgit_factory=>get_environment( )->get_system_language_filter( ).
+
       DO strlen( lv_installed_languages ) TIMES.
         lv_index = sy-index - 1.
         lv_langu = lv_installed_languages+lv_index(1).
+
+        IF lv_langu NOT IN lt_language_filter.
+          CONTINUE.
+        ENDIF.
+
         lv_laiso = langu_to_laiso_safe( lv_langu ).
         APPEND lv_laiso TO gt_installed_languages_cache.
       ENDDO.
@@ -214,8 +247,8 @@ CLASS zcl_abapgit_lxe_texts IMPLEMENTATION.
 
   METHOD get_lang_iso4.
 
-    DATA lv_lang_iso639 TYPE i18_a_langiso2.
-    DATA lv_country TYPE land1.
+    DATA lv_lang_iso639 TYPE laiso.
+    DATA lv_country     TYPE land1.
 
     cl_i18n_languages=>sap2_to_iso639_1(
       EXPORTING
@@ -306,6 +339,84 @@ CLASS zcl_abapgit_lxe_texts IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD read_lxe_object_text_pair.
+
+    DATA:
+      lv_error TYPE lxestring.
+
+    TRY.
+        CALL FUNCTION 'LXE_OBJ_TEXT_PAIR_READ'
+          EXPORTING
+            s_lang    = iv_s_lang
+            t_lang    = iv_t_lang
+            custmnr   = iv_custmnr
+            objtype   = iv_objtype
+            objname   = iv_objname
+            read_only = iv_read_only
+          IMPORTING
+            err_msg   = lv_error  " doesn't exist in NW <= 750
+          TABLES
+            lt_pcx_s1 = rt_text_pairs_tmp.
+        IF lv_error IS NOT INITIAL.
+          zcx_abapgit_exception=>raise( lv_error ).
+        ENDIF.
+
+      CATCH cx_sy_dyn_call_param_not_found.
+
+        CALL FUNCTION 'LXE_OBJ_TEXT_PAIR_READ'
+          EXPORTING
+            s_lang    = iv_s_lang
+            t_lang    = iv_t_lang
+            custmnr   = iv_custmnr
+            objtype   = iv_objtype
+            objname   = iv_objname
+            read_only = iv_read_only
+          TABLES
+            lt_pcx_s1 = rt_text_pairs_tmp.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD write_lxe_object_text_pair.
+
+    DATA:
+      lv_error TYPE lxestring.
+
+    TRY.
+        CALL FUNCTION 'LXE_OBJ_TEXT_PAIR_WRITE'
+          EXPORTING
+            s_lang    = iv_s_lang
+            t_lang    = iv_t_lang
+            custmnr   = iv_custmnr
+            objtype   = iv_objtype
+            objname   = iv_objname
+          IMPORTING
+            err_msg   = lv_error  " doesn't exist in NW <= 750
+          TABLES
+            lt_pcx_s1 = it_pcx_s1.
+        IF lv_error IS NOT INITIAL.
+          zcx_abapgit_exception=>raise( lv_error ).
+        ENDIF.
+
+      CATCH cx_sy_dyn_call_param_not_found.
+
+        CALL FUNCTION 'LXE_OBJ_TEXT_PAIR_WRITE'
+          EXPORTING
+            s_lang    = iv_s_lang
+            t_lang    = iv_t_lang
+            custmnr   = iv_custmnr
+            objtype   = iv_objtype
+            objname   = iv_objname
+          TABLES
+            lt_pcx_s1 = it_pcx_s1.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_lxe_texts~deserialize.
 
     DATA:
@@ -318,28 +429,24 @@ CLASS zcl_abapgit_lxe_texts IMPLEMENTATION.
 
     LOOP AT lt_lxe_texts INTO ls_lxe_item.
       " Call Read first for buffer prefill
-      CLEAR: lt_text_pairs_tmp.
-      CALL FUNCTION 'LXE_OBJ_TEXT_PAIR_READ'
-        EXPORTING
-          s_lang    = ls_lxe_item-source_lang
-          t_lang    = ls_lxe_item-target_lang
-          custmnr   = ls_lxe_item-custmnr
-          objtype   = ls_lxe_item-objtype
-          objname   = ls_lxe_item-objname
-          read_only = abap_false
-        TABLES
-          lt_pcx_s1 = lt_text_pairs_tmp.
+
+      lt_text_pairs_tmp = read_lxe_object_text_pair(
+                             iv_s_lang    = ls_lxe_item-source_lang
+                             iv_t_lang    = ls_lxe_item-target_lang
+                             iv_custmnr   = ls_lxe_item-custmnr
+                             iv_objtype   = ls_lxe_item-objtype
+                             iv_objname   = ls_lxe_item-objname
+                             iv_read_only = abap_false ).
 
       "Call actual Write FM
-      CALL FUNCTION 'LXE_OBJ_TEXT_PAIR_WRITE'
-        EXPORTING
-          s_lang    = ls_lxe_item-source_lang
-          t_lang    = ls_lxe_item-target_lang
-          custmnr   = ls_lxe_item-custmnr
-          objtype   = ls_lxe_item-objtype
-          objname   = ls_lxe_item-objname
-        TABLES
-          lt_pcx_s1 = ls_lxe_item-text_pairs.
+      write_lxe_object_text_pair(
+          iv_s_lang  = ls_lxe_item-source_lang
+          iv_t_lang  = ls_lxe_item-target_lang
+          iv_custmnr = ls_lxe_item-custmnr
+          iv_objtype = ls_lxe_item-objtype
+          iv_objname = ls_lxe_item-objname
+          it_pcx_s1  = ls_lxe_item-text_pairs ).
+
     ENDLOOP.
 
   ENDMETHOD.
@@ -383,16 +490,12 @@ CLASS zcl_abapgit_lxe_texts IMPLEMENTATION.
           CONTINUE. " if source = target -> skip
         ENDIF.
 
-        CLEAR ls_lxe_text_item-text_pairs.
-        CALL FUNCTION 'LXE_OBJ_TEXT_PAIR_READ'
-          EXPORTING
-            s_lang    = ls_lxe_text_item-source_lang
-            t_lang    = ls_lxe_text_item-target_lang
-            custmnr   = ls_lxe_text_item-custmnr
-            objtype   = ls_lxe_text_item-objtype
-            objname   = ls_lxe_text_item-objname
-          TABLES
-            lt_pcx_s1 = ls_lxe_text_item-text_pairs.
+        ls_lxe_text_item-text_pairs = read_lxe_object_text_pair(
+                                          iv_s_lang    = ls_lxe_text_item-source_lang
+                                          iv_t_lang    = ls_lxe_text_item-target_lang
+                                          iv_custmnr   = ls_lxe_text_item-custmnr
+                                          iv_objtype   = ls_lxe_text_item-objtype
+                                          iv_objname   = ls_lxe_text_item-objname ).
 
         IF ls_lxe_text_item-text_pairs IS NOT INITIAL.
           APPEND ls_lxe_text_item TO lt_lxe_texts.

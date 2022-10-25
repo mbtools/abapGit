@@ -30,7 +30,9 @@ INTERFACE zif_abapgit_definitions
   TYPES: data TYPE xstring,
     END OF ty_file .
   TYPES:
-    ty_files_tt TYPE STANDARD TABLE OF ty_file WITH DEFAULT KEY .
+    ty_files_tt TYPE STANDARD TABLE OF ty_file WITH DEFAULT KEY
+                     WITH UNIQUE SORTED KEY file_path COMPONENTS path filename
+                     WITH NON-UNIQUE SORTED KEY file COMPONENTS filename.
   TYPES:
     ty_string_tt TYPE STANDARD TABLE OF string WITH DEFAULT KEY .
   TYPES ty_git_branch_type TYPE c LENGTH 2 .
@@ -59,8 +61,6 @@ INTERFACE zif_abapgit_definitions
       body         TYPE string,
     END OF ty_git_tag .
   TYPES:
-    ty_git_tag_list_tt TYPE STANDARD TABLE OF ty_git_tag WITH DEFAULT KEY .
-  TYPES:
     BEGIN OF ty_git_user,
       name  TYPE string,
       email TYPE string,
@@ -72,11 +72,17 @@ INTERFACE zif_abapgit_definitions
       comment   TYPE string,
     END OF ty_comment .
   TYPES:
-    BEGIN OF ty_item,
-      obj_type TYPE tadir-object,
-      obj_name TYPE tadir-obj_name,
-      devclass TYPE devclass,
-      inactive TYPE abap_bool,
+    BEGIN OF ty_item_signature,
+      obj_type  TYPE tadir-object,
+      obj_name  TYPE tadir-obj_name,
+      devclass  TYPE devclass,
+    END OF ty_item_signature .
+  TYPES:
+    BEGIN OF ty_item.
+      INCLUDE TYPE ty_item_signature.
+  TYPES:
+      srcsystem TYPE tadir-srcsystem,
+      inactive  TYPE abap_bool,
     END OF ty_item .
   TYPES:
     ty_items_tt TYPE STANDARD TABLE OF ty_item WITH DEFAULT KEY .
@@ -89,6 +95,8 @@ INTERFACE zif_abapgit_definitions
     END OF ty_file_item .
   TYPES:
     ty_files_item_tt TYPE STANDARD TABLE OF ty_file_item WITH DEFAULT KEY .
+  TYPES:
+    ty_files_item_by_file_tt TYPE SORTED TABLE OF ty_file_item WITH UNIQUE KEY file-path file-filename.
   TYPES:
     ty_yes_no         TYPE c LENGTH 1,
     ty_yes_no_partial TYPE c LENGTH 1.
@@ -142,7 +150,6 @@ INTERFACE zif_abapgit_definitions
       class        TYPE string,
       version      TYPE string,
       delete_tadir TYPE abap_bool,
-      ddic         TYPE abap_bool,
     END OF ty_metadata .
   TYPES:
     BEGIN OF ty_repo_file,
@@ -170,29 +177,31 @@ INTERFACE zif_abapgit_definitions
       WITH NON-UNIQUE SORTED KEY type COMPONENTS type sha1 .
   TYPES:
     BEGIN OF ty_tadir,
-      pgmid    TYPE tadir-pgmid,
-      object   TYPE tadir-object,
-      obj_name TYPE tadir-obj_name,
-      devclass TYPE tadir-devclass,
-      korrnum  TYPE tadir-korrnum, " todo, I think this field can be removed after #2464 -Hvam
-      delflag  TYPE tadir-delflag,
-      genflag  TYPE tadir-genflag,
-      path     TYPE string,
+      pgmid     TYPE tadir-pgmid,
+      object    TYPE tadir-object,
+      obj_name  TYPE tadir-obj_name,
+      devclass  TYPE tadir-devclass,
+      korrnum   TYPE tadir-korrnum, " used by ZCL_ABAPGIT_DEPENDENCIES->RESOLVE
+      delflag   TYPE tadir-delflag,
+      genflag   TYPE tadir-genflag,
+      path      TYPE string,
+      srcsystem TYPE tadir-srcsystem,
     END OF ty_tadir .
   TYPES:
     ty_tadir_tt TYPE STANDARD TABLE OF ty_tadir WITH DEFAULT KEY .
   TYPES:
     BEGIN OF ty_result,
-      obj_type TYPE tadir-object,
-      obj_name TYPE tadir-obj_name,
-      inactive TYPE abap_bool,
-      path     TYPE string,
-      filename TYPE string,
-      package  TYPE devclass,
-      match    TYPE abap_bool,
-      lstate   TYPE ty_item_state,
-      rstate   TYPE ty_item_state,
-      packmove TYPE abap_bool,
+      obj_type  TYPE tadir-object,
+      obj_name  TYPE tadir-obj_name,
+      inactive  TYPE abap_bool,
+      path      TYPE string,
+      filename  TYPE string,
+      package   TYPE devclass,
+      match     TYPE abap_bool,
+      lstate    TYPE ty_item_state,
+      rstate    TYPE ty_item_state,
+      packmove  TYPE abap_bool,
+      srcsystem TYPE tadir-srcsystem,
     END OF ty_result .
   TYPES:
     ty_results_tt TYPE STANDARD TABLE OF ty_result WITH DEFAULT KEY .
@@ -225,6 +234,7 @@ INTERFACE zif_abapgit_definitions
       cmpname   TYPE seocmpname,
       attkeyfld TYPE seokeyfld,
       attbusobj TYPE seobusobj,
+      exposure  TYPE seoexpose,
     END OF ty_obj_attribute .
   TYPES:
     ty_obj_attribute_tt TYPE STANDARD TABLE OF ty_obj_attribute WITH DEFAULT KEY
@@ -269,7 +279,10 @@ INTERFACE zif_abapgit_definitions
       beacon     TYPE i,
     END OF ty_diff .
   TYPES:
-    ty_diffs_tt TYPE STANDARD TABLE OF ty_diff WITH DEFAULT KEY .
+    ty_diffs_tt TYPE STANDARD TABLE OF ty_diff
+                     WITH DEFAULT KEY
+                     WITH NON-UNIQUE SORTED KEY new_num COMPONENTS new_num
+                     WITH NON-UNIQUE SORTED KEY old_num COMPONENTS old_num.
   TYPES:
     BEGIN OF ty_count,
       insert TYPE i,
@@ -304,8 +317,10 @@ INTERFACE zif_abapgit_definitions
       lstate     TYPE ty_item_state,
       rstate     TYPE ty_item_state,
       files      TYPE ty_repo_file_tt,
-      changed_by TYPE xubname,
+      changed_by TYPE syuname,
+      transport  TYPE trkorr,
       packmove   TYPE abap_bool,
+      srcsystem  TYPE tadir-srcsystem,
     END OF ty_repo_item .
   TYPES:
     ty_repo_item_tt TYPE STANDARD TABLE OF ty_repo_item WITH DEFAULT KEY .
@@ -387,9 +402,10 @@ INTERFACE zif_abapgit_definitions
     END OF c_git_branch.
   CONSTANTS:
     BEGIN OF c_diff,
-      insert TYPE c LENGTH 1 VALUE 'I',
-      delete TYPE c LENGTH 1 VALUE 'D',
-      update TYPE c LENGTH 1 VALUE 'U',
+      unchanged TYPE c LENGTH 1 VALUE ' ',
+      insert    TYPE c LENGTH 1 VALUE 'I',
+      delete    TYPE c LENGTH 1 VALUE 'D',
+      update    TYPE c LENGTH 1 VALUE 'U',
     END OF c_diff .
   CONSTANTS:
     BEGIN OF c_type,
@@ -442,6 +458,7 @@ INTERFACE zif_abapgit_definitions
       abapgit_home                  TYPE string VALUE 'abapgit_home',
       zip_import                    TYPE string VALUE 'zip_import',
       zip_export                    TYPE string VALUE 'zip_export',
+      zip_export_transport          TYPE string VALUE 'zip_export_transport',
       zip_package                   TYPE string VALUE 'zip_package',
       zip_transport                 TYPE string VALUE 'zip_transport',
       zip_object                    TYPE string VALUE 'zip_object',
@@ -453,6 +470,7 @@ INTERFACE zif_abapgit_definitions
       git_branch_create             TYPE string VALUE 'git_branch_create',
       git_branch_switch             TYPE string VALUE 'git_branch_switch',
       git_branch_delete             TYPE string VALUE 'git_branch_delete',
+      git_branch_merge              TYPE string VALUE 'git_branch_merge',
       git_tag_create                TYPE string VALUE 'git_tag_create',
       git_tag_delete                TYPE string VALUE 'git_tag_delete',
       git_tag_switch                TYPE string VALUE 'git_tag_switch',
@@ -469,9 +487,8 @@ INTERFACE zif_abapgit_definitions
       go_repo_diff                  TYPE string VALUE 'go_repo_diff',
       go_file_diff                  TYPE string VALUE 'go_fill_diff',
       go_stage                      TYPE string VALUE 'go_stage',
+      go_stage_transport            TYPE string VALUE 'go_stage_transport',
       go_commit                     TYPE string VALUE 'go_commit',
-      go_branch_overview            TYPE string VALUE 'go_branch_overview',
-      go_tag_overview               TYPE string VALUE 'go_tag_overview',
       go_debuginfo                  TYPE string VALUE 'go_debuginfo',
       go_settings                   TYPE string VALUE 'go_settings',
       go_settings_personal          TYPE string VALUE 'go_settings_personal',
@@ -525,5 +542,5 @@ INTERFACE zif_abapgit_definitions
       main_language_only    TYPE abap_bool,
       translation_languages TYPE ty_languages,
     END OF ty_i18n_params .
-
+  TYPES ty_trrngtrkor_tt TYPE RANGE OF trkorr.
 ENDINTERFACE.

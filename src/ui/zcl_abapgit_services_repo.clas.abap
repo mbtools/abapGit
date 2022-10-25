@@ -95,13 +95,13 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_services_repo IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
 
 
   METHOD check_package.
 
     DATA:
-      lo_repo     TYPE REF TO zcl_abapgit_repo,
+      li_repo     TYPE REF TO zif_abapgit_repo,
       li_repo_srv TYPE REF TO zif_abapgit_repo_srv,
       lv_reason   TYPE string.
 
@@ -113,10 +113,10 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
         iv_package    = is_repo_params-package
         iv_ign_subpkg = is_repo_params-ignore_subpackages
       IMPORTING
-        eo_repo    = lo_repo
+        ei_repo    = li_repo
         ev_reason  = lv_reason ).
 
-    IF lo_repo IS BOUND.
+    IF li_repo IS BOUND.
       zcx_abapgit_exception=>raise( lv_reason ).
     ENDIF.
 
@@ -141,6 +141,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
       ls_tadir-pgmid    = 'R3TR'.
       ls_tadir-object   = <ls_overwrite>-obj_type.
       ls_tadir-obj_name = <ls_overwrite>-obj_name.
+      ls_tadir-devclass = <ls_overwrite>-devclass.
       INSERT ls_tadir INTO TABLE lt_tadir.
 
     ENDLOOP.
@@ -169,6 +170,11 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
 
     " find troublesome objects
     ls_checks = io_repo->deserialize_checks( ).
+
+    IF ls_checks-overwrite IS INITIAL.
+      zcx_abapgit_exception=>raise(
+        'There is nothing to pull. The local state completely matches the remote repository.' ).
+    ENDIF.
 
     " let the user decide what to do
     TRY.
@@ -204,19 +210,20 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
     check_package( is_repo_params ).
 
     " create new repo and add to favorites
-    ro_repo = zcl_abapgit_repo_srv=>get_instance( )->new_offline(
+    ro_repo ?= zcl_abapgit_repo_srv=>get_instance( )->new_offline(
       iv_url            = is_repo_params-url
       iv_package        = is_repo_params-package
       iv_folder_logic   = is_repo_params-folder_logic
       iv_main_lang_only = is_repo_params-main_lang_only ).
 
     " Make sure there're no leftovers from previous repos
-    ro_repo->rebuild_local_checksums( ).
+    ro_repo->zif_abapgit_repo~checksums( )->rebuild( ).
+    ro_repo->reset_status( ). " TODO refactor later
 
     toggle_favorite( ro_repo->get_key( ) ).
 
     " Set default repo for user
-    zcl_abapgit_persist_factory=>get_user( )->set_repo_show( ro_repo->get_key( ) ).
+    zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( ro_repo->get_key( ) ).
 
     COMMIT WORK AND WAIT.
 
@@ -228,7 +235,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
 
     check_package( is_repo_params ).
 
-    ro_repo = zcl_abapgit_repo_srv=>get_instance( )->new_online(
+    ro_repo ?= zcl_abapgit_repo_srv=>get_instance( )->new_online(
       iv_url            = is_repo_params-url
       iv_branch_name    = is_repo_params-branch_name
       iv_package        = is_repo_params-package
@@ -238,12 +245,13 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
       iv_main_lang_only = is_repo_params-main_lang_only ).
 
     " Make sure there're no leftovers from previous repos
-    ro_repo->rebuild_local_checksums( ).
+    ro_repo->zif_abapgit_repo~checksums( )->rebuild( ).
+    ro_repo->reset_status( ). " TODO refactor later
 
     toggle_favorite( ro_repo->get_key( ) ).
 
     " Set default repo for user
-    zcl_abapgit_persist_factory=>get_user( )->set_repo_show( ro_repo->get_key( ) ).
+    zcl_abapgit_persistence_user=>get_instance( )->set_repo_show( ro_repo->get_key( ) ).
 
     COMMIT WORK AND WAIT.
 
@@ -267,9 +275,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
     IF iv_reset_all IS INITIAL.
       DELETE lt_decision
         WHERE action = zif_abapgit_objects=>c_deserialize_action-add
-           OR action = zif_abapgit_objects=>c_deserialize_action-update
-           OR action = zif_abapgit_objects=>c_deserialize_action-delete
-           OR action = zif_abapgit_objects=>c_deserialize_action-delete_add.
+           OR action = zif_abapgit_objects=>c_deserialize_action-update.
     ENDIF.
 
     " Ask user what to do
@@ -430,7 +436,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
           lv_message   TYPE string.
 
 
-    lo_repo = zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
+    lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
     lv_repo_name = lo_repo->get_name( ).
 
     lv_package = lo_repo->get_package( ).
@@ -464,7 +470,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
     ENDIF.
 
     ri_log = zcl_abapgit_repo_srv=>get_instance( )->purge(
-      io_repo   = lo_repo
+      ii_repo   = lo_repo
       is_checks = ls_checks ).
 
     COMMIT WORK.
@@ -498,7 +504,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
       zcx_abapgit_exception=>raise( 'Not authorized' ).
     ENDIF.
 
-    lo_repo = zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
+    lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
 
     lv_question = 'This will rebuild and overwrite local repo checksums.'.
 
@@ -525,7 +531,8 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_abapgit_cancel.
     ENDIF.
 
-    lo_repo->rebuild_local_checksums( ).
+    lo_repo->zif_abapgit_repo~checksums( )->rebuild( ).
+    lo_repo->reset_status( ). " TODO refactor later
 
     COMMIT WORK AND WAIT.
 
@@ -535,16 +542,16 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
   METHOD remove.
 
     DATA: lv_answer    TYPE c LENGTH 1,
-          lo_repo      TYPE REF TO zcl_abapgit_repo,
+          li_repo      TYPE REF TO zif_abapgit_repo,
           lv_package   TYPE devclass,
           lv_question  TYPE c LENGTH 200,
           lv_repo_name TYPE string,
           lv_message   TYPE string.
 
 
-    lo_repo      = zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
-    lv_repo_name = lo_repo->get_name( ).
-    lv_package   = lo_repo->get_package( ).
+    li_repo      = zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
+    lv_repo_name = li_repo->get_name( ).
+    lv_package   = li_repo->get_package( ).
     lv_question  = |This will remove the repository reference to the package { lv_package
       }. All objects will safely remain in the system.|.
 
@@ -562,7 +569,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_abapgit_cancel.
     ENDIF.
 
-    zcl_abapgit_repo_srv=>get_instance( )->delete( lo_repo ).
+    zcl_abapgit_repo_srv=>get_instance( )->delete( li_repo ).
 
     COMMIT WORK.
 
@@ -574,7 +581,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
 
   METHOD toggle_favorite.
 
-    zcl_abapgit_persist_factory=>get_user( )->toggle_favorite( iv_key ).
+    zcl_abapgit_persistence_user=>get_instance( )->toggle_favorite( iv_key ).
 
   ENDMETHOD.
 

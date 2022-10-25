@@ -6,6 +6,7 @@ CLASS zcl_abapgit_html_form DEFINITION
   PUBLIC SECTION.
 
     INTERFACES zif_abapgit_html_form .
+    INTERFACES zif_abapgit_gui_hotkeys .
 
     CLASS-METHODS create
       IMPORTING
@@ -19,7 +20,9 @@ CLASS zcl_abapgit_html_form DEFINITION
         !io_values         TYPE REF TO zcl_abapgit_string_map
         !io_validation_log TYPE REF TO zcl_abapgit_string_map OPTIONAL
       RETURNING
-        VALUE(ri_html)     TYPE REF TO zif_abapgit_html .
+        VALUE(ri_html)     TYPE REF TO zif_abapgit_html
+      RAISING
+        zcx_abapgit_exception .
     METHODS command
       IMPORTING
         !iv_label      TYPE csequence
@@ -51,6 +54,8 @@ CLASS zcl_abapgit_html_form DEFINITION
         !iv_required    TYPE abap_bool DEFAULT abap_false
         !iv_readonly    TYPE abap_bool DEFAULT abap_false
         !iv_placeholder TYPE csequence OPTIONAL
+        !iv_rows        TYPE i OPTIONAL
+        !iv_cols        TYPE i OPTIONAL
       RETURNING
         VALUE(ro_self)  TYPE REF TO zcl_abapgit_html_form .
     METHODS number
@@ -77,6 +82,8 @@ CLASS zcl_abapgit_html_form DEFINITION
         !iv_name          TYPE csequence
         !iv_default_value TYPE csequence OPTIONAL
         !iv_hint          TYPE csequence OPTIONAL
+        !iv_condense      TYPE abap_bool DEFAULT abap_false
+        !iv_action        TYPE csequence OPTIONAL
       RETURNING
         VALUE(ro_self)    TYPE REF TO zcl_abapgit_html_form .
     METHODS option
@@ -326,6 +333,10 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
     ls_field-label = iv_label.
     ls_field-default_value = iv_default_value.
     ls_field-hint  = iv_hint.
+    ls_field-click = iv_action.
+
+    " put options into one column instead of side-by-side
+    ls_field-condense = iv_condense.
 
     APPEND ls_field TO mt_fields.
 
@@ -431,6 +442,10 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
     ri_html->add( |</form>| ).
     ri_html->add( |</div>| ).
 
+    zcl_abapgit_ui_factory=>get_gui_services(
+      )->get_hotkeys_ctl(
+      )->register_hotkeys( zif_abapgit_gui_hotkeys~get_hotkey_actions( ) ).
+
   ENDMETHOD.
 
 
@@ -472,8 +487,12 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
       lv_item_class TYPE string.
 
     " Get value and validation error
-    ls_attr-value = escape( val    = io_values->get( is_field-name )
-                            format = cl_abap_format=>e_html_attr ).
+    ls_attr-value = io_values->get( is_field-name ).
+
+    IF is_field-type <> zif_abapgit_html_form=>c_field_type-textarea.
+      ls_attr-value = escape( val    = ls_attr-value
+                              format = cl_abap_format=>e_html_attr ).
+    ENDIF.
 
     IF io_validation_log IS BOUND.
       ls_attr-error = io_validation_log->get( is_field-name ).
@@ -517,6 +536,9 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
     IF is_field-type = zif_abapgit_html_form=>c_field_type-text AND is_field-max BETWEEN 1 AND 20.
       " Reduced width for short fields
       lv_item_class = lv_item_class && ' w40'.
+    ENDIF.
+    IF is_field-type = zif_abapgit_html_form=>c_field_type-hidden.
+      lv_item_class = lv_item_class && ' hidden'.
     ENDIF.
     IF lv_item_class IS NOT INITIAL.
       lv_item_class = | class="{ lv_item_class }"|.
@@ -610,7 +632,8 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
     DATA:
       lv_checked   TYPE string,
       lv_opt_id    TYPE string,
-      lv_opt_value TYPE string.
+      lv_opt_value TYPE string,
+      lv_onclick   TYPE string.
 
     FIELD-SYMBOLS <ls_opt> LIKE LINE OF is_field-subitems.
 
@@ -631,10 +654,23 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
         lv_checked = ' checked'.
       ENDIF.
 
+      CLEAR lv_onclick.
+      IF is_field-click IS NOT INITIAL.
+        lv_onclick = |onclick="document.getElementById('{ mv_form_id }').action = 'sapevent:|
+                  && |{ is_field-click }'; document.getElementById('{ mv_form_id }').submit()"|.
+      ENDIF.
+
       lv_opt_id = |{ is_field-name }{ sy-tabix }|.
+      IF is_field-condense = abap_true.
+        ii_html->add( '<div>' ).
+      ENDIF.
       ii_html->add( |<input type="radio" name="{ is_field-name }" id="{ lv_opt_id }"|
-                 && | value="{ lv_opt_value }"{ lv_checked }{ is_attr-autofocus }>| ).
+                 && | value="{ lv_opt_value }"{ lv_checked }{ is_attr-autofocus }|
+                 && | { lv_onclick }>| ).
       ii_html->add( |<label for="{ lv_opt_id }">{ <ls_opt>-label }</label>| ).
+      IF is_field-condense = abap_true.
+        ii_html->add( '</div>' ).
+      ENDIF.
     ENDLOOP.
 
     ii_html->add( '</div>' ).
@@ -715,7 +751,10 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
 
   METHOD render_field_text.
 
-    DATA lv_type TYPE string.
+    DATA:
+      lv_type      TYPE string,
+      lv_minlength TYPE string,
+      lv_maxlength TYPE string.
 
     ii_html->add( |<label for="{ is_field-name }"{ is_attr-hint }>{ is_field-label }{ is_attr-required }</label>| ).
 
@@ -735,14 +774,22 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
       lv_type = 'text'.
     ENDIF.
 
+    IF is_field-min > 0.
+      lv_minlength = | minlength={ is_field-min }|.
+    ENDIF.
+    IF is_field-max > 0 AND is_field-max < cl_abap_math=>max_int4.
+      lv_maxlength = | maxlength={ is_field-max }|.
+    ENDIF.
+
     ii_html->add( |<input type="{ lv_type }" name="{ is_field-name }" id="{ is_field-name }"|
-               && | value="{ is_attr-value }" { is_field-dblclick }{ is_attr-placeholder }|
-               && |{ is_attr-readonly }{ is_attr-autofocus }>| ).
+               && | value="{ is_attr-value }"{ is_field-dblclick }{ is_attr-placeholder }|
+               && |{ is_attr-readonly }{ is_attr-autofocus }{ lv_minlength }{ lv_maxlength }>| ).
 
     IF is_field-side_action IS NOT INITIAL.
       ii_html->add( '</div>' ).
       ii_html->add( '<div class="command-container">' ).
-      ii_html->add( |<input type="submit" value="&#x2026;" formaction="sapevent:{ is_field-side_action }">| ).
+      ii_html->add( |<input type="submit" value="&#x2026;" formaction="sapevent:{ is_field-side_action }"|
+                 && | title="{ is_field-label }">| ).
       ii_html->add( '</div>' ).
     ENDIF.
 
@@ -751,7 +798,8 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
 
   METHOD render_field_textarea.
 
-    DATA lv_rows TYPE i.
+    DATA lv_rows TYPE string.
+    DATA lv_cols TYPE string.
     DATA lv_html TYPE string.
 
     ii_html->add( |<label for="{ is_field-name }"{ is_attr-hint }>{ is_field-label }{ is_attr-required }</label>| ).
@@ -760,11 +808,19 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
       ii_html->add( is_attr-error ).
     ENDIF.
 
-    lv_rows = lines( zcl_abapgit_convert=>split_string( is_attr-value ) ).
+    IF is_field-rows > 0.
+      lv_rows = | rows="{ is_field-rows }"|.
+    ELSEIF is_attr-value IS NOT INITIAL.
+      lv_rows = | rows="{ lines( zcl_abapgit_convert=>split_string( is_attr-value ) ) + 1 }"|.
+    ENDIF.
+
+    IF is_field-cols > 0.
+      lv_cols = | cols="{ is_field-cols }"|.
+    ENDIF.
 
     " Avoid adding line-breaks inside textarea tag (except for the actual value)
-    lv_html = |<textarea name="{ is_field-name }" id="{ is_field-name }" rows="{ lv_rows }"|
-           && |{ is_attr-readonly }{ is_attr-autofocus }>|.
+    lv_html = |<textarea name="{ is_field-name }" id="{ is_field-name }"{ lv_rows }{ lv_cols }|
+           && |{ is_attr-readonly }{ is_attr-autofocus }{ is_attr-placeholder }>|.
     lv_html = lv_html && escape( val    = is_attr-value
                                  format = cl_abap_format=>e_html_attr ).
     lv_html = lv_html && |</textarea>|.
@@ -848,10 +904,40 @@ CLASS zcl_abapgit_html_form IMPLEMENTATION.
     ls_field-hint        = iv_hint.
     ls_field-required    = iv_required.
     ls_field-placeholder = iv_placeholder.
+    ls_field-rows        = iv_rows.
+    ls_field-cols        = iv_cols.
 
     APPEND ls_field TO mt_fields.
 
     ro_self = me.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_gui_hotkeys~get_hotkey_actions.
+
+    DATA: ls_hotkey_action LIKE LINE OF rt_hotkey_actions.
+    FIELD-SYMBOLS: <ls_command> TYPE zif_abapgit_html_form=>ty_command.
+
+    ls_hotkey_action-ui_component = 'Form'.
+
+    READ TABLE mt_commands WITH KEY cmd_type = zif_abapgit_html_form=>c_cmd_type-input_main
+                           ASSIGNING <ls_command>.
+    IF sy-subrc = 0.
+      ls_hotkey_action-description = <ls_command>-label.
+      ls_hotkey_action-action      = <ls_command>-action.
+      ls_hotkey_action-hotkey      = |Enter|.
+      INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+    ENDIF.
+
+    READ TABLE mt_commands WITH KEY action = zif_abapgit_definitions=>c_action-go_back
+                           ASSIGNING <ls_command>.
+    IF sy-subrc = 0.
+      ls_hotkey_action-description = <ls_command>-label.
+      ls_hotkey_action-action      = <ls_command>-action.
+      ls_hotkey_action-hotkey      = |F3|.
+      INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+    ENDIF.
 
   ENDMETHOD.
 ENDCLASS.

@@ -6,8 +6,15 @@ CLASS zcl_abapgit_persistence_repo DEFINITION
   PUBLIC SECTION.
 
     INTERFACES zif_abapgit_persist_repo .
+    INTERFACES zif_abapgit_persist_repo_cs .
 
     METHODS constructor .
+    METHODS rewrite_repo_meta
+      IMPORTING
+        !iv_repo_key TYPE zif_abapgit_persistence=>ty_repo-key
+      RAISING
+        zcx_abapgit_exception
+        zcx_abapgit_not_found.
   PROTECTED SECTION.
 
   PRIVATE SECTION.
@@ -43,7 +50,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_persistence_repo IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_PERSISTENCE_REPO IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -131,6 +138,37 @@ CLASS zcl_abapgit_persistence_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD get_repo_from_content.
+    MOVE-CORRESPONDING from_xml( is_content-data_str ) TO rs_result.
+    IF rs_result-local_settings-write_protected = abap_false AND
+       zcl_abapgit_factory=>get_environment( )->is_repo_object_changes_allowed( ) = abap_false.
+      rs_result-local_settings-write_protected = abap_true.
+    ENDIF.
+    rs_result-key = is_content-value.
+  ENDMETHOD.
+
+
+  METHOD rewrite_repo_meta.
+
+    DATA lv_old_blob TYPE string.
+    DATA lv_new_blob TYPE string.
+    DATA ls_repo_meta TYPE zif_abapgit_persistence=>ty_repo.
+
+    lv_old_blob = mo_db->read(
+      iv_type  = zcl_abapgit_persistence_db=>c_type_repo
+      iv_value = iv_repo_key ).
+
+    MOVE-CORRESPONDING from_xml( lv_old_blob ) TO ls_repo_meta.
+    lv_new_blob = to_xml( ls_repo_meta ).
+
+    mo_db->update(
+      iv_type  = zcl_abapgit_persistence_db=>c_type_repo
+      iv_value = iv_repo_key
+      iv_data  = lv_new_blob ).
+
+  ENDMETHOD.
+
+
   METHOD to_xml.
 
     DATA: ls_xml TYPE zif_abapgit_persistence=>ty_repo_xml.
@@ -141,6 +179,34 @@ CLASS zcl_abapgit_persistence_repo IMPLEMENTATION.
     CALL TRANSFORMATION id
       SOURCE repo = ls_xml
       RESULT XML rv_repo_xml_string.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_repo_cs~delete.
+
+    mo_db->delete(
+      iv_type  = zcl_abapgit_persistence_db=>c_type_repo_csum
+      iv_value = iv_key ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_repo_cs~read.
+
+    rv_cs_blob = mo_db->read(
+      iv_type  = zcl_abapgit_persistence_db=>c_type_repo_csum
+      iv_value = iv_key ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_persist_repo_cs~update.
+
+    mo_db->modify(
+      iv_type  = zcl_abapgit_persistence_db=>c_type_repo_csum
+      iv_value = iv_key
+      iv_data  = iv_cs_blob ).
+
   ENDMETHOD.
 
 
@@ -184,6 +250,22 @@ CLASS zcl_abapgit_persistence_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_persist_repo~exists.
+
+    DATA lt_keys TYPE zif_abapgit_persistence=>ty_repo_keys.
+    DATA lt_content TYPE zif_abapgit_persistence=>ty_contents.
+
+    APPEND iv_key TO lt_keys.
+
+    lt_content = mo_db->list_by_keys(
+      it_keys = lt_keys
+      iv_type = zcl_abapgit_persistence_db=>c_type_repo ).
+
+    rv_yes = boolc( lines( lt_content ) > 0 ).
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_persist_repo~list.
 
     DATA: lt_content TYPE zif_abapgit_persistence=>ty_contents,
@@ -199,7 +281,8 @@ CLASS zcl_abapgit_persistence_repo IMPLEMENTATION.
 
   ENDMETHOD.
 
-  METHOD zif_abapgit_persist_repo~list_favorites.
+
+  METHOD zif_abapgit_persist_repo~list_by_keys.
     DATA: lt_content TYPE zif_abapgit_persistence=>ty_contents,
           ls_content LIKE LINE OF lt_content,
           ls_repo    LIKE LINE OF rt_repos.
@@ -213,7 +296,6 @@ CLASS zcl_abapgit_persistence_repo IMPLEMENTATION.
       INSERT ls_repo INTO TABLE rt_repos.
     ENDLOOP.
   ENDMETHOD.
-
 
 
   METHOD zif_abapgit_persist_repo~lock.
@@ -282,15 +364,4 @@ CLASS zcl_abapgit_persistence_repo IMPLEMENTATION.
                    iv_data  = lv_blob ).
 
   ENDMETHOD.
-
-
-  METHOD get_repo_from_content.
-    MOVE-CORRESPONDING from_xml( is_content-data_str ) TO rs_result.
-    IF rs_result-local_settings-write_protected = abap_false AND
-       zcl_abapgit_factory=>get_environment( )->is_repo_object_changes_allowed( ) = abap_false.
-      rs_result-local_settings-write_protected = abap_true.
-    ENDIF.
-    rs_result-key = is_content-value.
-  ENDMETHOD.
-
 ENDCLASS.

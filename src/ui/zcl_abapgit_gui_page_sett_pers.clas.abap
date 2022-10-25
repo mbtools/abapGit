@@ -41,8 +41,7 @@ CLASS zcl_abapgit_gui_page_sett_pers DEFINITION
       END OF c_id.
     CONSTANTS:
       BEGIN OF c_event,
-        go_back TYPE string VALUE 'go_back',
-        save    TYPE string VALUE 'save',
+        save TYPE string VALUE 'save',
       END OF c_event.
 
     DATA mo_form TYPE REF TO zcl_abapgit_html_form.
@@ -139,7 +138,8 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_SETT_PERS IMPLEMENTATION.
     )->radio(
       iv_name          = c_id-icon_scaling
       iv_default_value = ''
-      iv_label         = 'Icon Scaling'
+      iv_label         = 'Icon Scaling (HDPI)'
+      iv_hint          = 'Adjust size of icons for High DPI displays'
     )->option(
       iv_label         = 'Automatic'
       iv_value         = ''
@@ -188,7 +188,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_SETT_PERS IMPLEMENTATION.
       iv_action        = c_event-save
     )->command(
       iv_label         = 'Back'
-      iv_action        = c_event-go_back ).
+      iv_action        = zif_abapgit_definitions=>c_action-go_back ).
 
     " Not available via this form:
     " - User-specific hotkey settings have been discontinued
@@ -292,7 +292,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_SETT_PERS IMPLEMENTATION.
     mo_form_data = mo_form_util->normalize( ii_event->form_data( ) ).
 
     CASE ii_event->mv_action.
-      WHEN c_event-go_back.
+      WHEN zif_abapgit_definitions=>c_action-go_back.
         rs_handled-state = mo_form_util->exit( mo_form_data ).
 
       WHEN c_event-save.
@@ -319,10 +319,10 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_SETT_PERS IMPLEMENTATION.
     ENDIF.
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
-
+    ri_html->add( '<div class="form-container">' ).
     ri_html->add( mo_form->render(
       io_values         = mo_form_data
       io_validation_log = mo_validation_log ) ).
-
+    ri_html->add( '</div>' ).
   ENDMETHOD.
 ENDCLASS.

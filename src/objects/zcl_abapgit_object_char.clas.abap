@@ -19,6 +19,8 @@ CLASS zcl_abapgit_object_char DEFINITION
         cls_attr_valuet TYPE STANDARD TABLE OF cls_attr_valuet WITH DEFAULT KEY,
       END OF ty_char .
 
+    CONSTANTS c_longtext_id_char TYPE dokil-id VALUE 'CH'.
+
     METHODS instantiate_char_and_lock
       IMPORTING
         !iv_type_group       TYPE cls_object_type_group
@@ -31,7 +33,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_CHAR IMPLEMENTATION.
+CLASS zcl_abapgit_object_char IMPLEMENTATION.
 
 
   METHOD instantiate_char_and_lock.
@@ -215,6 +217,9 @@ CLASS ZCL_ABAPGIT_OBJECT_CHAR IMPLEMENTATION.
         lo_char->if_pak_wb_object_internal~unlock( ).
     ENDTRY.
 
+    deserialize_longtexts( ii_xml         = io_xml
+                           iv_longtext_id = c_longtext_id_char ).
+
   ENDMETHOD.
 
 
@@ -254,21 +259,7 @@ CLASS ZCL_ABAPGIT_OBJECT_CHAR IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name
-        object_type         = ms_item-obj_type
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -293,6 +284,9 @@ CLASS ZCL_ABAPGIT_OBJECT_CHAR IMPLEMENTATION.
       WHERE name = ms_item-obj_name
       AND activation_state = lc_active
       ORDER BY PRIMARY KEY.
+    IF io_xml->i18n_params( )-main_language_only = abap_true.
+      DELETE ls_char-cls_attributet WHERE langu <> mv_language.
+    ENDIF.
 
     SELECT * FROM cls_attr_value INTO TABLE ls_char-cls_attr_value
       WHERE name = ms_item-obj_name
@@ -303,9 +297,15 @@ CLASS ZCL_ABAPGIT_OBJECT_CHAR IMPLEMENTATION.
       WHERE name = ms_item-obj_name
       AND activation_state = lc_active
       ORDER BY PRIMARY KEY.
+    IF io_xml->i18n_params( )-main_language_only = abap_true.
+      DELETE ls_char-cls_attr_valuet WHERE langu <> mv_language.
+    ENDIF.
 
     io_xml->add( iv_name = 'CHAR'
                  ig_data = ls_char ).
+
+    serialize_longtexts( ii_xml         = io_xml
+                         iv_longtext_id = c_longtext_id_char ).
 
   ENDMETHOD.
 ENDCLASS.

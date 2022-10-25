@@ -188,6 +188,10 @@ CLASS zcl_abapgit_object_enho_class IMPLEMENTATION.
         lo_enh_class->if_enh_object~save( run_dark = abap_true ).
         lo_enh_class->if_enh_object~unlock( ).
       CATCH cx_enh_root INTO lx_enh_root.
+        TRY.
+            lo_enh_class->if_enh_object~unlock( ).
+          CATCH cx_sy_ref_is_initial cx_enh_mod_not_allowed ##NO_HANDLER.
+        ENDTRY.
         zcx_abapgit_exception=>raise_with_text( lx_enh_root ).
     ENDTRY.
 
@@ -230,9 +234,8 @@ CLASS zcl_abapgit_object_enho_class IMPLEMENTATION.
     mo_files->add_abap( lt_source ).
 
     zcl_abapgit_object_enho_clif=>serialize(
-      io_xml   = ii_xml
-      io_files = mo_files
-      io_clif  = lo_enh_class ).
+      io_xml  = ii_xml
+      io_clif = lo_enh_class ).
 
     serialize_includes( lo_enh_class ).
 

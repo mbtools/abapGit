@@ -44,7 +44,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_FDT0 IMPLEMENTATION.
+CLASS zcl_abapgit_object_fdt0 IMPLEMENTATION.
 
 
   METHOD before_xml_deserialize.
@@ -394,16 +394,12 @@ CLASS ZCL_ABAPGIT_OBJECT_FDT0 IMPLEMENTATION.
   METHOD zif_abapgit_object~delete.
 
     DATA lv_is_local TYPE abap_bool.
-    DATA lv_ordernum TYPE trkorr.
     DATA lt_application_id TYPE TABLE OF fdt_admn_0000s-application_id.
     DATA ls_object_category_sel TYPE if_fdt_query=>s_object_category_sel.
     DATA lv_failure TYPE abap_bool.
     DATA lx_fdt_input TYPE REF TO cx_fdt_input.
 
     lv_is_local = check_is_local( ).
-    IF lv_is_local = abap_false.
-      lv_ordernum = zcl_abapgit_default_transport=>get_instance( )->get( )-ordernum.
-    ENDIF.
 
     SELECT application_id FROM fdt_admn_0000s INTO TABLE lt_application_id
       WHERE object_type = 'AP'
@@ -451,6 +447,10 @@ CLASS ZCL_ABAPGIT_OBJECT_FDT0 IMPLEMENTATION.
           ENDIF.
 
         ELSE.
+
+          tadir_insert( iv_package ).
+
+          corr_insert( iv_package ).
 
           cl_fdt_delete_handling=>mark_for_delete_via_job(
             EXPORTING
@@ -506,8 +506,8 @@ CLASS ZCL_ABAPGIT_OBJECT_FDT0 IMPLEMENTATION.
     DATA lo_dexc TYPE REF TO if_fdt_data_exchange.
     DATA lx_fdt_input TYPE REF TO cx_fdt_input.
     DATA lo_dom_tree TYPE REF TO if_ixml_document.
+    DATA lv_transportable_package TYPE abap_bool.
     DATA lv_is_local TYPE abap_bool.
-    DATA lv_ordernum TYPE trkorr.
     DATA lt_message TYPE if_fdt_types=>t_message.
     DATA lv_create TYPE abap_bool.
 
@@ -523,6 +523,14 @@ CLASS ZCL_ABAPGIT_OBJECT_FDT0 IMPLEMENTATION.
         ev_is_local = lv_is_local
       CHANGING
         co_dom_tree = lo_dom_tree ).
+
+    lv_transportable_package = zcl_abapgit_factory=>get_sap_package( iv_package )->are_changes_recorded_in_tr_req( ).
+
+    IF lv_transportable_package = abap_true AND lv_is_local = abap_true.
+      zcx_abapgit_exception=>raise( 'Local applications can only be imported into a local package' ).
+    ELSEIF lv_transportable_package = abap_false AND lv_is_local = abap_false.
+      zcx_abapgit_exception=>raise( 'Transportable application can only be imported into transportable package' ).
+    ENDIF.
 
     lo_dexc = cl_fdt_factory=>if_fdt_factory~get_instance( )->get_data_exchange( ).
 
@@ -541,7 +549,9 @@ CLASS ZCL_ABAPGIT_OBJECT_FDT0 IMPLEMENTATION.
 
         ELSE. "Transportable Object
 
-          lv_ordernum = zcl_abapgit_default_transport=>get_instance( )->get( )-ordernum.
+          tadir_insert( iv_package ).
+
+          corr_insert( iv_package ).
 
           lo_dexc->import_xml(
             EXPORTING
@@ -549,7 +559,7 @@ CLASS ZCL_ABAPGIT_OBJECT_FDT0 IMPLEMENTATION.
               iv_create              = lv_create
               iv_activate            = abap_true
               iv_simulate            = abap_false
-              iv_workbench_trrequest = lv_ordernum
+              iv_workbench_trrequest = iv_transport
             IMPORTING
               et_message             = lt_message ).
 
@@ -675,6 +685,8 @@ CLASS ZCL_ABAPGIT_OBJECT_FDT0 IMPLEMENTATION.
     ELSE.
       zcx_abapgit_exception=>raise( 'Could not open BRF+ Workbench' ).
     ENDIF.
+
+    rv_exit = abap_true.
 
   ENDMETHOD.
 

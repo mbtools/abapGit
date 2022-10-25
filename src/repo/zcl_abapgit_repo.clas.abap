@@ -5,56 +5,33 @@ CLASS zcl_abapgit_repo DEFINITION
 
   PUBLIC SECTION.
 
-    DATA ms_data TYPE zif_abapgit_persistence=>ty_repo READ-ONLY.
+    INTERFACES zif_abapgit_repo.
+
+    ALIASES ms_data FOR zif_abapgit_repo~ms_data.
+    ALIASES:
+      get_key FOR zif_abapgit_repo~get_key,
+      get_name FOR zif_abapgit_repo~get_name,
+      is_offline FOR zif_abapgit_repo~is_offline,
+      get_package FOR zif_abapgit_repo~get_package,
+      get_files_local FOR zif_abapgit_repo~get_files_local,
+      get_files_remote FOR zif_abapgit_repo~get_files_remote,
+      get_local_settings FOR zif_abapgit_repo~get_local_settings,
+      refresh FOR zif_abapgit_repo~refresh,
+      get_dot_abapgit FOR zif_abapgit_repo~get_dot_abapgit,
+      set_dot_abapgit FOR zif_abapgit_repo~set_dot_abapgit,
+      deserialize FOR zif_abapgit_repo~deserialize,
+      deserialize_checks FOR zif_abapgit_repo~deserialize_checks.
+
+    METHODS constructor
+      IMPORTING
+        !is_data TYPE zif_abapgit_persistence=>ty_repo .
 
     METHODS bind_listener
       IMPORTING
         !ii_listener TYPE REF TO zif_abapgit_repo_listener .
-    METHODS deserialize_checks
-      RETURNING
-        VALUE(rs_checks) TYPE zif_abapgit_definitions=>ty_deserialize_checks
-      RAISING
-        zcx_abapgit_exception .
     METHODS delete_checks
       RETURNING
         VALUE(rs_checks) TYPE zif_abapgit_definitions=>ty_delete_checks
-      RAISING
-        zcx_abapgit_exception .
-    METHODS constructor
-      IMPORTING
-        !is_data TYPE zif_abapgit_persistence=>ty_repo .
-    METHODS get_key
-      RETURNING
-        VALUE(rv_key) TYPE zif_abapgit_persistence=>ty_value .
-    METHODS get_name
-      RETURNING
-        VALUE(rv_name) TYPE string
-      RAISING
-        zcx_abapgit_exception .
-    METHODS get_files_local
-      IMPORTING
-        !ii_log         TYPE REF TO zif_abapgit_log OPTIONAL
-      RETURNING
-        VALUE(rt_files) TYPE zif_abapgit_definitions=>ty_files_item_tt
-      RAISING
-        zcx_abapgit_exception .
-    METHODS get_local_checksums_per_file
-      RETURNING
-        VALUE(rt_checksums) TYPE zif_abapgit_definitions=>ty_file_signatures_tt .
-    METHODS get_files_remote
-      RETURNING
-        VALUE(rt_files) TYPE zif_abapgit_definitions=>ty_files_tt
-      RAISING
-        zcx_abapgit_exception .
-    METHODS get_package
-      RETURNING
-        VALUE(rv_package) TYPE zif_abapgit_persistence=>ty_repo-package .
-    METHODS get_dot_abapgit
-      RETURNING
-        VALUE(ro_dot_abapgit) TYPE REF TO zcl_abapgit_dot_abapgit .
-    METHODS set_dot_abapgit
-      IMPORTING
-        !io_dot_abapgit TYPE REF TO zcl_abapgit_dot_abapgit
       RAISING
         zcx_abapgit_exception .
     METHODS get_dot_apack
@@ -65,43 +42,14 @@ CLASS zcl_abapgit_repo DEFINITION
         VALUE(ri_config) TYPE REF TO zif_abapgit_data_config
       RAISING
         zcx_abapgit_exception .
-    METHODS deserialize
-      IMPORTING
-        !is_checks TYPE zif_abapgit_definitions=>ty_deserialize_checks
-        !ii_log    TYPE REF TO zif_abapgit_log
-      RAISING
-        zcx_abapgit_exception .
-    METHODS refresh
-      IMPORTING
-        !iv_drop_cache TYPE abap_bool DEFAULT abap_false
-        !iv_drop_log   TYPE abap_bool DEFAULT abap_true
-          PREFERRED PARAMETER iv_drop_cache
-      RAISING
-        zcx_abapgit_exception .
-    METHODS update_local_checksums
-      IMPORTING
-        !it_files TYPE zif_abapgit_definitions=>ty_file_signatures_tt
-      RAISING
-        zcx_abapgit_exception .
-    METHODS rebuild_local_checksums
-      RAISING
-        zcx_abapgit_exception .
     METHODS find_remote_dot_abapgit
       RETURNING
         VALUE(ro_dot) TYPE REF TO zcl_abapgit_dot_abapgit
       RAISING
         zcx_abapgit_exception .
-    METHODS is_offline
-      RETURNING
-        VALUE(rv_offline) TYPE abap_bool
-      RAISING
-        zcx_abapgit_exception .
     METHODS set_files_remote
       IMPORTING
         !it_files TYPE zif_abapgit_definitions=>ty_files_tt .
-    METHODS get_local_settings
-      RETURNING
-        VALUE(rs_settings) TYPE zif_abapgit_persistence=>ty_repo-local_settings .
     METHODS set_local_settings
       IMPORTING
         !is_settings TYPE zif_abapgit_persistence=>ty_repo-local_settings
@@ -146,6 +94,16 @@ CLASS zcl_abapgit_repo DEFINITION
         VALUE(rt_objects) TYPE zif_abapgit_definitions=>ty_items_tt
       RAISING
         zcx_abapgit_exception .
+    METHODS remove_ignored_files
+      CHANGING
+        ct_files TYPE zif_abapgit_definitions=>ty_files_tt
+      RAISING
+        zcx_abapgit_exception .
+    METHODS check_and_create_package
+      IMPORTING
+         iv_package TYPE devclass
+      RAISING
+        zcx_abapgit_exception .
   PROTECTED SECTION.
 
     DATA mt_local TYPE zif_abapgit_definitions=>ty_files_item_tt .
@@ -170,7 +128,6 @@ CLASS zcl_abapgit_repo DEFINITION
         zcx_abapgit_exception .
     METHODS set
       IMPORTING
-        !it_checksums       TYPE zif_abapgit_persistence=>ty_local_checksum_tt OPTIONAL
         !iv_url             TYPE zif_abapgit_persistence=>ty_repo-url OPTIONAL
         !iv_branch_name     TYPE zif_abapgit_persistence=>ty_repo-branch_name OPTIONAL
         !iv_selected_commit TYPE zif_abapgit_persistence=>ty_repo-selected_commit OPTIONAL
@@ -186,9 +143,6 @@ CLASS zcl_abapgit_repo DEFINITION
     METHODS reset_remote .
   PRIVATE SECTION.
 
-    METHODS get_local_checksums
-      RETURNING
-        VALUE(rt_checksums) TYPE zif_abapgit_persistence=>ty_local_checksum_tt .
     METHODS notify_listener
       IMPORTING
         !is_change_mask TYPE zif_abapgit_persistence=>ty_repo_meta_mask
@@ -204,15 +158,6 @@ CLASS zcl_abapgit_repo DEFINITION
     METHODS check_language
       RAISING
         zcx_abapgit_exception .
-    METHODS remove_non_code_related_files
-      CHANGING
-        !ct_local_files TYPE zif_abapgit_definitions=>ty_files_item_tt .
-    METHODS compare_with_remote_checksum
-      IMPORTING
-        !it_remote_files TYPE zif_abapgit_definitions=>ty_files_tt
-        !is_local_file   TYPE zif_abapgit_definitions=>ty_file_item-file
-      CHANGING
-        !cs_checksum     TYPE zif_abapgit_persistence=>ty_local_checksum .
 ENDCLASS.
 
 
@@ -225,6 +170,31 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD check_and_create_package.
+
+    DATA ls_item TYPE zif_abapgit_definitions=>ty_item.
+    DATA lv_package TYPE devclass.
+
+    ls_item-obj_type = 'DEVC'.
+    ls_item-obj_name = iv_package.
+
+    IF zcl_abapgit_objects=>exists( ls_item ) = abap_false.
+      " Check if any package is included in remote
+      READ TABLE mt_remote TRANSPORTING NO FIELDS
+        WITH KEY file
+        COMPONENTS filename = zcl_abapgit_filename_logic=>c_package_file.
+      IF sy-subrc <> 0.
+        " If not, prompt to create it
+        lv_package = zcl_abapgit_services_basis=>create_package( iv_package ).
+        IF lv_package IS NOT INITIAL.
+          COMMIT WORK AND WAIT.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD check_for_restart.
 
     CONSTANTS:
@@ -232,7 +202,7 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
 
     " If abapGit was used to update itself, then restart to avoid LOAD_PROGRAM_&_MISMATCH dumps
     " because abapGit code was changed at runtime
-    IF zcl_abapgit_ui_factory=>get_gui_functions( )->gui_is_available( ) = abap_true AND
+    IF zcl_abapgit_ui_factory=>get_frontend_services( )->gui_is_available( ) = abap_true AND
        zcl_abapgit_url=>is_abapgit_repo( ms_data-url ) = abap_true AND
        sy-batch = abap_false AND
        sy-cprog = lc_abapgit_prog.
@@ -250,17 +220,34 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
 
   METHOD check_language.
 
-    DATA lv_main_language TYPE spras.
+    DATA:
+      lv_main_language  TYPE spras,
+      lv_error_message  TYPE string,
+      lv_error_longtext TYPE string.
 
     " assumes find_remote_dot_abapgit has been called before
     lv_main_language = get_dot_abapgit( )->get_main_language( ).
 
+
     IF lv_main_language <> sy-langu.
-      zcx_abapgit_exception=>raise( |Current login language |
-                                 && |'{ zcl_abapgit_convert=>conversion_exit_isola_output( sy-langu ) }'|
-                                 && | does not match main language |
-                                 && |'{ zcl_abapgit_convert=>conversion_exit_isola_output( lv_main_language ) }'.|
-                                 && | Select 'Advanced' > 'Open in Main Language'| ).
+
+      lv_error_message = |Current login language |
+                      && |'{ zcl_abapgit_convert=>conversion_exit_isola_output( sy-langu ) }'|
+                      && | does not match main language |
+                      && |'{ zcl_abapgit_convert=>conversion_exit_isola_output( lv_main_language ) }'.|.
+
+      " Feature open in main language only exists if abapGit tcode is present
+      IF zcl_abapgit_services_abapgit=>get_abapgit_tcode( ) IS INITIAL.
+        lv_error_message = lv_error_message && | Please logon in main language and retry.|.
+        lv_error_longtext = |For the Advanced menu option 'Open in Main Language' to be available a transaction code| &&
+                            | must be assigned to report { sy-cprog }.|.
+      ELSE.
+        lv_error_message = lv_error_message && | Select 'Advanced' > 'Open in Main Language'|.
+      ENDIF.
+
+      zcx_abapgit_exception=>raise( iv_text     = lv_error_message
+                                    iv_longtext = lv_error_longtext ).
+
     ENDIF.
 
   ENDMETHOD.
@@ -270,29 +257,6 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
 
     IF get_local_settings( )-write_protected = abap_true.
       zcx_abapgit_exception=>raise( 'Cannot deserialize. Local code is write-protected by repo config' ).
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD compare_with_remote_checksum.
-    FIELD-SYMBOLS: <ls_remote_file> LIKE LINE OF it_remote_files,
-                   <ls_file_sig>    LIKE LINE OF cs_checksum-files.
-    READ TABLE it_remote_files ASSIGNING <ls_remote_file>
-        WITH KEY path = is_local_file-path filename = is_local_file-filename
-        BINARY SEARCH.
-    IF sy-subrc <> 0.  " Ignore new local ones
-      RETURN.
-    ENDIF.
-
-    APPEND INITIAL LINE TO cs_checksum-files ASSIGNING <ls_file_sig>.
-    MOVE-CORRESPONDING is_local_file TO <ls_file_sig>.
-
-    " If hashes are equal -> local sha1 is OK
-    " Else if R-branch is ahead  -> assume changes were remote, state - local sha1
-    "      Else (branches equal) -> assume changes were local, state - remote sha1
-    IF is_local_file-sha1 <> <ls_remote_file>-sha1.
-      <ls_file_sig>-sha1 = <ls_remote_file>-sha1.
     ENDIF.
 
   ENDMETHOD.
@@ -322,87 +286,13 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
 
     DATA: li_package TYPE REF TO zif_abapgit_sap_package.
 
+    find_remote_dot_abapgit( ).
+
+    check_write_protect( ).
+    check_language( ).
+
     li_package = zcl_abapgit_factory=>get_sap_package( get_package( ) ).
     rs_checks-transport-required = li_package->are_changes_recorded_in_tr_req( ).
-
-  ENDMETHOD.
-
-
-  METHOD deserialize.
-
-    DATA: lt_updated_files TYPE zif_abapgit_definitions=>ty_file_signatures_tt,
-          lt_result        TYPE zif_abapgit_data_deserializer=>ty_results,
-          lx_error         TYPE REF TO zcx_abapgit_exception.
-
-    find_remote_dot_abapgit( ).
-    find_remote_dot_apack( ).
-
-    check_write_protect( ).
-    check_language( ).
-
-    IF is_checks-requirements-met = zif_abapgit_definitions=>c_no AND is_checks-requirements-decision IS INITIAL.
-      zcx_abapgit_exception=>raise( 'Requirements not met and undecided' ).
-    ENDIF.
-
-    IF is_checks-dependencies-met = zif_abapgit_definitions=>c_no.
-      zcx_abapgit_exception=>raise( 'APACK dependencies not met' ).
-    ENDIF.
-
-    IF is_checks-transport-required = abap_true AND is_checks-transport-transport IS INITIAL.
-      zcx_abapgit_exception=>raise( |No transport request was supplied| ).
-    ENDIF.
-
-    " Deserialize objects
-    TRY.
-        lt_updated_files = zcl_abapgit_objects=>deserialize(
-            io_repo   = me
-            is_checks = is_checks
-            ii_log    = ii_log ).
-      CATCH zcx_abapgit_exception INTO lx_error.
-* ensure to reset default transport request task
-        zcl_abapgit_default_transport=>get_instance( )->reset( ).
-        RAISE EXCEPTION lx_error.
-    ENDTRY.
-
-    APPEND get_dot_abapgit( )->get_signature( ) TO lt_updated_files.
-
-    update_local_checksums( lt_updated_files ).
-
-    " Deserialize data (no save to database, just test for now)
-    lt_result = zcl_abapgit_data_factory=>get_deserializer( )->deserialize(
-      ii_config  = get_data_config( )
-      it_files   = get_files_remote( ) ).
-
-    CLEAR: mt_local.
-
-    update_last_deserialize( ).
-    reset_status( ).
-
-    COMMIT WORK AND WAIT.
-
-    check_for_restart( ).
-
-  ENDMETHOD.
-
-
-  METHOD deserialize_checks.
-
-    DATA: lt_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt,
-          lt_dependencies TYPE zif_abapgit_apack_definitions=>ty_dependencies.
-
-    find_remote_dot_abapgit( ).
-    find_remote_dot_apack( ).
-
-    check_write_protect( ).
-    check_language( ).
-
-    rs_checks = zcl_abapgit_objects=>deserialize_checks( me ).
-
-    lt_requirements = get_dot_abapgit( )->get_data( )-requirements.
-    rs_checks-requirements-met = zcl_abapgit_requirement_helper=>is_requirements_met( lt_requirements ).
-
-    lt_dependencies = get_dot_apack( )->get_manifest_descriptor( )-dependencies.
-    rs_checks-dependencies-met = zcl_abapgit_apack_helper=>are_dependencies_met( lt_dependencies ).
 
   ENDMETHOD.
 
@@ -414,8 +304,9 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
     get_files_remote( ).
 
     READ TABLE mt_remote ASSIGNING <ls_remote>
-      WITH KEY path = zif_abapgit_definitions=>c_root_dir
-      filename = zif_abapgit_definitions=>c_dot_abapgit.
+      WITH KEY file_path
+      COMPONENTS path     = zif_abapgit_definitions=>c_root_dir
+                 filename = zif_abapgit_definitions=>c_dot_abapgit.
     IF sy-subrc = 0.
       ro_dot = zcl_abapgit_dot_abapgit=>deserialize( <ls_remote>-data ).
       set_dot_abapgit( ro_dot ).
@@ -432,8 +323,9 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
     get_files_remote( ).
 
     READ TABLE mt_remote ASSIGNING <ls_remote>
-      WITH KEY path     = zif_abapgit_definitions=>c_root_dir
-               filename = zif_abapgit_apack_definitions=>c_dot_apack_manifest.
+      WITH KEY file_path
+      COMPONENTS path     = zif_abapgit_definitions=>c_root_dir
+                 filename = zif_abapgit_apack_definitions=>c_dot_apack_manifest.
     IF sy-subrc = 0.
       ro_dot = zcl_abapgit_apack_reader=>deserialize( iv_package_name = ms_data-package
                                                       iv_xstr         = <ls_remote>-data ).
@@ -452,24 +344,17 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    get_files_remote( ).
-
     CREATE OBJECT ri_config TYPE zcl_abapgit_data_config.
     mi_data_config = ri_config.
 
+    " Assume remote data has been loaded already
     READ TABLE mt_remote ASSIGNING <ls_remote>
-      WITH KEY path = zif_abapgit_data_config=>c_default_path.
+      WITH KEY file_path
+      COMPONENTS path = zif_abapgit_data_config=>c_default_path.
     IF sy-subrc = 0.
       ri_config->from_json( mt_remote ).
     ENDIF.
 
-  ENDMETHOD.
-
-
-  METHOD get_dot_abapgit.
-    CREATE OBJECT ro_dot_abapgit
-      EXPORTING
-        is_data = ms_data-dot_abapgit.
   ENDMETHOD.
 
 
@@ -483,86 +368,8 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD get_files_local.
-
-    DATA lo_serialize TYPE REF TO zcl_abapgit_serialize.
-    DATA lt_languages TYPE zif_abapgit_definitions=>ty_languages.
-
-    " Serialization happened before and no refresh request
-    IF lines( mt_local ) > 0 AND mv_request_local_refresh = abap_false.
-      rt_files = mt_local.
-      RETURN.
-    ENDIF.
-
-    lt_languages = zcl_abapgit_lxe_texts=>get_translation_languages(
-      iv_main_language  = get_dot_abapgit( )->get_main_language( )
-      it_i18n_languages = get_dot_abapgit( )->get_i18n_languages( ) ).
-
-    CREATE OBJECT lo_serialize
-      EXPORTING
-        iv_main_language_only = ms_data-local_settings-main_language_only
-        it_translation_langs  = lt_languages.
-
-    rt_files = lo_serialize->files_local(
-      iv_package        = get_package( )
-      io_dot_abapgit    = get_dot_abapgit( )
-      is_local_settings = get_local_settings( )
-      ii_data_config    = get_data_config( )
-      ii_log            = ii_log ).
-
-    mt_local                 = rt_files.
-    mv_request_local_refresh = abap_false. " Fulfill refresh
-
-  ENDMETHOD.
-
-
-  METHOD get_files_remote.
-    rt_files = mt_remote.
-  ENDMETHOD.
-
-
-  METHOD get_key.
-    rv_key = ms_data-key.
-  ENDMETHOD.
-
-
-  METHOD get_local_checksums.
-    rt_checksums = ms_data-local_checksums.
-  ENDMETHOD.
-
-
-  METHOD get_local_checksums_per_file.
-
-    FIELD-SYMBOLS <ls_object> LIKE LINE OF ms_data-local_checksums.
-
-    LOOP AT ms_data-local_checksums ASSIGNING <ls_object>.
-      APPEND LINES OF <ls_object>-files TO rt_checksums.
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD get_local_settings.
-
-    rs_settings = ms_data-local_settings.
-
-  ENDMETHOD.
-
-
   METHOD get_log.
     ri_log = mi_log.
-  ENDMETHOD.
-
-
-  METHOD get_name.
-
-    rv_name = ms_data-local_settings-display_name.
-
-  ENDMETHOD.
-
-
-  METHOD get_package.
-    rv_package = ms_data-package.
   ENDMETHOD.
 
 
@@ -593,11 +400,6 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD is_offline.
-    rv_offline = ms_data-offline.
-  ENDMETHOD.
-
-
   METHOD notify_listener.
 
     DATA ls_meta_slug TYPE zif_abapgit_persistence=>ty_repo_xml.
@@ -608,61 +410,6 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
         iv_key         = ms_data-key
         is_meta        = ls_meta_slug
         is_change_mask = is_change_mask ).
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD rebuild_local_checksums.
-
-    DATA:
-      lt_remote    TYPE zif_abapgit_definitions=>ty_files_tt,
-      lt_local     TYPE zif_abapgit_definitions=>ty_files_item_tt,
-      ls_last_item TYPE zif_abapgit_definitions=>ty_item,
-      lt_checksums TYPE zif_abapgit_persistence=>ty_local_checksum_tt.
-
-    FIELD-SYMBOLS:
-      <ls_checksum> LIKE LINE OF lt_checksums,
-      <ls_local>    LIKE LINE OF lt_local.
-
-    lt_local  = get_files_local( ).
-
-    remove_non_code_related_files( CHANGING ct_local_files = lt_local ).
-
-    lt_remote = get_files_remote( ).
-    SORT lt_remote BY path filename.
-
-    LOOP AT lt_local ASSIGNING <ls_local>.
-      IF ls_last_item <> <ls_local>-item OR sy-tabix = 1. " First or New item reached ?
-        APPEND INITIAL LINE TO lt_checksums ASSIGNING <ls_checksum>.
-        <ls_checksum>-item = <ls_local>-item.
-        ls_last_item       = <ls_local>-item.
-      ENDIF.
-
-      compare_with_remote_checksum( EXPORTING
-                                      it_remote_files = lt_remote
-                                      is_local_file = <ls_local>-file
-                                    CHANGING
-                                      cs_checksum = <ls_checksum> ).
-
-    ENDLOOP.
-    set( it_checksums = lt_checksums ).
-    reset_status( ).
-
-  ENDMETHOD.
-
-
-  METHOD refresh.
-
-    mv_request_local_refresh = abap_true.
-    reset_remote( ).
-
-    IF iv_drop_log = abap_true.
-      CLEAR mi_log.
-    ENDIF.
-
-    IF iv_drop_cache = abap_true.
-      CLEAR mt_local.
     ENDIF.
 
   ENDMETHOD.
@@ -695,7 +442,9 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
     INSERT ls_tadir INTO TABLE lt_tadir.
 
     CREATE OBJECT lo_serialize.
-    lt_new_local_files = lo_serialize->serialize( lt_tadir ).
+    lt_new_local_files = lo_serialize->serialize(
+      iv_package = ms_data-package
+      it_tadir   = lt_tadir ).
 
     INSERT LINES OF lt_new_local_files INTO TABLE mt_local.
 
@@ -710,13 +459,23 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD remove_non_code_related_files.
+  METHOD remove_ignored_files.
 
-    DELETE ct_local_files
-          WHERE item IS INITIAL
-          AND NOT ( file-path = zif_abapgit_definitions=>c_root_dir
-          AND file-filename = zif_abapgit_definitions=>c_dot_abapgit ).
-    SORT ct_local_files BY item.
+    DATA lo_dot TYPE REF TO zcl_abapgit_dot_abapgit.
+    DATA lv_index TYPE sy-index.
+
+    FIELD-SYMBOLS <ls_files> LIKE LINE OF ct_files.
+
+    lo_dot = get_dot_abapgit( ).
+
+    " Skip ignored files
+    LOOP AT ct_files ASSIGNING <ls_files>.
+      lv_index = sy-tabix.
+      IF lo_dot->is_ignored( iv_path     = <ls_files>-path
+                             iv_filename = <ls_files>-filename ) = abap_true.
+        DELETE ct_files INDEX lv_index.
+      ENDIF.
+    ENDLOOP.
 
   ENDMETHOD.
 
@@ -740,8 +499,7 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
     DATA: ls_mask TYPE zif_abapgit_persistence=>ty_repo_meta_mask.
 
 
-    ASSERT it_checksums IS SUPPLIED
-      OR iv_url IS SUPPLIED
+    ASSERT iv_url IS SUPPLIED
       OR iv_branch_name IS SUPPLIED
       OR iv_selected_commit IS SUPPLIED
       OR iv_head_branch IS SUPPLIED
@@ -752,11 +510,6 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
       OR iv_deserialized_at IS SUPPLIED
       OR iv_switched_origin IS SUPPLIED.
 
-
-    IF it_checksums IS SUPPLIED.
-      ms_data-local_checksums = it_checksums.
-      ls_mask-local_checksums = abap_true.
-    ENDIF.
 
     IF iv_url IS SUPPLIED.
       ms_data-url = iv_url.
@@ -810,11 +563,6 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD set_dot_abapgit.
-    set( is_dot_abapgit = io_dot_abapgit->get_data( ) ).
-  ENDMETHOD.
-
-
   METHOD set_dot_apack.
     get_dot_apack( ).
     mo_apack_reader->set_manifest_descriptor( io_dot_apack->get_manifest_descriptor( ) ).
@@ -839,9 +587,9 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   METHOD status.
 
     IF lines( mt_status ) = 0.
-      mt_status = zcl_abapgit_file_status=>status(
-        io_repo = me
-        ii_log  = ii_log ).
+      mt_status = zcl_abapgit_file_status=>status( io_repo = me
+                                                   ii_log  = ii_log ).
+
     ENDIF.
 
     rt_results = mt_status.
@@ -882,81 +630,205 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD update_local_checksums.
+  METHOD zif_abapgit_repo~checksums.
 
-    " ASSUMTION: SHA1 in param is actual and correct.
-    " Push fills it from local files before pushing, deserialize from remote
-    " If this is not true that there is an error somewhere but not here
+    CREATE OBJECT ri_checksums TYPE zcl_abapgit_repo_checksums
+      EXPORTING
+        iv_repo_key = ms_data-key.
 
-    DATA: lt_checksums TYPE zif_abapgit_persistence=>ty_local_checksum_tt,
-          lt_files_idx TYPE zif_abapgit_definitions=>ty_file_signatures_tt,
-          lt_local     TYPE zif_abapgit_definitions=>ty_files_item_tt,
-          lv_chks_row  TYPE i,
-          lv_file_row  TYPE i.
+  ENDMETHOD.
 
-    FIELD-SYMBOLS: <ls_checksum>  LIKE LINE OF lt_checksums,
-                   <ls_file>      LIKE LINE OF <ls_checksum>-files,
-                   <ls_local>     LIKE LINE OF lt_local,
-                   <ls_new_state> LIKE LINE OF it_files.
 
-    lt_checksums = get_local_checksums( ).
-    lt_files_idx = it_files.
-    SORT lt_files_idx BY path filename. " Sort for binary search
+  METHOD zif_abapgit_repo~deserialize.
 
-    " Loop through current chacksum state, update sha1 for common files
-    LOOP AT lt_checksums ASSIGNING <ls_checksum>.
-      lv_chks_row = sy-tabix.
+    DATA: lt_updated_files TYPE zif_abapgit_definitions=>ty_file_signatures_tt,
+          lt_result        TYPE zif_abapgit_data_deserializer=>ty_results,
+          lx_error         TYPE REF TO zcx_abapgit_exception.
 
-      LOOP AT <ls_checksum>-files ASSIGNING <ls_file>.
-        lv_file_row = sy-tabix.
+    find_remote_dot_abapgit( ).
+    find_remote_dot_apack( ).
 
-        READ TABLE lt_files_idx ASSIGNING <ls_new_state>
-          WITH KEY path = <ls_file>-path filename = <ls_file>-filename
-          BINARY SEARCH.
-        CHECK sy-subrc = 0. " Missing in param table, skip
+    check_write_protect( ).
+    check_language( ).
 
-        IF <ls_new_state>-sha1 IS INITIAL. " Empty input sha1 is a deletion marker
-          DELETE <ls_checksum>-files INDEX lv_file_row.
-        ELSE.
-          <ls_file>-sha1 = <ls_new_state>-sha1.  " Update sha1
-          CLEAR <ls_new_state>-sha1.             " Mark as processed
-        ENDIF.
-      ENDLOOP.
-
-      IF lines( <ls_checksum>-files ) = 0. " Remove empty objects
-        DELETE lt_checksums INDEX lv_chks_row.
-      ENDIF.
-    ENDLOOP.
-
-    DELETE lt_files_idx WHERE sha1 IS INITIAL. " Remove processed
-    IF lines( lt_files_idx ) > 0.
-      lt_local = get_files_local( ).
-      SORT lt_local BY file-path file-filename. " Sort for binary search
+    IF is_checks-requirements-met = zif_abapgit_definitions=>c_no AND is_checks-requirements-decision IS INITIAL.
+      zcx_abapgit_exception=>raise( 'Requirements not met and undecided' ).
     ENDIF.
 
-    " Add new files - not deleted and not marked as processed above
-    LOOP AT lt_files_idx ASSIGNING <ls_new_state>.
+    IF is_checks-dependencies-met = zif_abapgit_definitions=>c_no.
+      zcx_abapgit_exception=>raise( 'APACK dependencies not met' ).
+    ENDIF.
 
-      READ TABLE lt_local ASSIGNING <ls_local>
-        WITH KEY file-path = <ls_new_state>-path file-filename = <ls_new_state>-filename
-        BINARY SEARCH.
-      IF sy-subrc <> 0.
-* if the deserialization fails, the local file might not be there
-        CONTINUE.
-      ENDIF.
+    IF is_checks-transport-required = abap_true AND is_checks-transport-transport IS INITIAL.
+      zcx_abapgit_exception=>raise( |No transport request was supplied| ).
+    ENDIF.
 
-      READ TABLE lt_checksums ASSIGNING <ls_checksum> " TODO Optimize
-        WITH KEY item = <ls_local>-item.
-      IF sy-subrc > 0.
-        APPEND INITIAL LINE TO lt_checksums ASSIGNING <ls_checksum>.
-        <ls_checksum>-item = <ls_local>-item.
-      ENDIF.
+    " Deserialize objects
+    TRY.
+        lt_updated_files = zcl_abapgit_objects=>deserialize(
+          io_repo   = me
+          is_checks = is_checks
+          ii_log    = ii_log ).
+      CATCH zcx_abapgit_exception INTO lx_error.
+        " Ensure to reset default transport request task
+        zcl_abapgit_default_transport=>get_instance( )->reset( ).
+        refresh( iv_drop_log = abap_false ).
+        RAISE EXCEPTION lx_error.
+    ENDTRY.
 
-      APPEND <ls_new_state> TO <ls_checksum>-files.
-    ENDLOOP.
+    APPEND get_dot_abapgit( )->get_signature( ) TO lt_updated_files.
 
-    SORT lt_checksums BY item.
-    set( it_checksums = lt_checksums ).
+    zif_abapgit_repo~checksums( )->update( lt_updated_files ).
 
+    " Deserialize data (no save to database, just test for now)
+    lt_result = zcl_abapgit_data_factory=>get_deserializer( )->deserialize(
+      ii_config  = get_data_config( )
+      it_files   = get_files_remote( ) ).
+
+    CLEAR: mt_local.
+
+    update_last_deserialize( ).
+    reset_status( ).
+
+    COMMIT WORK AND WAIT.
+
+    check_for_restart( ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~deserialize_checks.
+
+    DATA: lt_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt,
+          lt_dependencies TYPE zif_abapgit_apack_definitions=>ty_dependencies.
+
+    find_remote_dot_abapgit( ).
+    find_remote_dot_apack( ).
+
+    check_write_protect( ).
+    check_language( ).
+
+    rs_checks = zcl_abapgit_objects=>deserialize_checks( me ).
+
+    lt_requirements = get_dot_abapgit( )->get_data( )-requirements.
+    rs_checks-requirements-met = zcl_abapgit_requirement_helper=>is_requirements_met( lt_requirements ).
+
+    lt_dependencies = get_dot_apack( )->get_manifest_descriptor( )-dependencies.
+    rs_checks-dependencies-met = zcl_abapgit_apack_helper=>are_dependencies_met( lt_dependencies ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~get_dot_abapgit.
+    CREATE OBJECT ro_dot_abapgit
+      EXPORTING
+        is_data = ms_data-dot_abapgit.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~get_files_local.
+
+    DATA lo_serialize TYPE REF TO zcl_abapgit_serialize.
+    DATA lt_filter TYPE zif_abapgit_definitions=>ty_tadir_tt.
+    " Serialization happened before and no refresh request
+    IF lines( mt_local ) > 0 AND mv_request_local_refresh = abap_false.
+      rt_files = mt_local.
+      RETURN.
+    ENDIF.
+
+    CREATE OBJECT lo_serialize
+      EXPORTING
+        io_dot_abapgit    = get_dot_abapgit( )
+        is_local_settings = get_local_settings( ).
+
+    IF ii_obj_filter IS NOT INITIAL.
+      lt_filter = ii_obj_filter->get_filter( ).
+    ENDIF.
+
+    rt_files = lo_serialize->files_local(
+      iv_package     = get_package( )
+      ii_data_config = get_data_config( )
+      ii_log         = ii_log
+      it_filter      = lt_filter ).
+
+    mt_local                 = rt_files.
+    mv_request_local_refresh = abap_false. " Fulfill refresh
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~get_files_remote.
+    DATA lt_filter TYPE zif_abapgit_definitions=>ty_tadir_tt.
+    DATA lr_filter TYPE REF TO zcl_abapgit_repo_filter.
+
+    rt_files = mt_remote.
+    IF ii_obj_filter IS NOT INITIAL.
+      lt_filter = ii_obj_filter->get_filter( ).
+
+      CREATE OBJECT lr_filter.
+      lr_filter->apply_object_filter(
+        EXPORTING
+          it_filter   = lt_filter
+          io_dot      = get_dot_abapgit( )
+          iv_devclass = get_package( )
+        CHANGING
+          ct_files    = rt_files ).
+
+    ENDIF.
+
+    IF iv_ignore_files = abap_true.
+      remove_ignored_files( CHANGING ct_files = rt_files ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~get_key.
+    rv_key = ms_data-key.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~get_local_settings.
+
+    rs_settings = ms_data-local_settings.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~get_name.
+
+    rv_name = ms_data-local_settings-display_name.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~get_package.
+    rv_package = ms_data-package.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~is_offline.
+    rv_offline = ms_data-offline.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~refresh.
+
+    mv_request_local_refresh = abap_true.
+    reset_remote( ).
+
+    IF iv_drop_log = abap_true.
+      CLEAR mi_log.
+    ENDIF.
+
+    IF iv_drop_cache = abap_true.
+      CLEAR mt_local.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_repo~set_dot_abapgit.
+    set( is_dot_abapgit = io_dot_abapgit->get_data( ) ).
   ENDMETHOD.
 ENDCLASS.

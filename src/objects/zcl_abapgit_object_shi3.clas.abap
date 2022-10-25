@@ -2,13 +2,11 @@ CLASS zcl_abapgit_object_shi3 DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
 
     METHODS constructor
       IMPORTING
         is_item     TYPE zif_abapgit_definitions=>ty_item
         iv_language TYPE spras.
-
   PROTECTED SECTION.
 
     METHODS has_authorization
@@ -158,22 +156,9 @@ CLASS zcl_abapgit_object_shi3 IMPLEMENTATION.
     <ls_bdcdata>-fnam = 'BMENUNAME-ID'.
     <ls_bdcdata>-fval = ms_item-obj_name.
 
-    CALL FUNCTION 'ABAP4_CALL_TRANSACTION'
-      STARTING NEW TASK 'GIT'
-      EXPORTING
-        tcode                 = 'SE43'
-        mode_val              = 'E'
-      TABLES
-        using_tab             = lt_bdcdata
-      EXCEPTIONS
-        system_failure        = 1
-        communication_failure = 2
-        resource_failure      = 3
-        OTHERS                = 4.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( 'error from ABAP4_CALL_TRANSACTION, SHI3' ).
-    ENDIF.
+    zcl_abapgit_ui_factory=>get_gui_jumper( )->jump_batch_input(
+      iv_tcode   = 'SE43'
+      it_bdcdata = lt_bdcdata ).
 
   ENDMETHOD.
 
@@ -220,6 +205,7 @@ CLASS zcl_abapgit_object_shi3 IMPLEMENTATION.
 
     DATA: ls_msg    TYPE hier_mess,
           ls_head   TYPE ttree,
+          ls_ttree  TYPE ttree,
           lt_titles TYPE TABLE OF ttreet,
           lt_nodes  TYPE TABLE OF hier_iface,
           lt_texts  TYPE TABLE OF hier_texts,
@@ -263,6 +249,15 @@ CLASS zcl_abapgit_object_shi3 IMPLEMENTATION.
       zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
+    " Set buffer mode for menus (see function BMENU_CREATE_TREE)
+    SELECT SINGLE * FROM ttree INTO ls_ttree
+      WHERE type = 'BMENU' AND id = mv_tree_id.
+    IF sy-subrc = 0.
+      ls_ttree-buffermode = ls_head-buffermode.
+      ls_ttree-buffervar  = ls_head-buffervar.
+      MODIFY ttree FROM ls_ttree.
+    ENDIF.
+
   ENDMETHOD.
 
 
@@ -272,10 +267,12 @@ CLASS zcl_abapgit_object_shi3 IMPLEMENTATION.
           ls_header TYPE ttree,
           ls_tadir  TYPE tadir.
 
+    " Ignore buffer and get state from DB
     CALL FUNCTION 'STREE_STRUCTURE_EXIST'
       EXPORTING
         structure_id         = mv_tree_id
-        do_not_read_devclass = ''
+        read_from_database   = abap_true
+        do_not_read_devclass = abap_false
       IMPORTING
         message              = ls_msg
         structure_header     = ls_header
@@ -324,10 +321,10 @@ CLASS zcl_abapgit_object_shi3 IMPLEMENTATION.
     CASE ls_head-type.
       WHEN 'BMENU'.
         jump_se43( ).
+        rv_exit = abap_true.
       WHEN 'GHIER'.
         jump_sbach04( ).
-      WHEN OTHERS.
-        zcx_abapgit_exception=>raise( |Jump for type { ls_head-type } not implemented| ).
+        rv_exit = abap_true.
     ENDCASE.
 
   ENDMETHOD.

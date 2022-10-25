@@ -9,8 +9,6 @@ CLASS zcl_abapgit_objects_bridge DEFINITION PUBLIC FINAL CREATE PUBLIC INHERITIN
       RAISING   cx_sy_create_object_error.
 
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
     DATA: mo_plugin TYPE REF TO object.
@@ -37,7 +35,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECTS_BRIDGE IMPLEMENTATION.
+CLASS zcl_abapgit_objects_bridge IMPLEMENTATION.
 
 
   METHOD class_constructor.
@@ -220,6 +218,7 @@ CLASS ZCL_ABAPGIT_OBJECTS_BRIDGE IMPLEMENTATION.
   METHOD zif_abapgit_object~jump.
 
     CALL METHOD mo_plugin->('ZIF_ABAPGITP_PLUGIN~JUMP').
+    rv_exit = abap_true.
 
   ENDMETHOD.
 

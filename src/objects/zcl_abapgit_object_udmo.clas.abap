@@ -96,7 +96,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_UDMO IMPLEMENTATION.
+CLASS zcl_abapgit_object_udmo IMPLEMENTATION.
 
 
   METHOD access_free.
@@ -204,7 +204,7 @@ CLASS ZCL_ABAPGIT_OBJECT_UDMO IMPLEMENTATION.
         object_class        = c_transport_object_class
         devclass            = iv_package
         master_language     = mv_language
-        mode                = 'INSERT'
+        mode                = 'I'
         global_lock         = abap_true
         suppress_dialog     = abap_true
       EXCEPTIONS
@@ -233,10 +233,9 @@ CLASS ZCL_ABAPGIT_OBJECT_UDMO IMPLEMENTATION.
 
       CALL FUNCTION 'SDU_DMO_ENT_PUT'
         EXPORTING
-          object   = ls_udmo_entity
+          object = ls_udmo_entity
         EXCEPTIONS
-          ret_code = 0
-          OTHERS   = 0.
+          OTHERS = 0.
 
     ENDLOOP.
 
@@ -734,19 +733,11 @@ CLASS ZCL_ABAPGIT_OBJECT_UDMO IMPLEMENTATION.
     <ls_bdcdata>-fnam = 'RSUD3-OBJ_KEY'.
     <ls_bdcdata>-fval = ms_item-obj_name.
 
-    CALL FUNCTION 'ABAP4_CALL_TRANSACTION'
-      STARTING NEW TASK 'GIT'
-      EXPORTING
-        tcode                 = 'SD11'
-        mode_val              = 'E'
-      TABLES
-        using_tab             = lt_bdcdata
-      EXCEPTIONS
-        system_failure        = 1
-        communication_failure = 2
-        resource_failure      = 3
-        OTHERS                = 4
-        ##fm_subrc_ok.                                                   "#EC CI_SUBRC
+    zcl_abapgit_ui_factory=>get_gui_jumper( )->jump_batch_input(
+      iv_tcode   = 'SD11'
+      it_bdcdata = lt_bdcdata ).
+
+    rv_exit = abap_true.
 
   ENDMETHOD.
 

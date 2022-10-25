@@ -50,8 +50,7 @@ CLASS zcl_abapgit_gui_page_sett_info DEFINITION
       END OF c_id .
     CONSTANTS:
       BEGIN OF c_event,
-        go_back TYPE string VALUE 'go-back',
-        save    TYPE string VALUE 'save',
+        save TYPE string VALUE 'save',
       END OF c_event .
     DATA mo_form TYPE REF TO zcl_abapgit_html_form .
     DATA mo_form_data TYPE REF TO zcl_abapgit_string_map .
@@ -101,7 +100,7 @@ CLASS zcl_abapgit_gui_page_sett_info DEFINITION
         zcx_abapgit_exception .
     METHODS format_user
       IMPORTING
-        !iv_username   TYPE xubname
+        !iv_username   TYPE syuname
       RETURNING
         VALUE(rv_user) TYPE string .
     METHODS format_timestamp
@@ -269,7 +268,7 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
       iv_readonly    = abap_true
     )->command(
       iv_label       = 'Back'
-      iv_action      = c_event-go_back ).
+      iv_action      = zif_abapgit_definitions=>c_action-go_back ).
 
   ENDMETHOD.
 
@@ -381,7 +380,10 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
     rs_info-size = xstrlen( is_file-data ).
 
     IF is_file-filename CP '*.abap'.
-      lv_code = zcl_abapgit_convert=>xstring_to_string_utf8( is_file-data ).
+      TRY.
+          lv_code = zcl_abapgit_convert=>xstring_to_string_utf8( is_file-data ).
+        CATCH zcx_abapgit_exception ##NO_HANDLER.
+      ENDTRY.
 
       SPLIT lv_code AT zif_abapgit_definitions=>c_newline INTO TABLE lt_code.
 
@@ -401,6 +403,7 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
   METHOD read_stats_files.
 
     DATA ls_stats TYPE ty_stats.
+    DATA lt_remote_wo_ignored TYPE zif_abapgit_definitions=>ty_files_tt.
 
     et_local = mo_repo->get_files_local( ).
 
@@ -410,17 +413,15 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
     IF mo_repo->has_remote_source( ) = abap_true.
       et_remote = mo_repo->get_files_remote( ).
       ls_stats-remote = lines( et_remote ).
+      lt_remote_wo_ignored = mo_repo->get_files_remote( iv_ignore_files = abap_true ).
     ENDIF.
 
     APPEND ls_stats TO mt_stats.
 
     IF et_remote IS NOT INITIAL.
+      CLEAR ls_stats.
       ls_stats-measure = 'Number of Ignored Files'.
-      ls_stats-local  = ls_stats-remote - ls_stats-local.
-      IF ls_stats-local < 0.
-        ls_stats-local = 0.
-      ENDIF.
-      ls_stats-remote = 0.
+      ls_stats-remote = lines( et_remote ) - lines( lt_remote_wo_ignored ).
       APPEND ls_stats TO mt_stats.
     ENDIF.
 
@@ -487,18 +488,18 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
     ENDLOOP.
 
     IF mo_repo->has_remote_source( ) = abap_true.
-      LOOP AT it_remote ASSIGNING <ls_remote>.
-        ls_info_file = read_stats_file( <ls_remote> ).
-
-        ls_info_remote-size = ls_info_remote-size + ls_info_file-size.
-        ls_info_remote-line = ls_info_remote-line + ls_info_file-line.
-        ls_info_remote-sloc = ls_info_remote-sloc + ls_info_file-sloc.
-
+      LOOP AT it_remote ASSIGNING <ls_remote> WHERE filename IS NOT INITIAL.
         lv_ignored = mo_repo->get_dot_abapgit( )->is_ignored(
                        iv_filename = <ls_remote>-filename
                        iv_path     = <ls_remote>-path ).
 
-        IF <ls_remote>-filename IS NOT INITIAL AND lv_ignored = abap_false.
+        IF lv_ignored = abap_false.
+          ls_info_file = read_stats_file( <ls_remote> ).
+
+          ls_info_remote-size = ls_info_remote-size + ls_info_file-size.
+          ls_info_remote-line = ls_info_remote-line + ls_info_file-line.
+          ls_info_remote-sloc = ls_info_remote-sloc + ls_info_file-sloc.
+
           TRY.
               zcl_abapgit_filename_logic=>file_to_object(
                 EXPORTING
@@ -576,7 +577,7 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_event_handler~on_event.
 
-    IF ii_event->mv_action = c_event-go_back.
+    IF ii_event->mv_action = zif_abapgit_definitions=>c_action-go_back.
       rs_handled-state = zcl_abapgit_gui=>c_event_state-go_back_to_bookmark.
     ENDIF.
 

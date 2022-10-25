@@ -13,12 +13,6 @@ CLASS zcl_abapgit_ui_factory DEFINITION
     CLASS-METHODS get_popups
       RETURNING
         VALUE(ri_popups) TYPE REF TO zif_abapgit_popups .
-    CLASS-METHODS get_tag_popups
-      RETURNING
-        VALUE(ri_tag_popups) TYPE REF TO zif_abapgit_tag_popups .
-    CLASS-METHODS get_gui_functions
-      RETURNING
-        VALUE(ri_gui_functions) TYPE REF TO zif_abapgit_gui_functions .
     CLASS-METHODS get_gui
       RETURNING
         VALUE(ro_gui) TYPE REF TO zcl_abapgit_gui
@@ -38,16 +32,18 @@ CLASS zcl_abapgit_ui_factory DEFINITION
         !iv_disable_query_table TYPE abap_bool DEFAULT abap_true
       RETURNING
         VALUE(ri_viewer)        TYPE REF TO zif_abapgit_html_viewer .
+    CLASS-METHODS get_gui_jumper
+      RETURNING
+        VALUE(ri_gui_jumper) TYPE REF TO zif_abapgit_gui_jumper .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
     CLASS-DATA gi_popups TYPE REF TO zif_abapgit_popups .
-    CLASS-DATA gi_tag_popups TYPE REF TO zif_abapgit_tag_popups .
-    CLASS-DATA gi_gui_functions TYPE REF TO zif_abapgit_gui_functions .
     CLASS-DATA gi_html_viewer TYPE REF TO zif_abapgit_html_viewer .
     CLASS-DATA go_gui TYPE REF TO zcl_abapgit_gui .
     CLASS-DATA gi_fe_services TYPE REF TO zif_abapgit_frontend_services .
     CLASS-DATA gi_gui_services TYPE REF TO zif_abapgit_gui_services .
+    CLASS-DATA gi_gui_jumper TYPE REF TO zif_abapgit_gui_jumper .
 ENDCLASS.
 
 
@@ -162,13 +158,13 @@ CLASS zcl_abapgit_ui_factory IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD get_gui_functions.
+  METHOD get_gui_jumper.
 
-    IF gi_gui_functions IS INITIAL.
-      CREATE OBJECT gi_gui_functions TYPE zcl_abapgit_gui_functions.
+    IF gi_gui_jumper IS INITIAL.
+      CREATE OBJECT gi_gui_jumper TYPE zcl_abapgit_gui_jumper.
     ENDIF.
 
-    ri_gui_functions = gi_gui_functions.
+    ri_gui_jumper = gi_gui_jumper.
 
   ENDMETHOD.
 
@@ -202,17 +198,6 @@ CLASS zcl_abapgit_ui_factory IMPLEMENTATION.
     ENDIF.
 
     ri_popups = gi_popups.
-
-  ENDMETHOD.
-
-
-  METHOD get_tag_popups.
-
-    IF gi_tag_popups IS INITIAL.
-      CREATE OBJECT gi_tag_popups TYPE zcl_abapgit_tag_popups.
-    ENDIF.
-
-    ri_tag_popups = gi_tag_popups.
 
   ENDMETHOD.
 ENDCLASS.

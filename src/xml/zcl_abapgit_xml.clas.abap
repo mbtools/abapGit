@@ -32,7 +32,9 @@ CLASS zcl_abapgit_xml DEFINITION
         !ii_parser TYPE REF TO if_ixml_parser
       RAISING
         zcx_abapgit_exception .
-    METHODS display_version_mismatch
+    METHODS raise_version_mismatch
+      IMPORTING
+        !iv_vers TYPE string
       RAISING
         zcx_abapgit_exception .
     METHODS raise_exception_for
@@ -51,33 +53,6 @@ CLASS zcl_abapgit_xml IMPLEMENTATION.
     mi_ixml     = cl_ixml=>create( ).
     mi_xml_doc  = mi_ixml->create_document( ).
     mv_filename = iv_filename.
-  ENDMETHOD.
-
-
-  METHOD display_version_mismatch.
-
-    DATA: lv_version TYPE string.
-    DATA: lv_file    TYPE string.
-
-    lv_version = |abapGit version: { zif_abapgit_version=>c_abap_version }|.
-    IF mv_filename IS NOT INITIAL.
-      lv_file = |File: { mv_filename }|.
-    ENDIF.
-
-    CALL FUNCTION 'POPUP_TO_INFORM'
-      EXPORTING
-        titel = 'abapGit XML version mismatch'
-        txt1  = 'abapGit XML version mismatch'
-        txt2  = 'See https://docs.abapgit.org/other-xml-mismatch.html'
-        txt3  = lv_version
-        txt4  = lv_file.
-
-    IF mv_filename IS INITIAL.
-      zcx_abapgit_exception=>raise( 'abapGit XML version mismatch' ).
-    ELSE.
-      zcx_abapgit_exception=>raise( |abapGit XML version mismatch in file { mv_filename }| ).
-    ENDIF.
-
   ENDMETHOD.
 
 
@@ -125,7 +100,7 @@ CLASS zcl_abapgit_xml IMPLEMENTATION.
     li_version = li_element->if_ixml_node~get_attributes(
       )->get_named_item_ns( c_attr_version ).
     IF li_version->get_value( ) <> zif_abapgit_version=>c_xml_version.
-      display_version_mismatch( ).
+      raise_version_mismatch( li_version->get_value( ) ).
     ENDIF.
 
 * buffer serializer metadata. Git node will be removed lateron
@@ -151,6 +126,23 @@ CLASS zcl_abapgit_xml IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD raise_version_mismatch.
+
+    DATA lv_text TYPE string.
+
+    lv_text = |The XML versions do not match, expected: { zif_abapgit_version=>c_xml_version }, actual: { iv_vers }|.
+
+    IF mv_filename IS NOT INITIAL.
+      lv_text = lv_text && |, file: { mv_filename }|.
+    ENDIF.
+
+    lv_text = lv_text && | (see https://docs.abapgit.org/other-xml-mismatch.html)|.
+
+    zcx_abapgit_exception=>raise( lv_text ).
+
+  ENDMETHOD.
+
+
   METHOD to_xml.
 * will render to codepage UTF-16
 
@@ -172,7 +164,11 @@ CLASS zcl_abapgit_xml IMPLEMENTATION.
 
     "unicode systems always add the byte order mark to the xml, while non-unicode does not
     "this code will always add the byte order mark if it is not in the xml
-    lv_mark = zcl_abapgit_convert=>xstring_to_string_utf8( cl_abap_char_utilities=>byte_order_mark_utf8 ).
+    TRY.
+        lv_mark = zcl_abapgit_convert=>xstring_to_string_utf8( cl_abap_char_utilities=>byte_order_mark_utf8 ).
+      CATCH zcx_abapgit_exception ##NO_HANDLER.
+        ASSERT 0 = 1.
+    ENDTRY.
     IF rv_xml(1) <> lv_mark.
       CONCATENATE lv_mark rv_xml INTO rv_xml.
     ENDIF.

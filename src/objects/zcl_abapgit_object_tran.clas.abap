@@ -6,9 +6,6 @@ CLASS zcl_abapgit_object_tran DEFINITION
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object .
-
-    ALIASES mo_files
-      FOR zif_abapgit_object~mo_files .
   PROTECTED SECTION.
 
   PRIVATE SECTION.
@@ -126,6 +123,7 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
   METHOD call_se93.
 
     DATA: lt_message TYPE STANDARD TABLE OF bdcmsgcoll.
+    DATA lv_msg TYPE string.
 
     FIELD-SYMBOLS: <ls_message> TYPE bdcmsgcoll.
 
@@ -149,7 +147,7 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
         TYPE <ls_message>-msgtyp
         NUMBER <ls_message>-msgnr
         WITH <ls_message>-msgv1 <ls_message>-msgv2 <ls_message>-msgv3 <ls_message>-msgv4
-        INTO sy-msgli.
+        INTO lv_msg.
       zcx_abapgit_exception=>raise_t100( ).
     ENDLOOP.
 
@@ -455,6 +453,7 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
   METHOD shift_param.
 
     DATA: ls_param  LIKE LINE OF ct_rsparam,
+          lv_fdpos  TYPE sy-fdpos,
           lv_length TYPE i.
 
     FIELD-SYMBOLS <lg_f> TYPE any.
@@ -472,8 +471,8 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
         IF ls_param-field(1) = space.
           SHIFT ls_param-field.
         ENDIF.
-        sy-fdpos = sy-fdpos + 1.
-        SHIFT cs_tstcp-param BY sy-fdpos PLACES.
+        lv_fdpos = sy-fdpos + 1.
+        SHIFT cs_tstcp-param BY lv_fdpos PLACES.
         IF cs_tstcp-param CA ';'.
           IF sy-fdpos <> 0.
             ASSIGN cs_tstcp-param(sy-fdpos) TO <lg_f>.
@@ -482,8 +481,8 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
               SHIFT ls_param-value.
             ENDIF.
           ENDIF.
-          sy-fdpos = sy-fdpos + 1.
-          SHIFT cs_tstcp-param BY sy-fdpos PLACES.
+          lv_fdpos = sy-fdpos + 1.
+          SHIFT cs_tstcp-param BY lv_fdpos PLACES.
           APPEND ls_param TO ct_rsparam.
         ELSE.
           lv_length = strlen( cs_tstcp-param ).
@@ -507,6 +506,7 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
 * see subroutine split_parameters in include LSEUKF01
 
     DATA: lv_off       TYPE i,
+          lv_fdpos     TYPE sy-fdpos,
           lv_param_beg TYPE i.
 
 
@@ -538,11 +538,11 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
       ENDIF.
       IF cs_tstcp-param CA ' '.
       ENDIF.
-      sy-fdpos = sy-fdpos - lv_off.
-      IF sy-fdpos > 0.
+      lv_fdpos = sy-fdpos - lv_off.
+      IF lv_fdpos > 0.
         cs_rsstcd-call_tcode = cs_tstcp-param+lv_off(sy-fdpos).
-        sy-fdpos = sy-fdpos + 1 + lv_off.
-        cs_rsstcd-variant = cs_tstcp-param+sy-fdpos.
+        lv_fdpos = lv_fdpos + 1 + lv_off.
+        cs_rsstcd-variant = cs_tstcp-param+lv_fdpos.
       ENDIF.
     ELSEIF cs_tstcp-param(1) = '/'.
       cs_rsstcd-st_tcode = c_true.
@@ -555,9 +555,9 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
       IF cs_tstcp-param CA ' '.
       ENDIF.
       lv_param_beg = sy-fdpos + 1.
-      sy-fdpos = sy-fdpos - 2.
-      IF sy-fdpos > 0.
-        cs_rsstcd-call_tcode = cs_tstcp-param+2(sy-fdpos).
+      lv_fdpos = sy-fdpos - 2.
+      IF lv_fdpos > 0.
+        cs_rsstcd-call_tcode = cs_tstcp-param+2(lv_fdpos).
       ENDIF.
       SHIFT cs_tstcp-param BY lv_param_beg PLACES.
     ELSE.
@@ -623,7 +623,8 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~changed_by.
-    rv_user = c_user_unknown. " todo
+* looks like "changed by user" is not stored in the database
+    rv_user = c_user_unknown.
   ENDMETHOD.
 
 
@@ -669,7 +670,8 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
 
 
     IF zif_abapgit_object~exists( ) = abap_true.
-      zif_abapgit_object~delete( iv_package ).
+      zif_abapgit_object~delete( iv_package   = iv_package
+                                 iv_transport = iv_transport ).
     ENDIF.
 
     io_xml->read( EXPORTING iv_name = 'TSTC'
@@ -721,6 +723,8 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
 
         clear_functiongroup_globals( ).
 
+        corr_insert( iv_package ).
+
         CALL FUNCTION 'RPY_TRANSACTION_INSERT'
           EXPORTING
             transaction             = ls_tstc-tcode
@@ -737,6 +741,7 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
             html_enabled            = ls_tstcc-s_webgui
             java_enabled            = ls_tstcc-s_platin
             wingui_enabled          = ls_tstcc-s_win32
+            suppress_corr_insert    = abap_true
           TABLES
             param_values            = lt_param_values
           EXCEPTIONS
@@ -833,19 +838,11 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
     <ls_bdcdata>-fnam = 'TSTC-TCODE'.
     <ls_bdcdata>-fval = ms_item-obj_name.
 
-    CALL FUNCTION 'ABAP4_CALL_TRANSACTION'
-      STARTING NEW TASK 'GIT'
-      EXPORTING
-        tcode                 = 'SE93'
-        mode_val              = 'E'
-      TABLES
-        using_tab             = lt_bdcdata
-      EXCEPTIONS
-        system_failure        = 1
-        communication_failure = 2
-        resource_failure      = 3
-        OTHERS                = 4
-        ##fm_subrc_ok.    "#EC CI_SUBRC
+    zcl_abapgit_ui_factory=>get_gui_jumper( )->jump_batch_input(
+      iv_tcode      = 'SE93'
+      it_bdcdata    = lt_bdcdata ).
+
+    rv_exit = abap_true.
 
   ENDMETHOD.
 

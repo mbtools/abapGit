@@ -2,15 +2,13 @@ CLASS zcl_abapgit_object_splo DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_OBJECT_SPLO IMPLEMENTATION.
+CLASS zcl_abapgit_object_splo IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~changed_by.
@@ -29,6 +27,10 @@ CLASS ZCL_ABAPGIT_OBJECT_SPLO IMPLEMENTATION.
     DELETE FROM tsp1t WHERE papart = ms_item-obj_name. "#EC CI_NOFIRST "#EC CI_SUBRC
     DELETE FROM tsp1d WHERE papart = ms_item-obj_name.    "#EC CI_SUBRC
     DELETE FROM tsp0p WHERE pdpaper = ms_item-obj_name.   "#EC CI_SUBRC
+
+    set_default_transport( iv_transport ).
+
+    corr_insert( iv_package ).
 
   ENDMETHOD.
 
@@ -51,7 +53,11 @@ CLASS ZCL_ABAPGIT_OBJECT_SPLO IMPLEMENTATION.
     MODIFY tsp1d FROM ls_tsp1d.                           "#EC CI_SUBRC
     MODIFY tsp0p FROM ls_tsp0p.                           "#EC CI_SUBRC
 
+    set_default_transport( iv_transport ).
+
     tadir_insert( iv_package ).
+
+    corr_insert( iv_package ).
 
   ENDMETHOD.
 
@@ -95,7 +101,6 @@ CLASS ZCL_ABAPGIT_OBJECT_SPLO IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-    zcx_abapgit_exception=>raise( 'todo, jump, SPLO' ).
   ENDMETHOD.
 
 

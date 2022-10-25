@@ -58,7 +58,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_addofflin IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_ADDOFFLIN IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -113,6 +113,9 @@ CLASS zcl_abapgit_gui_page_addofflin IMPLEMENTATION.
     )->option(
       iv_label       = 'Full'
       iv_value       = zif_abapgit_dot_abapgit=>c_folder_logic-full
+    )->option(
+      iv_label       = 'Mixed'
+      iv_value       = zif_abapgit_dot_abapgit=>c_folder_logic-mixed
     )->checkbox(
       iv_name        = c_id-main_lang_only
       iv_label       = 'Serialize Main Language Only'
@@ -148,12 +151,11 @@ CLASS zcl_abapgit_gui_page_addofflin IMPLEMENTATION.
     ENDIF.
 
     IF io_form_data->get( c_id-folder_logic ) <> zif_abapgit_dot_abapgit=>c_folder_logic-prefix
-        AND io_form_data->get( c_id-folder_logic ) <> zif_abapgit_dot_abapgit=>c_folder_logic-full.
+        AND io_form_data->get( c_id-folder_logic ) <> zif_abapgit_dot_abapgit=>c_folder_logic-full
+        AND io_form_data->get( c_id-folder_logic ) <> zif_abapgit_dot_abapgit=>c_folder_logic-mixed.
       ro_validation_log->set(
         iv_key = c_id-folder_logic
-        iv_val = |Invalid folder logic { io_form_data->get( c_id-folder_logic )
-        }. Must be { zif_abapgit_dot_abapgit=>c_folder_logic-prefix
-        } or { zif_abapgit_dot_abapgit=>c_folder_logic-full } | ).
+        iv_val = |Invalid folder logic { io_form_data->get( c_id-folder_logic ) }| ).
     ENDIF.
 
   ENDMETHOD.
@@ -221,9 +223,11 @@ CLASS zcl_abapgit_gui_page_addofflin IMPLEMENTATION.
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 
+    ri_html->add( '<div class="form-container">' ).
     ri_html->add( mo_form->render(
       io_values         = mo_form_data
       io_validation_log = mo_validation_log ) ).
+    ri_html->add( '</div>' ).
 
   ENDMETHOD.
 ENDCLASS.

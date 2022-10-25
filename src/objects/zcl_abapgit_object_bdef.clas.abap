@@ -2,7 +2,7 @@ CLASS zcl_abapgit_object_bdef DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
 
   PUBLIC SECTION.
     INTERFACES zif_abapgit_object.
-    ALIASES mo_files FOR zif_abapgit_object~mo_files.
+
     METHODS:
       constructor
         IMPORTING
@@ -10,7 +10,6 @@ CLASS zcl_abapgit_object_bdef DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
           iv_language TYPE spras
         RAISING
           zcx_abapgit_exception.
-
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -27,13 +26,6 @@ CLASS zcl_abapgit_object_bdef DEFINITION PUBLIC INHERITING FROM zcl_abapgit_obje
         !iv_fieldname TYPE csequence
       CHANGING
         !cs_metadata  TYPE any .
-    METHODS get_transport_req_if_needed
-      IMPORTING
-        !iv_package                 TYPE devclass
-      RETURNING
-        VALUE(rv_transport_request) TYPE trkorr
-      RAISING
-        zcx_abapgit_exception .
     METHODS get_wb_object_operator
       RETURNING
         VALUE(ri_wb_object_operator) TYPE REF TO object
@@ -237,7 +229,7 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
     ASSIGN COMPONENT 'METADATA' OF STRUCTURE <lg_data> TO <lv_metadata_node>.
     ASSERT sy-subrc = 0.
 
-    CREATE DATA lr_metadata  TYPE ('IF_ADT_TOOLS_CORE_SOURCE_TYPES=>TY_ABAP_SOURCE_MAIN_OBJECT').
+    CREATE DATA lr_metadata  TYPE ('CL_BLUE_SOURCE_OBJECT_DATA=>TY_OBJECT_DATA-METADATA').
     ASSIGN lr_metadata->* TO <ls_metadata>.
     ASSERT sy-subrc = 0.
 
@@ -252,24 +244,11 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
     ASSIGN COMPONENT 'CONTENT-SOURCE' OF STRUCTURE <lg_data> TO <lv_source>.
     ASSERT sy-subrc = 0.
 
-    <lv_source> = mo_files->read_string( 'asbdef' ).
+    <lv_source> = zif_abapgit_object~mo_files->read_string( 'asbdef' ).
 
     CREATE OBJECT ro_object_data TYPE ('CL_BLUE_SOURCE_OBJECT_DATA').
 
     ro_object_data->set_data(  p_data = <lg_data>  ).
-
-  ENDMETHOD.
-
-
-  METHOD get_transport_req_if_needed.
-
-    DATA: li_sap_package TYPE REF TO zif_abapgit_sap_package.
-
-    li_sap_package = zcl_abapgit_factory=>get_sap_package( iv_package ).
-
-    IF li_sap_package->are_changes_recorded_in_tr_req( ) = abap_true.
-      rv_transport_request = zcl_abapgit_default_transport=>get_instance( )->get( )-ordernum.
-    ENDIF.
 
   ENDMETHOD.
 
@@ -395,17 +374,14 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
 
     DATA:
       lx_error              TYPE REF TO cx_root,
-      li_wb_object_operator TYPE REF TO object,
-      lv_transport_request  TYPE trkorr.
-
-    lv_transport_request = get_transport_req_if_needed( iv_package ).
+      li_wb_object_operator TYPE REF TO object.
 
     li_wb_object_operator = get_wb_object_operator( ).
 
     TRY.
         CALL METHOD li_wb_object_operator->('IF_WB_OBJECT_OPERATOR~DELETE')
           EXPORTING
-            transport_request = lv_transport_request.
+            transport_request = iv_transport.
 
       CATCH cx_root INTO lx_error.
         zcx_abapgit_exception=>raise_with_text( lx_error ).
@@ -421,7 +397,6 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
       lo_object_data_merged TYPE REF TO if_wb_object_data_model,
       lo_wb_object_operator TYPE REF TO object,
       lx_error              TYPE REF TO cx_root,
-      lv_transport_request  TYPE trkorr,
       lr_wbobjtype          TYPE REF TO data,
       lr_category           TYPE REF TO data.
 
@@ -433,7 +408,6 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
     TRY.
 
         lo_object_data = get_object_data( io_xml ).
-        lv_transport_request = get_transport_req_if_needed( iv_package ).
 
         CREATE DATA lr_wbobjtype TYPE ('WBOBJTYPE').
         ASSIGN lr_wbobjtype->* TO <ls_wbobjtype>.
@@ -464,7 +438,7 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
                   data_selection    = 'AL' " if_wb_object_data_selection_co=>c_all_data
                   version           = 'I'
                   package           = iv_package
-                  transport_request = lv_transport_request.
+                  transport_request = iv_transport.
             WHEN '2'. "if_wb_adt_plugin_resource_co=>co_sfs_res_category_compound_s.
               CALL METHOD lo_wb_object_operator->('IF_WB_OBJECT_OPERATOR~CREATE')
                 EXPORTING
@@ -472,14 +446,14 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
                   data_selection    = 'P' " if_wb_object_data_selection_co=>c_properties
                   version           = 'I'
                   package           = iv_package
-                  transport_request = lv_transport_request.
+                  transport_request = iv_transport.
 
               CALL METHOD lo_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
                 EXPORTING
                   io_object_data    = lo_object_data
                   data_selection    = 'D' "if_wb_object_data_selection_co=>c_data_content
                   version           = 'I'
-                  transport_request = lv_transport_request.
+                  transport_request = iv_transport.
             WHEN OTHERS.
           ENDCASE.
         ELSE.
@@ -491,20 +465,20 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
                   io_object_data    = lo_object_data_merged
                   data_selection    = 'AL' "if_wb_object_data_selection_co=>c_all_data
                   version           = 'I'
-                  transport_request = lv_transport_request.
+                  transport_request = iv_transport.
             WHEN '2'. "if_wb_adt_plugin_resource_co=>co_sfs_res_category_compound_s.
               CALL METHOD lo_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
                 EXPORTING
                   io_object_data    = lo_object_data_merged
                   data_selection    = 'P' "if_wb_object_data_selection_co=>c_properties
                   version           = 'I'
-                  transport_request = lv_transport_request.
+                  transport_request = iv_transport.
               CALL METHOD lo_wb_object_operator->('IF_WB_OBJECT_OPERATOR~UPDATE')
                 EXPORTING
                   io_object_data    = lo_object_data_merged
                   data_selection    = 'D' "if_wb_object_data_selection_co=>c_data_content
                   version           = 'I'
-                  transport_request = lv_transport_request.
+                  transport_request = iv_transport.
             WHEN OTHERS.
           ENDCASE.
         ENDIF.
@@ -548,7 +522,6 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
 
   METHOD zif_abapgit_object~get_metadata.
     rs_metadata = get_metadata( ).
-    rs_metadata-ddic         = abap_false.
     rs_metadata-delete_tadir = abap_true.
   ENDMETHOD.
 
@@ -567,22 +540,7 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
 
 
   METHOD zif_abapgit_object~jump.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name
-        object_type         = ms_item-obj_type
-        in_new_window       = abap_true
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise_t100( ).
-    ENDIF.
-
+    " Covered by ZCL_ABAPGIT_OBJECTS=>JUMP
   ENDMETHOD.
 
 
@@ -628,7 +586,7 @@ CLASS zcl_abapgit_object_bdef IMPLEMENTATION.
         iv_name = 'BDEF'
         ig_data = <lv_metadata> ).
 
-    mo_files->add_string(
+    zif_abapgit_object~mo_files->add_string(
         iv_ext    = 'asbdef'
         iv_string = lv_source ).
 

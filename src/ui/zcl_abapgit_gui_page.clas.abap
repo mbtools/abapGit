@@ -102,7 +102,14 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
 
   METHOD footer.
 
+    DATA lv_version_detail TYPE string.
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
+
+    IF zcl_abapgit_factory=>get_environment( )->is_merged( ) = abap_true.
+      lv_version_detail = ` (Standalone Version)`.
+    ELSE.
+      lv_version_detail = ` (Developer Version)`.
+    ENDIF.
 
     ri_html->add( '<div id="footer">' ).
     ri_html->add( '<table class="w100"><tr>' ).
@@ -115,7 +122,7 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
     ri_html->add( ri_html->icon( iv_name = 'abapgit'
                                  iv_hint = |{ iv_time } sec| ) ).
     ri_html->add( '</div>' ).
-    ri_html->add( |<div class="version">{ zif_abapgit_version=>c_abap_version }</div>| ).
+    ri_html->add( |<div class="version">{ zif_abapgit_version=>c_abap_version }{ lv_version_detail }</div>| ).
     ri_html->add( '</td>' ).
 
     ri_html->add( '<td id="debug-output" class="w40"></td>' ).
@@ -164,7 +171,7 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
 
   METHOD render_command_palettes.
 
-    ii_html->add( 'var gCommandPalette = new CommandPalette(enumerateToolbarActions, {' ).
+    ii_html->add( 'var gCommandPalette = new CommandPalette(enumerateUiActions, {' ).
     ii_html->add( '  toggleKey: "F1",' ).
     ii_html->add( '  hotkeyDescription: "Command ..."' ).
     ii_html->add( '});' ).
@@ -335,7 +342,10 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
     ri_html->add( '<html lang="en">' ).
     ri_html->add( html_head( ) ).
     ri_html->add( |<body class="{ ms_control-page_layout }">| ).
+
     ri_html->add( title( ) ).
+
+    ri_html->add( '<div class="not_sticky">' ).
 
     ri_html->add( render_content( ) ). " TODO -> render child
 
@@ -350,6 +360,8 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
     lv_total = ( lv_end - lv_start ) / 1000 / 1000.
 
     ri_html->add( footer( lv_total ) ).
+
+    ri_html->add( '</div>' ).
 
     li_script = scripts( ).
 

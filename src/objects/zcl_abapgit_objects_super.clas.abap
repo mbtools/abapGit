@@ -5,21 +5,12 @@ CLASS zcl_abapgit_objects_super DEFINITION
 
   PUBLIC SECTION.
 
-    CONSTANTS c_user_unknown TYPE xubname VALUE 'UNKNOWN'.
+    CONSTANTS c_user_unknown TYPE syuname VALUE 'UNKNOWN'.
 
     METHODS constructor
       IMPORTING
         !is_item     TYPE zif_abapgit_definitions=>ty_item
         !iv_language TYPE spras .
-    CLASS-METHODS jump_adt
-      IMPORTING
-        !iv_obj_name     TYPE zif_abapgit_definitions=>ty_item-obj_name
-        !iv_obj_type     TYPE zif_abapgit_definitions=>ty_item-obj_type
-        !iv_sub_obj_name TYPE zif_abapgit_definitions=>ty_item-obj_name OPTIONAL
-        !iv_sub_obj_type TYPE zif_abapgit_definitions=>ty_item-obj_type OPTIONAL
-        !iv_line_number  TYPE i OPTIONAL
-      RAISING
-        zcx_abapgit_exception .
   PROTECTED SECTION.
 
     DATA ms_item TYPE zif_abapgit_definitions=>ty_item .
@@ -39,9 +30,6 @@ CLASS zcl_abapgit_objects_super DEFINITION
         !iv_package TYPE devclass
       RAISING
         zcx_abapgit_exception .
-    METHODS jump_se11
-      RAISING
-        zcx_abapgit_exception .
     METHODS exists_a_lock_entry_for
       IMPORTING
         !iv_lock_object               TYPE string
@@ -53,16 +41,22 @@ CLASS zcl_abapgit_objects_super DEFINITION
     METHODS set_default_package
       IMPORTING
         !iv_package TYPE devclass .
+    METHODS set_default_transport
+      IMPORTING
+        !iv_transport TYPE trkorr.
     METHODS serialize_longtexts
       IMPORTING
-        !ii_xml         TYPE REF TO zif_abapgit_xml_output
-        !iv_longtext_id TYPE dokil-id OPTIONAL
-        !it_dokil       TYPE zif_abapgit_definitions=>ty_dokil_tt OPTIONAL
+        !ii_xml           TYPE REF TO zif_abapgit_xml_output
+        !iv_longtext_id   TYPE dokil-id OPTIONAL
+        !it_dokil         TYPE zif_abapgit_definitions=>ty_dokil_tt OPTIONAL
+        !iv_longtext_name TYPE string DEFAULT 'LONGTEXTS'
       RAISING
         zcx_abapgit_exception .
     METHODS deserialize_longtexts
       IMPORTING
-        !ii_xml TYPE REF TO zif_abapgit_xml_input
+        !ii_xml           TYPE REF TO zif_abapgit_xml_input
+        !iv_longtext_id   TYPE dokil-id OPTIONAL
+        !iv_longtext_name TYPE string DEFAULT 'LONGTEXTS'
       RAISING
         zcx_abapgit_exception .
     METHODS delete_longtexts
@@ -169,19 +163,36 @@ CLASS zcl_abapgit_objects_super IMPLEMENTATION.
             dialog_needed        = 5
             OTHERS               = 6.
       CATCH cx_sy_dyn_call_param_not_found.
-        " no_ask_delete_append not available in lower releases
-        CALL FUNCTION 'RS_DD_DELETE_OBJ'
-          EXPORTING
-            no_ask               = iv_no_ask
-            objname              = lv_objname
-            objtype              = lv_objtype
-          EXCEPTIONS
-            not_executed         = 1
-            object_not_found     = 2
-            object_not_specified = 3
-            permission_failure   = 4
-            dialog_needed        = 5
-            OTHERS               = 6.
+        TRY.
+            " try to force deletion for APPENDs
+            CALL FUNCTION 'RS_DD_DELETE_OBJ'
+              EXPORTING
+                no_ask               = iv_no_ask
+                objname              = lv_objname
+                objtype              = lv_objtype
+                aie_force_deletion   = iv_no_ask_delete_append
+              EXCEPTIONS
+                not_executed         = 1
+                object_not_found     = 2
+                object_not_specified = 3
+                permission_failure   = 4
+                dialog_needed        = 5
+                OTHERS               = 6.
+          CATCH cx_sy_dyn_call_param_not_found.
+            " no_ask_delete_append and aie_force_deletion not available in lower releases
+            CALL FUNCTION 'RS_DD_DELETE_OBJ'
+              EXPORTING
+                no_ask               = iv_no_ask
+                objname              = lv_objname
+                objtype              = lv_objtype
+              EXCEPTIONS
+                not_executed         = 1
+                object_not_found     = 2
+                object_not_specified = 3
+                permission_failure   = 4
+                dialog_needed        = 5
+                OTHERS               = 6.
+        ENDTRY.
     ENDTRY.
 
     IF sy-subrc = 5.
@@ -207,6 +218,9 @@ CLASS zcl_abapgit_objects_super IMPLEMENTATION.
 
     zcl_abapgit_factory=>get_longtexts( )->deserialize(
       ii_xml           = ii_xml
+      iv_longtext_name = iv_longtext_name
+      iv_object_name   = ms_item-obj_name
+      iv_longtext_id   = iv_longtext_id
       iv_main_language = mv_language ).
 
   ENDMETHOD.
@@ -266,79 +280,7 @@ CLASS zcl_abapgit_objects_super IMPLEMENTATION.
 
   METHOD is_active.
 
-    DATA: lt_messages    TYPE STANDARD TABLE OF sprot_u WITH DEFAULT KEY,
-          lt_e071_tadirs TYPE STANDARD TABLE OF e071 WITH DEFAULT KEY,
-          ls_e071_tadir  LIKE LINE OF lt_e071_tadirs.
-
-    ms_item-inactive = abap_false.
-
-    ls_e071_tadir-object   = ms_item-obj_type.
-    ls_e071_tadir-obj_name = ms_item-obj_name.
-    INSERT ls_e071_tadir INTO TABLE lt_e071_tadirs.
-
-    CALL FUNCTION 'RS_INACTIVE_OBJECTS_WARNING'
-      EXPORTING
-        suppress_protocol         = abap_false
-        with_program_includes     = abap_false
-        suppress_dictionary_check = abap_false
-      TABLES
-        p_e071                    = lt_e071_tadirs
-        p_xmsg                    = lt_messages.
-
-    IF lt_messages IS NOT INITIAL.
-      ms_item-inactive = abap_true.
-    ENDIF.
-
-    rv_active = boolc( ms_item-inactive = abap_false ).
-  ENDMETHOD.
-
-
-  METHOD jump_adt.
-
-    DATA: lv_adt_link TYPE string,
-          lx_error    TYPE REF TO cx_root.
-
-    TRY.
-
-        lv_adt_link = zcl_abapgit_adt_link=>generate(
-          iv_obj_name     = iv_obj_name
-          iv_obj_type     = iv_obj_type
-          iv_sub_obj_name = iv_sub_obj_name
-          iv_line_number  = iv_line_number ).
-
-        cl_gui_frontend_services=>execute(
-          EXPORTING  document = lv_adt_link
-          EXCEPTIONS OTHERS   = 1 ).
-
-        IF sy-subrc <> 0.
-          zcx_abapgit_exception=>raise( |ADT Jump Error - failed to open link { lv_adt_link }. Subrc={ sy-subrc }| ).
-        ENDIF.
-
-      CATCH cx_root INTO lx_error.
-        zcx_abapgit_exception=>raise( iv_text = 'ADT Jump Error'
-                                      ix_previous = lx_error ).
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD jump_se11.
-
-    CALL FUNCTION 'RS_TOOL_ACCESS'
-      EXPORTING
-        operation           = 'SHOW'
-        object_name         = ms_item-obj_name
-        object_type         = ms_item-obj_type
-        devclass            = ms_item-devclass
-        in_new_window       = abap_true
-      EXCEPTIONS
-        not_executed        = 1
-        invalid_object_type = 2
-        OTHERS              = 3.
-
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Jump to SE11 failed (subrc={ sy-subrc } ).| ).
-    ENDIF.
+    rv_active = zcl_abapgit_objects_activation=>is_active( ms_item ).
 
   ENDMETHOD.
 
@@ -346,10 +288,11 @@ CLASS zcl_abapgit_objects_super IMPLEMENTATION.
   METHOD serialize_longtexts.
 
     zcl_abapgit_factory=>get_longtexts( )->serialize(
-        iv_object_name = ms_item-obj_name
-        iv_longtext_id = iv_longtext_id
-        it_dokil       = it_dokil
-        ii_xml         = ii_xml  ).
+        iv_object_name   = ms_item-obj_name
+        iv_longtext_name = iv_longtext_name
+        iv_longtext_id   = iv_longtext_id
+        it_dokil         = it_dokil
+        ii_xml           = ii_xml  ).
 
   ENDMETHOD.
 
@@ -371,7 +314,7 @@ CLASS zcl_abapgit_objects_super IMPLEMENTATION.
 
   METHOD set_default_package.
 
-    " In certain cases we need to set the package package via ABAP memory
+    " In certain cases we need to set the package via ABAP memory
     " because we can't supply it via the APIs.
     "
     " Set default package, see function module RS_CORR_INSERT FORM get_current_devclass.
@@ -386,21 +329,56 @@ CLASS zcl_abapgit_objects_super IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD set_default_transport.
+
+    " In certain cases we need to set the transport via ABAP memory
+    " because we can't supply it via the APIs.
+    "
+    " See function module RS_CORR_INSERT
+
+    EXPORT tasknr FROM iv_transport TO MEMORY ID 'EUT'.
+
+  ENDMETHOD.
+
+
   METHOD tadir_insert.
 
     CALL FUNCTION 'TR_TADIR_INTERFACE'
       EXPORTING
-        wi_test_modus       = abap_false
-        wi_tadir_pgmid      = 'R3TR'
-        wi_tadir_object     = ms_item-obj_type
-        wi_tadir_obj_name   = ms_item-obj_name
-        wi_tadir_author     = sy-uname
-        wi_tadir_devclass   = iv_package
-        wi_tadir_masterlang = mv_language
-        iv_delflag          = abap_false
+        wi_test_modus                  = abap_false
+        wi_tadir_pgmid                 = 'R3TR'
+        wi_tadir_object                = ms_item-obj_type
+        wi_tadir_obj_name              = ms_item-obj_name
+        wi_tadir_author                = sy-uname
+        wi_tadir_devclass              = iv_package
+        wi_tadir_masterlang            = mv_language
+        iv_delflag                     = abap_false
       EXCEPTIONS
-        OTHERS              = 1.
-
+        tadir_entry_not_existing       = 1
+        tadir_entry_ill_type           = 2
+        no_systemname                  = 3
+        no_systemtype                  = 4
+        original_system_conflict       = 5
+        object_reserved_for_devclass   = 6
+        object_exists_global           = 7
+        object_exists_local            = 8
+        object_is_distributed          = 9
+        obj_specification_not_unique   = 10
+        no_authorization_to_delete     = 11
+        devclass_not_existing          = 12
+        simultanious_set_remove_repair = 13
+        order_missing                  = 14
+        no_modification_of_head_syst   = 15
+        pgmid_object_not_allowed       = 16
+        masterlanguage_not_specified   = 17
+        devclass_not_specified         = 18
+        specify_owner_unique           = 19
+        loc_priv_objs_no_repair        = 20
+        gtadir_not_reached             = 21
+        object_locked_for_order        = 22
+        change_of_class_not_allowed    = 23
+        no_change_from_sap_to_tmp      = 24
+        OTHERS                         = 25.
     IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
