@@ -53,6 +53,17 @@ CLASS zcl_abapgit_object_devc DEFINITION PUBLIC
     METHODS remove_obsolete_tadir
       IMPORTING
         !iv_package_name TYPE devclass .
+
+    " $APM
+    METHODS package_json_delete
+      RAISING
+        zcx_abapgit_exception.
+    METHODS package_json_deserialize
+      RAISING
+        zcx_abapgit_exception.
+    METHODS package_json_serialize
+      RAISING
+        zcx_abapgit_exception.
 ENDCLASS.
 
 
@@ -135,6 +146,64 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
     ELSEIF sy-subrc <> 0.
       zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD package_json_delete.
+
+    " $APM
+    DATA lx_error TYPE REF TO zcx_package_json.
+
+    TRY.
+        zcl_package_json=>factory( |{ ms_item-obj_name }| )->delete( ).
+      CATCH zcx_package_json INTO lx_error.
+        zcx_abapgit_exception=>raise_with_text( lx_error ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD package_json_deserialize.
+
+    " $APM
+    DATA:
+      lv_json  TYPE string,
+      lx_error TYPE REF TO zcx_package_json.
+
+    TRY.
+        lv_json = zif_abapgit_object~mo_files->read_string(
+          iv_extra = |{ zif_package_json=>c_package_file-extra }|
+          iv_ext   = |{ zif_package_json=>c_package_file-extension }| ).
+      CATCH zcx_abapgit_exception.
+        " Most probably file not found -> ignore
+        RETURN.
+    ENDTRY.
+
+    TRY.
+        zcl_package_json=>factory( |{ ms_item-obj_name }| )->set( lv_json )->save( ).
+      CATCH zcx_package_json INTO lx_error.
+        zcx_abapgit_exception=>raise_with_text( lx_error ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD package_json_serialize.
+
+    " $APM
+    DATA li_package_json TYPE REF TO zif_package_json.
+
+    TRY.
+        li_package_json = zcl_package_json=>factory( |{ ms_item-obj_name }| )->load( ).
+      CATCH zcx_package_json.
+        RETURN. " ignore errors
+    ENDTRY.
+
+    zif_abapgit_object~mo_files->add_string(
+      iv_extra  = |{ zif_package_json=>c_package_file-extra }|
+      iv_ext    = |{ zif_package_json=>c_package_file-extension }|
+      iv_string = li_package_json->get( ) ).
 
   ENDMETHOD.
 
@@ -468,6 +537,9 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
 
     ENDIF.
 
+    " $APM
+    package_json_delete( ).
+
   ENDMETHOD.
 
 
@@ -659,6 +731,9 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
     set_lock( ii_package = li_package
               iv_lock    = abap_false ).
 
+    " $APM
+    package_json_deserialize( ).
+
   ENDMETHOD.
 
 
@@ -848,5 +923,9 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
       io_xml->add( iv_name = 'PERMISSION'
                    ig_data = lt_usage_data ).
     ENDIF.
+
+    " $APM
+    package_json_serialize( ).
+
   ENDMETHOD.
 ENDCLASS.

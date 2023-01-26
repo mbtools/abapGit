@@ -361,6 +361,9 @@ CLASS zcl_abapgit_tadir IMPLEMENTATION.
       it_tadir = ct_tadir
       ii_log   = ii_log ).
 
+    " $APM
+    DELETE ct_tadir WHERE object = 'W3MI' AND obj_name CP |*{ zif_package_json=>c_mime_suffix }|.
+
   ENDMETHOD.
 
 
