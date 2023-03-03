@@ -69,7 +69,7 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
     METHODS render_file
       IMPORTING
         !iv_context    TYPE string
-        !is_file       TYPE zif_abapgit_definitions=>ty_file
+        !is_file       TYPE zif_abapgit_git_definitions=>ty_file
         !is_item       TYPE zif_abapgit_definitions=>ty_item OPTIONAL
         !is_status     TYPE zif_abapgit_definitions=>ty_result
         !iv_changed_by TYPE syuname OPTIONAL
@@ -152,7 +152,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
   METHOD check_selected.
 
     DATA:
-      ls_file    TYPE zif_abapgit_definitions=>ty_file,
+      ls_file    TYPE zif_abapgit_git_definitions=>ty_file,
       lv_pattern TYPE string,
       lv_msg     TYPE string.
 
@@ -243,7 +243,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
           lt_changed_by_remote LIKE rt_changed_by,
           ls_item              TYPE zif_abapgit_definitions=>ty_item,
           lv_transport         LIKE LINE OF it_transports,
-          lv_user              TYPE e070-as4user.
+          lv_user              TYPE uname.
 
     FIELD-SYMBOLS: <ls_changed_by> LIKE LINE OF rt_changed_by.
 
@@ -279,9 +279,8 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
         obj_name = <ls_changed_by>-item-obj_name
         INTO lv_transport.
       IF sy-subrc = 0.
-        SELECT SINGLE as4user FROM e070 INTO lv_user
-          WHERE trkorr = lv_transport-trkorr.
-        IF sy-subrc = 0.
+        lv_user = zcl_abapgit_factory=>get_cts_api( )->read_user( lv_transport-trkorr ).
+        IF lv_user IS NOT INITIAL.
           <ls_changed_by>-name = lv_user.
         ENDIF.
       ENDIF.
@@ -368,6 +367,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
                                                              ii_obj_filter = mi_obj_filter ).
 
     IF lines( ms_files-local ) = 0 AND lines( ms_files-remote ) = 0.
+      mo_repo->refresh( ).
       zcx_abapgit_exception=>raise( 'There are no changes that could be staged' ).
     ENDIF.
   ENDMETHOD.
@@ -441,7 +441,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
 
     ri_html->add( '</div>' ).
 
-    gui_services( )->get_hotkeys_ctl( )->register_hotkeys( zif_abapgit_gui_hotkeys~get_hotkey_actions( ) ).
+    register_handlers( ).
     gui_services( )->get_html_parts( )->add_part(
       iv_collection = zcl_abapgit_gui_component=>c_html_parts-hidden_forms
       ii_part       = render_deferred_hidden_events( ) ).
@@ -721,7 +721,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_STAGE IMPLEMENTATION.
 
   METHOD stage_selected.
 
-    DATA ls_file  TYPE zif_abapgit_definitions=>ty_file.
+    DATA ls_file  TYPE zif_abapgit_git_definitions=>ty_file.
     DATA lo_files TYPE REF TO zcl_abapgit_string_map.
 
     FIELD-SYMBOLS:

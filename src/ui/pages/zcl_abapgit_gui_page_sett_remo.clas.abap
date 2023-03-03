@@ -30,8 +30,8 @@ CLASS zcl_abapgit_gui_page_sett_remo DEFINITION
       BEGIN OF ty_remote_settings,
         offline         TYPE zif_abapgit_persistence=>ty_repo-offline,
         url             TYPE zif_abapgit_persistence=>ty_repo-url,
-        branch          TYPE zif_abapgit_definitions=>ty_git_branch-name,
-        tag             TYPE zif_abapgit_definitions=>ty_git_tag-name,
+        branch          TYPE zif_abapgit_git_definitions=>ty_git_branch-name,
+        tag             TYPE zif_abapgit_git_definitions=>ty_git_tag-name,
         commit          TYPE zif_abapgit_definitions=>ty_commit-sha1,
         pull_request    TYPE string,
         head_type       TYPE ty_head_type,
@@ -183,7 +183,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_SETT_REMO IMPLEMENTATION.
 
 
   METHOD check_protection.
@@ -203,7 +203,7 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
     DATA:
       lv_url         TYPE zif_abapgit_persistence=>ty_repo-url,
       lv_branch_name TYPE zif_abapgit_persistence=>ty_repo-branch_name,
-      ls_branch      TYPE zif_abapgit_definitions=>ty_git_branch.
+      ls_branch      TYPE zif_abapgit_git_definitions=>ty_git_branch.
 
     IF mo_form_data->get( c_id-offline ) = abap_true.
       RETURN.
@@ -282,7 +282,7 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
 
     DATA:
       lo_repo TYPE REF TO zcl_abapgit_repo_online,
-      ls_tag  TYPE zif_abapgit_definitions=>ty_git_tag,
+      ls_tag  TYPE zif_abapgit_git_definitions=>ty_git_tag,
       lv_url  TYPE ty_remote_settings-url.
 
     IF mo_form_data->get( c_id-offline ) = abap_true.
@@ -1074,7 +1074,7 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_renderable~render.
 
-    gui_services( )->register_event_handler( me ).
+    register_handlers( ).
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 
@@ -1090,8 +1090,6 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
       io_validation_log = mo_validation_log ) ).
 
     ri_html->add( `</div>` ).
-
-    gui_services( )->get_hotkeys_ctl( )->register_hotkeys( zif_abapgit_gui_hotkeys~get_hotkey_actions( ) ).
 
   ENDMETHOD.
 ENDCLASS.

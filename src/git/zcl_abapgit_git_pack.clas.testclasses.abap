@@ -95,7 +95,7 @@ CLASS ltcl_type_and_length DEFINITION FOR TESTING DURATION SHORT RISK LEVEL HARM
       test
         IMPORTING
           iv_length   TYPE i
-          iv_type     TYPE zif_abapgit_definitions=>ty_type DEFAULT zif_abapgit_definitions=>c_type-commit
+          iv_type     TYPE zif_abapgit_git_definitions=>ty_type DEFAULT zif_abapgit_definitions=>c_type-commit
           iv_expected TYPE xstring
         RAISING
           zcx_abapgit_exception,
@@ -224,7 +224,7 @@ CLASS ltcl_pack DEFINITION FOR TESTING DURATION SHORT RISK LEVEL HARMLESS FINAL.
 
   PRIVATE SECTION.
 
-    CONSTANTS: c_sha TYPE zif_abapgit_definitions=>ty_sha1 VALUE '5f46cb3c4b7f0b3600b64f744cde614a283a88dc'.
+    CONSTANTS: c_sha TYPE zif_abapgit_git_definitions=>ty_sha1 VALUE '5f46cb3c4b7f0b3600b64f744cde614a283a88dc'.
 
     METHODS:
       commit FOR TESTING
@@ -312,7 +312,7 @@ CLASS ltcl_pack IMPLEMENTATION.
   METHOD pack_multiple.
 
     CONSTANTS: lc_data TYPE x LENGTH 15 VALUE '123456789ABCDEF545794254754554',
-               lc_sha  TYPE zif_abapgit_definitions=>ty_sha1 VALUE '5f46cb3c4b7f0b3600b64f744cde614a283a88dc'.
+               lc_sha  TYPE zif_abapgit_git_definitions=>ty_sha1 VALUE '5f46cb3c4b7f0b3600b64f744cde614a283a88dc'.
 
     DATA: lt_objects TYPE zif_abapgit_definitions=>ty_objects_tt,
           ls_object  LIKE LINE OF lt_objects,
@@ -473,8 +473,8 @@ CLASS ltcl_pack IMPLEMENTATION.
     ls_commit-author    = 'larshp <larshp@hotmail.com> 1387823471 +0100'.
     ls_commit-committer = 'larshp <larshp@hotmail.com> 1387823471 +0100'.
     ls_commit-body      = 'very informative'
-                        && zif_abapgit_definitions=>c_newline
-                        && zif_abapgit_definitions=>c_newline.
+                        && cl_abap_char_utilities=>newline
+                        && cl_abap_char_utilities=>newline.
 
     lv_data = zcl_abapgit_git_pack=>encode_commit( ls_commit ).
     ls_result = zcl_abapgit_git_pack=>decode_commit( lv_data ).
@@ -497,7 +497,7 @@ CLASS ltcl_pack IMPLEMENTATION.
     ls_commit-committer = 'larshp <larshp@hotmail.com> 1387823471 +0100'.
     ls_commit-body      = 'very informative'.
     ls_commit-gpgsig    = '-----END PGP SIGNATURE-----'
-                          && |{ zif_abapgit_definitions=>c_newline } { zif_abapgit_definitions=>c_newline }|.
+                          && |{ cl_abap_char_utilities=>newline } { cl_abap_char_utilities=>newline }|.
 
     lv_data = zcl_abapgit_git_pack=>encode_commit( ls_commit ).
     ls_result = zcl_abapgit_git_pack=>decode_commit( lv_data ).
@@ -544,7 +544,7 @@ CLASS ltcl_git_pack_decode_commit IMPLEMENTATION.
 
   METHOD add.
 
-    CONCATENATE mv_str iv_string zif_abapgit_definitions=>c_newline INTO mv_str.
+    CONCATENATE mv_str iv_string cl_abap_char_utilities=>newline INTO mv_str.
 
   ENDMETHOD.
 

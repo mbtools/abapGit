@@ -72,7 +72,7 @@ CLASS zcl_abapgit_gui_page_sett_info DEFINITION
     METHODS read_stats_files
       EXPORTING
         !et_local  TYPE zif_abapgit_definitions=>ty_files_item_tt
-        !et_remote TYPE zif_abapgit_definitions=>ty_files_tt
+        !et_remote TYPE zif_abapgit_git_definitions=>ty_files_tt
       RAISING
         zcx_abapgit_exception .
     METHODS read_stats_state
@@ -81,7 +81,7 @@ CLASS zcl_abapgit_gui_page_sett_info DEFINITION
     METHODS read_stats_size_lines_sloc
       IMPORTING
         !it_local        TYPE zif_abapgit_definitions=>ty_files_item_tt
-        !it_remote       TYPE zif_abapgit_definitions=>ty_files_tt
+        !it_remote       TYPE zif_abapgit_git_definitions=>ty_files_tt
       EXPORTING
         !et_local_items  TYPE zif_abapgit_definitions=>ty_items_tt
         !et_remote_items TYPE zif_abapgit_definitions=>ty_items_tt
@@ -89,7 +89,7 @@ CLASS zcl_abapgit_gui_page_sett_info DEFINITION
         zcx_abapgit_exception .
     METHODS read_stats_file
       IMPORTING
-        !is_file       TYPE zif_abapgit_definitions=>ty_file
+        !is_file       TYPE zif_abapgit_git_definitions=>ty_file
       RETURNING
         VALUE(rs_info) TYPE ty_infos .
     METHODS read_stats_objects
@@ -117,7 +117,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_SETT_INFO IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -343,7 +343,7 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
 
     DATA:
       lt_local        TYPE zif_abapgit_definitions=>ty_files_item_tt,
-      lt_remote       TYPE zif_abapgit_definitions=>ty_files_tt,
+      lt_remote       TYPE zif_abapgit_git_definitions=>ty_files_tt,
       lt_local_items  TYPE zif_abapgit_definitions=>ty_items_tt,
       lt_remote_items TYPE zif_abapgit_definitions=>ty_items_tt.
 
@@ -374,9 +374,11 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
 
   METHOD read_stats_file.
 
+    TYPES ty_char255 TYPE c LENGTH 255.
+
     DATA:
       lv_code TYPE string,
-      lt_code TYPE abaptxt255_tab.
+      lt_code TYPE STANDARD TABLE OF ty_char255 WITH DEFAULT KEY.
 
     FIELD-SYMBOLS:
       <ls_code> LIKE LINE OF lt_code.
@@ -389,13 +391,13 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
         CATCH zcx_abapgit_exception ##NO_HANDLER.
       ENDTRY.
 
-      SPLIT lv_code AT zif_abapgit_definitions=>c_newline INTO TABLE lt_code.
+      SPLIT lv_code AT cl_abap_char_utilities=>newline INTO TABLE lt_code.
 
       rs_info-line = lines( lt_code ).
 
       LOOP AT lt_code ASSIGNING <ls_code> WHERE table_line IS NOT INITIAL AND table_line(1) <> '*'.
-        SHIFT <ls_code>-line LEFT DELETING LEADING space.
-        IF <ls_code>-line(1) <> '"'.
+        SHIFT <ls_code> LEFT DELETING LEADING space.
+        IF <ls_code>(1) <> '"'.
           rs_info-sloc = rs_info-sloc + 1.
         ENDIF.
       ENDLOOP.
@@ -407,7 +409,7 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
   METHOD read_stats_files.
 
     DATA ls_stats TYPE ty_stats.
-    DATA lt_remote_wo_ignored TYPE zif_abapgit_definitions=>ty_files_tt.
+    DATA lt_remote_wo_ignored TYPE zif_abapgit_git_definitions=>ty_files_tt.
 
     et_local = mo_repo->get_files_local( ).
 
@@ -590,7 +592,7 @@ CLASS zcl_abapgit_gui_page_sett_info IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_renderable~render.
 
-    gui_services( )->register_event_handler( me ).
+    register_handlers( ).
 
     read_settings( ).
 

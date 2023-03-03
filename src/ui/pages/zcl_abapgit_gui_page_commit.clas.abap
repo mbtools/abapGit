@@ -176,9 +176,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
 
   METHOD get_comment_file.
 
-    DATA:
-      lv_count TYPE i,
-      lv_value TYPE c LENGTH 10.
+    DATA lv_count TYPE i.
 
     FIELD-SYMBOLS <ls_stage> LIKE LINE OF it_stage.
 
@@ -192,8 +190,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
       rv_text = <ls_stage>-file-filename.
     ELSE.
       " For multiple file we use the count instead
-      WRITE lv_count TO lv_value LEFT-JUSTIFIED.
-      CONCATENATE lv_value 'files' INTO rv_text SEPARATED BY space.
+      rv_text = |{ lv_count } files|.
     ENDIF.
 
   ENDMETHOD.
@@ -203,7 +200,6 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
 
     DATA:
       lv_count TYPE i,
-      lv_value TYPE c LENGTH 10,
       ls_item  TYPE zif_abapgit_definitions=>ty_item,
       lt_items TYPE zif_abapgit_definitions=>ty_items_tt.
 
@@ -227,8 +223,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
       CONCATENATE ls_item-obj_type ls_item-obj_name INTO rv_text SEPARATED BY space.
     ELSE.
       " For multiple objects we use the count instead
-      WRITE lv_count TO lv_value LEFT-JUSTIFIED.
-      CONCATENATE lv_value 'objects' INTO rv_text SEPARATED BY space.
+      rv_text = |{ lv_count } objects|.
     ENDIF.
 
   ENDMETHOD.
@@ -434,7 +429,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
 
   METHOD validate_form.
 
-    DATA: lt_branches        TYPE zif_abapgit_definitions=>ty_git_branch_list_tt,
+    DATA: lt_branches        TYPE zif_abapgit_git_definitions=>ty_git_branch_list_tt,
           lv_new_branch_name TYPE string.
 
     ro_validation_log = mo_form_util->validate( io_form_data ).
@@ -488,9 +483,9 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
           mo_form_data->to_abap( CHANGING cs_container = ms_commit ).
 
           REPLACE ALL OCCURRENCES
-            OF zif_abapgit_definitions=>c_crlf
+            OF cl_abap_char_utilities=>cr_lf
             IN ms_commit-body
-            WITH zif_abapgit_definitions=>c_newline.
+            WITH cl_abap_char_utilities=>newline.
 
           lv_new_branch_name = mo_form_data->get( c_id-new_branch_name ).
           " create new branch and commit to it if branch name is not empty
@@ -519,7 +514,7 @@ CLASS ZCL_ABAPGIT_GUI_PAGE_COMMIT IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_renderable~render.
 
-    gui_services( )->register_event_handler( me ).
+    register_handlers( ).
 
     IF mo_form_util->is_empty( mo_form_data ) = abap_true.
       get_defaults( ).

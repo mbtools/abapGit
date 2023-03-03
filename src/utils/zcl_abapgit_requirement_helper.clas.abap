@@ -5,19 +5,6 @@ CLASS zcl_abapgit_requirement_helper DEFINITION
 
   PUBLIC SECTION.
 
-    TYPES:
-      BEGIN OF ty_requirement_status,
-        met               TYPE abap_bool,
-        component         TYPE tdevc-dlvunit,
-        description       TYPE string,
-        installed_release TYPE saprelease,
-        installed_patch   TYPE sappatchlv,
-        required_release  TYPE saprelease,
-        required_patch    TYPE sappatchlv,
-      END OF ty_requirement_status .
-    TYPES:
-      ty_requirement_status_tt TYPE STANDARD TABLE OF ty_requirement_status WITH DEFAULT KEY .
-
     CLASS-METHODS requirements_popup
       IMPORTING
         !it_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt
@@ -32,6 +19,19 @@ CLASS zcl_abapgit_requirement_helper DEFINITION
         zcx_abapgit_exception .
   PROTECTED SECTION.
   PRIVATE SECTION.
+
+    TYPES:
+      BEGIN OF ty_requirement_status,
+        met               TYPE abap_bool,
+        component         TYPE tdevc-dlvunit,
+        description       TYPE string,
+        installed_release TYPE saprelease,
+        installed_patch   TYPE sappatchlv,
+        required_release  TYPE saprelease,
+        required_patch    TYPE sappatchlv,
+      END OF ty_requirement_status .
+    TYPES:
+      ty_requirement_status_tt TYPE STANDARD TABLE OF ty_requirement_status WITH DEFAULT KEY .
 
     CLASS-METHODS show_requirement_popup
       IMPORTING
@@ -54,7 +54,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_requirement_helper IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_REQUIREMENT_HELPER IMPLEMENTATION.
 
 
   METHOD get_requirement_met_status.
@@ -188,7 +188,7 @@ CLASS zcl_abapgit_requirement_helper IMPLEMENTATION.
           lt_color_negative TYPE lvc_t_scol,
           lt_color_positive TYPE lvc_t_scol,
           ls_color          TYPE lvc_s_scol,
-          ls_position       TYPE zcl_abapgit_popups=>ty_popup_position,
+          ls_position       TYPE zif_abapgit_popups=>ty_popup_position,
           lx_ex             TYPE REF TO cx_root.
 
     FIELD-SYMBOLS: <ls_line>        TYPE ty_color_line,

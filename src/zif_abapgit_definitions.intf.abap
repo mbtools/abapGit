@@ -1,76 +1,8 @@
 INTERFACE zif_abapgit_definitions
   PUBLIC .
 
-
-  TYPES:
-    ty_type    TYPE c LENGTH 6 .
-  TYPES:
-    ty_bitbyte TYPE c LENGTH 8 .
-  TYPES:
-    ty_sha1    TYPE c LENGTH 40 .
-  TYPES: ty_sha1_tt TYPE STANDARD TABLE OF ty_sha1 WITH DEFAULT KEY .
-  TYPES:
-    ty_adler32 TYPE x LENGTH 4 .
-  TYPES ty_item_state TYPE c LENGTH 1.
-  TYPES:
-    BEGIN OF ty_file_signature,
-      path     TYPE string,
-      filename TYPE string,
-      sha1     TYPE ty_sha1,
-    END OF ty_file_signature .
-  TYPES:
-    ty_file_signatures_tt TYPE STANDARD TABLE OF
-           ty_file_signature WITH DEFAULT KEY .
-  TYPES:
-    ty_file_signatures_ts TYPE SORTED TABLE OF
-           ty_file_signature WITH UNIQUE KEY path filename .
-  TYPES:
-    BEGIN OF ty_file.
-      INCLUDE TYPE ty_file_signature.
-  TYPES: data TYPE xstring,
-    END OF ty_file .
-  TYPES:
-    ty_files_tt TYPE STANDARD TABLE OF ty_file WITH DEFAULT KEY
-                     WITH UNIQUE SORTED KEY file_path COMPONENTS path filename
-                     WITH NON-UNIQUE SORTED KEY file COMPONENTS filename.
   TYPES:
     ty_string_tt TYPE STANDARD TABLE OF string WITH DEFAULT KEY .
-  TYPES ty_git_branch_type TYPE c LENGTH 2 .
-  TYPES:
-    BEGIN OF ty_git_branch,
-      sha1         TYPE ty_sha1,
-      name         TYPE string,
-      type         TYPE ty_git_branch_type,
-      is_head      TYPE abap_bool,
-      display_name TYPE string,
-    END OF ty_git_branch .
-  TYPES:
-    ty_git_branch_list_tt TYPE STANDARD TABLE OF ty_git_branch WITH DEFAULT KEY
-                               WITH NON-UNIQUE SORTED KEY name_key
-                               COMPONENTS name.
-  TYPES:
-    BEGIN OF ty_git_tag,
-      sha1         TYPE ty_sha1,
-      object       TYPE ty_sha1,
-      name         TYPE string,
-      type         TYPE ty_git_branch_type,
-      display_name TYPE string,
-      tagger_name  TYPE string,
-      tagger_email TYPE string,
-      message      TYPE string,
-      body         TYPE string,
-    END OF ty_git_tag .
-  TYPES:
-    BEGIN OF ty_git_user,
-      name  TYPE string,
-      email TYPE string,
-    END OF ty_git_user .
-  TYPES:
-    BEGIN OF ty_comment,
-      committer TYPE ty_git_user,
-      author    TYPE ty_git_user,
-      comment   TYPE string,
-    END OF ty_comment .
   TYPES:
     BEGIN OF ty_item_signature,
       obj_type TYPE tadir-object,
@@ -90,7 +22,7 @@ INTERFACE zif_abapgit_definitions
     ty_items_ts TYPE SORTED TABLE OF ty_item WITH UNIQUE KEY obj_type obj_name .
   TYPES:
     BEGIN OF ty_file_item,
-      file TYPE ty_file,
+      file TYPE zif_abapgit_git_definitions=>ty_file,
       item TYPE ty_item,
     END OF ty_file_item .
   TYPES:
@@ -104,6 +36,7 @@ INTERFACE zif_abapgit_definitions
     BEGIN OF ty_overwrite.
       INCLUDE TYPE ty_item.
   TYPES:
+      state    TYPE c LENGTH 2,
       action   TYPE i,
       icon     TYPE icon_d,
       text     TYPE string,
@@ -155,8 +88,8 @@ INTERFACE zif_abapgit_definitions
       path       TYPE string,
       filename   TYPE string,
       is_changed TYPE abap_bool,
-      rstate     TYPE ty_item_state,
-      lstate     TYPE ty_item_state,
+      rstate     TYPE zif_abapgit_git_definitions=>ty_item_state,
+      lstate     TYPE zif_abapgit_git_definitions=>ty_item_state,
     END OF ty_repo_file .
   TYPES:
     ty_repo_file_tt TYPE STANDARD TABLE OF ty_repo_file WITH DEFAULT KEY .
@@ -164,10 +97,10 @@ INTERFACE zif_abapgit_definitions
     ty_chmod TYPE c LENGTH 6 .
   TYPES:
     BEGIN OF ty_object,
-      sha1    TYPE ty_sha1,
-      type    TYPE ty_type,
+      sha1    TYPE zif_abapgit_git_definitions=>ty_sha1,
+      type    TYPE zif_abapgit_git_definitions=>ty_type,
       data    TYPE xstring,
-      adler32 TYPE ty_adler32,
+      adler32 TYPE zif_abapgit_git_definitions=>ty_adler32,
       index   TYPE i,
     END OF ty_object .
   TYPES:
@@ -197,8 +130,8 @@ INTERFACE zif_abapgit_definitions
       filename  TYPE string,
       package   TYPE devclass,
       match     TYPE abap_bool,
-      lstate    TYPE ty_item_state,
-      rstate    TYPE ty_item_state,
+      lstate    TYPE zif_abapgit_git_definitions=>ty_item_state,
+      rstate    TYPE zif_abapgit_git_definitions=>ty_item_state,
       packmove  TYPE abap_bool,
       srcsystem TYPE tadir-srcsystem,
     END OF ty_result .
@@ -209,7 +142,7 @@ INTERFACE zif_abapgit_definitions
   TYPES:
     BEGIN OF ty_stage_files,
       local  TYPE ty_files_item_tt,
-      remote TYPE ty_files_tt,
+      remote TYPE zif_abapgit_git_definitions=>ty_files_tt,
       status TYPE ty_results_ts_path,
     END OF ty_stage_files .
   TYPES:
@@ -219,15 +152,6 @@ INTERFACE zif_abapgit_definitions
   TYPES: END OF ty_tpool .
   TYPES:
     ty_tpool_tt TYPE STANDARD TABLE OF ty_tpool WITH DEFAULT KEY .
-  TYPES:
-    BEGIN OF ty_sotr,
-      header  TYPE sotr_head,
-      entries TYPE sotr_text_tt,
-    END OF ty_sotr .
-  TYPES:
-    ty_sotr_tt TYPE STANDARD TABLE OF ty_sotr WITH DEFAULT KEY .
-  TYPES:
-    ty_sotr_use_tt TYPE STANDARD TABLE OF sotr_use WITH DEFAULT KEY .
   TYPES:
     BEGIN OF ty_obj_attribute,
       cmpname   TYPE seocmpname,
@@ -250,9 +174,9 @@ INTERFACE zif_abapgit_definitions
     END OF ty_create .
   TYPES:
     BEGIN OF ty_commit,
-      sha1       TYPE ty_sha1,
-      parent1    TYPE ty_sha1,
-      parent2    TYPE ty_sha1,
+      sha1       TYPE zif_abapgit_git_definitions=>ty_sha1,
+      parent1    TYPE zif_abapgit_git_definitions=>ty_sha1,
+      parent2    TYPE zif_abapgit_git_definitions=>ty_sha1,
       author     TYPE string,
       email      TYPE string,
       time       TYPE string,
@@ -292,15 +216,15 @@ INTERFACE zif_abapgit_definitions
     BEGIN OF ty_expanded,
       path  TYPE string,
       name  TYPE string,
-      sha1  TYPE ty_sha1,
+      sha1  TYPE zif_abapgit_git_definitions=>ty_sha1,
       chmod TYPE ty_chmod,
     END OF ty_expanded .
   TYPES:
     ty_expanded_tt TYPE STANDARD TABLE OF ty_expanded WITH DEFAULT KEY .
   TYPES:
     BEGIN OF ty_ancestor,
-      commit TYPE ty_sha1,
-      tree   TYPE ty_sha1,
+      commit TYPE zif_abapgit_git_definitions=>ty_sha1,
+      tree   TYPE zif_abapgit_git_definitions=>ty_sha1,
       time   TYPE string,
       body   TYPE string,
     END OF ty_ancestor .
@@ -313,8 +237,8 @@ INTERFACE zif_abapgit_definitions
       path       TYPE string,
       is_dir     TYPE abap_bool,
       changes    TYPE i,
-      lstate     TYPE ty_item_state,
-      rstate     TYPE ty_item_state,
+      lstate     TYPE zif_abapgit_git_definitions=>ty_item_state,
+      rstate     TYPE zif_abapgit_git_definitions=>ty_item_state,
       files      TYPE ty_repo_file_tt,
       changed_by TYPE syuname,
       transport  TYPE trkorr,
@@ -363,14 +287,6 @@ INTERFACE zif_abapgit_definitions
       prerelase_patch TYPE i,
     END OF ty_version.
   TYPES:
-    BEGIN OF ty_alv_column,
-      name      TYPE string,
-      text      TYPE string,
-      length    TYPE lvc_outlen,
-      show_icon TYPE abap_bool,
-    END OF ty_alv_column,
-    ty_alv_column_tt TYPE TABLE OF ty_alv_column WITH DEFAULT KEY.
-  TYPES:
     ty_deserialization_step TYPE string.
   TYPES:
     ty_deserialization_step_tt TYPE STANDARD TABLE OF ty_deserialization_step
@@ -385,10 +301,10 @@ INTERFACE zif_abapgit_definitions
     END OF c_sci_result.
   CONSTANTS:
     BEGIN OF c_git_branch_type,
-      branch          TYPE ty_git_branch_type VALUE 'HD',
-      lightweight_tag TYPE ty_git_branch_type VALUE 'TG',
-      annotated_tag   TYPE ty_git_branch_type VALUE 'AT',
-      other           TYPE ty_git_branch_type VALUE 'ZZ',
+      branch          TYPE zif_abapgit_git_definitions=>ty_git_branch_type VALUE 'HD',
+      lightweight_tag TYPE zif_abapgit_git_definitions=>ty_git_branch_type VALUE 'TG',
+      annotated_tag   TYPE zif_abapgit_git_definitions=>ty_git_branch_type VALUE 'AT',
+      other           TYPE zif_abapgit_git_definitions=>ty_git_branch_type VALUE 'ZZ',
     END OF c_git_branch_type .
   CONSTANTS c_head_name TYPE string VALUE 'HEAD' ##NO_TEXT.
   CONSTANTS:
@@ -399,6 +315,7 @@ INTERFACE zif_abapgit_definitions
       heads        TYPE string VALUE 'refs/heads/*',
       tags_prefix  TYPE string VALUE 'refs/tags/',
       tags         TYPE string VALUE 'refs/tags/*',
+      peel         TYPE string VALUE '^{}',
     END OF c_git_branch.
   CONSTANTS:
     BEGIN OF c_diff,
@@ -409,19 +326,19 @@ INTERFACE zif_abapgit_definitions
     END OF c_diff .
   CONSTANTS:
     BEGIN OF c_type,
-      commit TYPE ty_type VALUE 'commit',                   "#EC NOTEXT
-      tree   TYPE ty_type VALUE 'tree',                     "#EC NOTEXT
-      ref_d  TYPE ty_type VALUE 'ref_d',                    "#EC NOTEXT
-      tag    TYPE ty_type VALUE 'tag',                      "#EC NOTEXT
-      blob   TYPE ty_type VALUE 'blob',                     "#EC NOTEXT
+      commit TYPE zif_abapgit_git_definitions=>ty_type VALUE 'commit',                   "#EC NOTEXT
+      tree   TYPE zif_abapgit_git_definitions=>ty_type VALUE 'tree',                     "#EC NOTEXT
+      ref_d  TYPE zif_abapgit_git_definitions=>ty_type VALUE 'ref_d',                    "#EC NOTEXT
+      tag    TYPE zif_abapgit_git_definitions=>ty_type VALUE 'tag',                      "#EC NOTEXT
+      blob   TYPE zif_abapgit_git_definitions=>ty_type VALUE 'blob',                     "#EC NOTEXT
     END OF c_type .
   CONSTANTS:
     BEGIN OF c_state, " https://git-scm.com/docs/git-status
-      unchanged TYPE ty_item_state VALUE '',
-      added     TYPE ty_item_state VALUE 'A',
-      modified  TYPE ty_item_state VALUE 'M',
-      deleted   TYPE ty_item_state VALUE 'D',
-      mixed     TYPE ty_item_state VALUE '*',
+      unchanged TYPE zif_abapgit_git_definitions=>ty_item_state VALUE '',
+      added     TYPE zif_abapgit_git_definitions=>ty_item_state VALUE 'A',
+      modified  TYPE zif_abapgit_git_definitions=>ty_item_state VALUE 'M',
+      deleted   TYPE zif_abapgit_git_definitions=>ty_item_state VALUE 'D',
+      mixed     TYPE zif_abapgit_git_definitions=>ty_item_state VALUE '*',
     END OF c_state .
   CONSTANTS:
     BEGIN OF c_chmod,
@@ -430,8 +347,6 @@ INTERFACE zif_abapgit_definitions
       dir        TYPE ty_chmod VALUE '40000 ',
       submodule  TYPE ty_chmod VALUE '160000',
     END OF c_chmod .
-  CONSTANTS c_crlf TYPE c LENGTH 2 VALUE cl_abap_char_utilities=>cr_lf ##NO_TEXT.
-  CONSTANTS c_newline TYPE c LENGTH 1 VALUE cl_abap_char_utilities=>newline ##NO_TEXT.
   CONSTANTS c_english TYPE spras VALUE 'E' ##NO_TEXT.
   CONSTANTS c_root_dir TYPE string VALUE '/' ##NO_TEXT.
   CONSTANTS c_dot_abapgit TYPE string VALUE '.abapgit.xml' ##NO_TEXT.
@@ -523,7 +438,7 @@ INTERFACE zif_abapgit_definitions
     ty_method TYPE c LENGTH 1 .
   TYPES:
     BEGIN OF ty_stage,
-      file   TYPE ty_file,
+      file   TYPE zif_abapgit_git_definitions=>ty_file,
       method TYPE ty_method,
       status TYPE ty_result,
     END OF ty_stage .

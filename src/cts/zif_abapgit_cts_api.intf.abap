@@ -48,4 +48,16 @@ INTERFACE zif_abapgit_cts_api
     RAISING
       zcx_abapgit_exception .
 
+  METHODS read_description
+    IMPORTING
+      iv_trkorr             TYPE trkorr
+    RETURNING
+      VALUE(rv_description) TYPE string.
+
+  METHODS read_user
+    IMPORTING
+      iv_trkorr       TYPE trkorr
+    RETURNING
+      VALUE(rv_uname) TYPE uname.
+
 ENDINTERFACE.

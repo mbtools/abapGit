@@ -43,14 +43,14 @@ ENDCLASS.
 CLASS ltcl_objects_files IMPLEMENTATION.
 
   METHOD setup.
-    DATA: lt_files TYPE zif_abapgit_definitions=>ty_files_tt,
+    DATA: lt_files TYPE zif_abapgit_git_definitions=>ty_files_tt,
           ls_item  TYPE zif_abapgit_definitions=>ty_item.
     FIELD-SYMBOLS: <ls_files> LIKE LINE OF lt_files.
 
     " filenames are lower case
     APPEND INITIAL LINE TO lt_files ASSIGNING <ls_files>.
     <ls_files>-filename = 'zlf.prog.abap'.
-    <ls_files>-data = get_program_data( zif_abapgit_definitions=>c_newline ).
+    <ls_files>-data = get_program_data( cl_abap_char_utilities=>newline ).
     APPEND INITIAL LINE TO lt_files ASSIGNING <ls_files>.
     <ls_files>-filename = 'zlf.prog.xml'.
     <ls_files>-data = get_xml_data( ).

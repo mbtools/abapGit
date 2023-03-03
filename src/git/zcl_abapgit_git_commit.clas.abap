@@ -6,7 +6,7 @@ CLASS zcl_abapgit_git_commit DEFINITION
     TYPES:
       BEGIN OF ty_pull_result,
         commits TYPE zif_abapgit_definitions=>ty_commit_tt,
-        commit  TYPE zif_abapgit_definitions=>ty_sha1,
+        commit  TYPE zif_abapgit_git_definitions=>ty_sha1,
       END OF ty_pull_result .
 
     CLASS-METHODS get_by_branch
@@ -21,7 +21,7 @@ CLASS zcl_abapgit_git_commit DEFINITION
         zcx_abapgit_exception .
     CLASS-METHODS get_by_commit
       IMPORTING
-        !iv_commit_hash   TYPE zif_abapgit_definitions=>ty_sha1
+        !iv_commit_hash   TYPE zif_abapgit_git_definitions=>ty_sha1
         !iv_repo_url      TYPE string
         !iv_deepen_level  TYPE i
       RETURNING
@@ -44,10 +44,9 @@ CLASS zcl_abapgit_git_commit DEFINITION
       CHANGING
         !ct_commits TYPE zif_abapgit_definitions=>ty_commit_tt .
     CLASS-METHODS clear_missing_parents CHANGING ct_commits TYPE zif_abapgit_definitions=>ty_commit_tt .
-
   PROTECTED SECTION.
   PRIVATE SECTION.
-    TYPES: ty_sha1_range TYPE RANGE OF zif_abapgit_definitions=>ty_sha1 .
+    TYPES: ty_sha1_range TYPE RANGE OF zif_abapgit_git_definitions=>ty_sha1 .
 
     CLASS-METHODS get_1st_child_commit
       IMPORTING
@@ -61,17 +60,39 @@ CLASS zcl_abapgit_git_commit DEFINITION
     CLASS-METHODS is_missing
       IMPORTING
         it_commits       TYPE zif_abapgit_definitions=>ty_commit_tt
-        iv_sha1          TYPE zif_abapgit_definitions=>ty_sha1
+        iv_sha1          TYPE zif_abapgit_git_definitions=>ty_sha1
       RETURNING
         VALUE(rv_result) TYPE abap_bool.
 
-
+    CLASS-METHODS extract_author_data
+      IMPORTING
+        !iv_author TYPE string
+      EXPORTING
+        !ev_author TYPE zif_abapgit_definitions=>ty_commit-author
+        !ev_email  TYPE zif_abapgit_definitions=>ty_commit-email
+        !ev_time   TYPE zif_abapgit_definitions=>ty_commit-time
+      RAISING
+        zcx_abapgit_exception .
 ENDCLASS.
 
 
 
 CLASS zcl_abapgit_git_commit IMPLEMENTATION.
 
+  METHOD extract_author_data.
+
+    " unix time stamps are in same time zone, so ignore the zone
+    FIND REGEX zif_abapgit_definitions=>c_author_regex IN iv_author
+      SUBMATCHES
+      ev_author
+      ev_email
+      ev_time.
+
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise( |Error author regex value='{ iv_author }'| ).
+    ENDIF.
+
+  ENDMETHOD.
 
   METHOD clear_missing_parents.
 
@@ -226,7 +247,7 @@ CLASS zcl_abapgit_git_commit IMPLEMENTATION.
       ls_commit-parent1 = ls_raw-parent.
       ls_commit-parent2 = ls_raw-parent2.
 
-      SPLIT ls_raw-body AT zif_abapgit_definitions=>c_newline INTO TABLE lt_body.
+      SPLIT ls_raw-body AT cl_abap_char_utilities=>newline INTO TABLE lt_body.
 
       READ TABLE lt_body WITH KEY table_line = ' -----END PGP SIGNATURE-----' TRANSPORTING NO FIELDS.
       IF sy-subrc = 0.
@@ -241,7 +262,7 @@ CLASS zcl_abapgit_git_commit IMPLEMENTATION.
         INSERT <lv_body> INTO TABLE ls_commit-body.
       ENDLOOP.
 
-      zcl_abapgit_utils=>extract_author_data(
+      extract_author_data(
         EXPORTING
           iv_author = ls_raw-author
         IMPORTING

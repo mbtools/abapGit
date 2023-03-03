@@ -5,6 +5,9 @@ INTERFACE zif_abapgit_sap_package
   TYPES:
     ty_devclass_tt TYPE STANDARD TABLE OF devclass WITH DEFAULT KEY .
 
+  METHODS validate_name
+    RAISING
+      zcx_abapgit_exception .
   METHODS create
     IMPORTING
       !is_package TYPE scompkdtln
@@ -24,6 +27,16 @@ INTERFACE zif_abapgit_sap_package
   METHODS read_parent
     RETURNING
       VALUE(rv_parentcl) TYPE tdevc-parentcl
+    RAISING
+      zcx_abapgit_exception .
+  METHODS read_description
+    RETURNING
+      VALUE(rv_description) TYPE string
+    RAISING
+      zcx_abapgit_exception .
+  METHODS read_responsible
+    RETURNING
+      VALUE(rv_responsible) TYPE usnam
     RAISING
       zcx_abapgit_exception .
   METHODS create_child

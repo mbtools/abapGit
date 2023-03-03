@@ -73,7 +73,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_SETT_REPO IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -193,9 +193,6 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
       lv_row          TYPE i,
       lv_val          TYPE string.
 
-    FIELD-SYMBOLS:
-      <lv_ignore> TYPE string.
-
     " Get settings from DB
     lo_dot = mo_repo->get_dot_abapgit( ).
     ls_dot = lo_dot->get_data( ).
@@ -235,7 +232,7 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
 
     lv_ignore = concat_lines_of(
       table = ls_dot-ignore
-      sep   = zif_abapgit_definitions=>c_newline ).
+      sep   = cl_abap_char_utilities=>newline ).
 
     mo_form_data->set(
       iv_key = c_id-ignore
@@ -426,7 +423,7 @@ CLASS zcl_abapgit_gui_page_sett_repo IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_renderable~render.
 
-    gui_services( )->register_event_handler( me ).
+    register_handlers( ).
 
     IF mo_form_util->is_empty( mo_form_data ) = abap_true.
       read_settings( ).

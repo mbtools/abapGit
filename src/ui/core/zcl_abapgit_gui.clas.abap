@@ -371,16 +371,7 @@ CLASS zcl_abapgit_gui IMPLEMENTATION.
 
 
   METHOD set_focus.
-    cl_gui_control=>set_focus(
-      EXPORTING
-        control           = mi_html_viewer->get_viewer( )
-      EXCEPTIONS
-        cntl_error        = 1
-        cntl_system_error = 2
-        OTHERS            = 3 ).
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Error in: cl_gui_control=>set_focus - SUBRC = { sy-subrc }| ).
-    ENDIF.
+    mi_html_viewer->set_focus( ).
   ENDMETHOD.
 
 
@@ -418,11 +409,12 @@ CLASS zcl_abapgit_gui IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_services~cache_asset.
 
-    TYPES: ty_hex TYPE x LENGTH 200.
+    TYPES ty_hex TYPE x LENGTH 200.
+    TYPES ty_char TYPE c LENGTH 200.
 
     DATA: lt_xdata TYPE STANDARD TABLE OF ty_hex WITH DEFAULT KEY,
           lv_size  TYPE i,
-          lt_html  TYPE w3htmltab.
+          lt_html  TYPE STANDARD TABLE OF ty_char WITH DEFAULT KEY.
 
     ASSERT iv_text IS SUPPLIED OR iv_xdata IS SUPPLIED.
 

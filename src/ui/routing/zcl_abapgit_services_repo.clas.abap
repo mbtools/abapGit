@@ -100,7 +100,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_services_repo IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_SERVICES_REPO IMPLEMENTATION.
 
 
   METHOD activate_objects.
@@ -378,13 +378,13 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
 
   METHOD popup_overwrite.
 
-    DATA: lt_columns  TYPE zif_abapgit_definitions=>ty_alv_column_tt,
+    DATA: lt_columns  TYPE zif_abapgit_popups=>ty_alv_column_tt,
           lt_selected LIKE ct_overwrite,
           li_popups   TYPE REF TO zif_abapgit_popups.
     DATA lt_preselected_rows TYPE zif_abapgit_popups=>ty_rows.
 
     FIELD-SYMBOLS: <ls_overwrite> LIKE LINE OF ct_overwrite,
-                   <ls_column>    TYPE zif_abapgit_definitions=>ty_alv_column.
+                   <ls_column>    TYPE zif_abapgit_popups=>ty_alv_column.
 
 
     IF lines( ct_overwrite ) = 0.
@@ -395,6 +395,12 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
     <ls_column>-name = 'OBJ_TYPE'.
     APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
     <ls_column>-name = 'OBJ_NAME'.
+    APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
+    <ls_column>-name = 'DEVCLASS'.
+    APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
+    <ls_column>-name = 'STATE'.
+    <ls_column>-text = 'State'.
+    <ls_column>-length = 3.
     APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
     <ls_column>-name = 'ICON'.
     <ls_column>-text = 'Action'.
@@ -437,12 +443,12 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
 
   METHOD popup_package_overwrite.
 
-    DATA: lt_columns  TYPE zif_abapgit_definitions=>ty_alv_column_tt,
+    DATA: lt_columns  TYPE zif_abapgit_popups=>ty_alv_column_tt,
           lt_selected LIKE ct_overwrite,
           li_popups   TYPE REF TO zif_abapgit_popups.
 
     FIELD-SYMBOLS: <ls_overwrite> LIKE LINE OF ct_overwrite,
-                   <ls_column>    TYPE zif_abapgit_definitions=>ty_alv_column.
+                   <ls_column>    TYPE zif_abapgit_popups=>ty_alv_column.
 
     IF lines( ct_overwrite ) = 0.
       RETURN.
@@ -454,6 +460,10 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
     <ls_column>-name = 'OBJ_NAME'.
     APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
     <ls_column>-name = 'DEVCLASS'.
+    APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
+    <ls_column>-name = 'STATE'.
+    <ls_column>-text = 'State'.
+    <ls_column>-length = 3.
     APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
     <ls_column>-name = 'ICON'.
     <ls_column>-text = 'Action'.

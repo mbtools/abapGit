@@ -42,7 +42,7 @@ CLASS zcl_abapgit_gui_page_merge_sel DEFINITION
     DATA mo_form_data TYPE REF TO zcl_abapgit_string_map.
     DATA mo_form_util TYPE REF TO zcl_abapgit_html_form_utils.
     DATA mo_repo TYPE REF TO zcl_abapgit_repo_online.
-    DATA mt_branches TYPE zif_abapgit_definitions=>ty_git_branch_list_tt.
+    DATA mt_branches TYPE zif_abapgit_git_definitions=>ty_git_branch_list_tt.
 
     METHODS read_branches
       RAISING
@@ -57,7 +57,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_merge_sel IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_MERGE_SEL IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -90,8 +90,6 @@ CLASS zcl_abapgit_gui_page_merge_sel IMPLEMENTATION.
 
 
   METHOD get_form_schema.
-
-    DATA lv_name TYPE string.
 
     FIELD-SYMBOLS <ls_branch> LIKE LINE OF mt_branches.
 
@@ -182,7 +180,7 @@ CLASS zcl_abapgit_gui_page_merge_sel IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_renderable~render.
 
-    gui_services( )->register_event_handler( me ).
+    register_handlers( ).
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 

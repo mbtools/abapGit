@@ -9,7 +9,7 @@ CLASS zcl_abapgit_gui_page_patch DEFINITION
       constructor
         IMPORTING
           iv_key        TYPE zif_abapgit_persistence=>ty_repo-key
-          is_file       TYPE zif_abapgit_definitions=>ty_file OPTIONAL
+          is_file       TYPE zif_abapgit_git_definitions=>ty_file OPTIONAL
           is_object     TYPE zif_abapgit_definitions=>ty_item OPTIONAL
           it_files      TYPE zif_abapgit_definitions=>ty_stage_tt OPTIONAL
         RAISING
@@ -27,7 +27,6 @@ CLASS zcl_abapgit_gui_page_patch DEFINITION
           ev_line_index TYPE string
         RAISING
           zcx_abapgit_exception.
-
   PROTECTED SECTION.
     METHODS:
       render_content REDEFINITION,
@@ -135,7 +134,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_gui_page_patch IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_GUI_PAGE_PATCH IMPLEMENTATION.
 
 
   METHOD add_menu_begin.
@@ -458,7 +457,7 @@ CLASS zcl_abapgit_gui_page_patch IMPLEMENTATION.
       CLEAR: mv_pushed.
     ENDIF.
 
-    gui_services( )->get_hotkeys_ctl( )->register_hotkeys( zif_abapgit_gui_hotkeys~get_hotkey_actions( ) ).
+    register_handlers( ).
 
     ri_html = super->render_content( ).
 
