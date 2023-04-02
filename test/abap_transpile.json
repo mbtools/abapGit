@@ -73,12 +73,11 @@
     "keywords": ["return", "in", "class"],
     "extraSetup": "../test/setup.mjs",
     "skip": [
-      {"object": "ZCX_ABAPGIT_EXCEPTION", "class": "ltcl_get_t100_longtext", "method": "test01", "note": "implement function module DOCU_GET, open-abap"},
-      {"object": "ZCX_ABAPGIT_EXCEPTION", "class": "ltcl_split_text", "method": "test_set_msg_z", "note": "some bug in fm TEXT_SPLIT in open-abaå"},
+      {"object": "ZCX_ABAPGIT_EXCEPTION", "class": "ltcl_get_t100_longtext", "method": "test01", "note": "uses MSAG from database"},
+      {"object": "ZCX_ABAPGIT_EXCEPTION", "class": "ltcl_split_text", "method": "test_set_msg_z", "note": "some bug in fm TEXT_SPLIT in open-abap"},
       {"object": "ZCX_ABAPGIT_EXCEPTION", "class": "ltcl_t100",     "method": "text6", "note": "uses MSAG from database"},
       {"object": "ZCX_ABAPGIT_EXCEPTION", "class": "ltcl_t100",     "method": "text7", "note": "uses MSAG from database"},
       {"object": "ZCX_ABAPGIT_EXCEPTION", "class": "ltcl_t100",     "method": "text8", "note": "uses MSAG from database"},
-      {"object": "ZCX_ABAPGIT_EXCEPTION", "class": "ltcl_longtext", "method": "empty_longtext", "note": "implement function module DOCU_GET, open-abap"},
 
       {"object": "ZCL_ABAPGIT_XML_PRETTY", "class": "ltcl_test", "method": "pretty1",           "note": "open-abap does not add the byte order mark"},
       {"object": "ZCL_ABAPGIT_XML_PRETTY", "class": "ltcl_test", "method": "pretty2",           "note": "open-abap does not add the byte order mark"},
@@ -87,17 +86,14 @@
       {"object": "ZCL_ABAPGIT_XML_PRETTY", "class": "ltcl_test", "method": "malformatted",      "note": "infinite loop"},
       {"object": "ZCL_ABAPGIT_XML_PRETTY", "class": "ltcl_test", "method": "dont_ignore_error", "note": "infinite loop"},
 
-      {"object": "ZCL_ABAPGIT_ZLIB",       "class": "ltcl_zlib", "method": "dynamic"},
-      {"object": "ZCL_ABAPGIT_ZLIB",       "class": "ltcl_zlib", "method": "fixed"},
-
-      {"object": "ZCL_ABAPGIT_SERIALIZE", "class": "ltcl_determine_max_threads", "method": "determine_max_threads", "note": "TypeError: abap.FunctionModules.FUNCTION_EXISTS is not a function"},
       {"object": "ZCL_ABAPGIT_SERIALIZE", "class": "ltcl_serialize", "method": "test",        "note": "Void type: KO100"},
       {"object": "ZCL_ABAPGIT_SERIALIZE", "class": "ltcl_serialize", "method": "unsupported", "note": "Void type: KO100"},
       {"object": "ZCL_ABAPGIT_SERIALIZE", "class": "ltcl_serialize", "method": "ignored",     "note": "Void type: KO100"},
       {"object": "ZCL_ABAPGIT_SERIALIZE", "class": "ltcl_i18n", "method": "test",             "note": "Void type: DD02V"},
+      {"object": "ZCL_ABAPGIT_SERIALIZE", "class": "ltcl_determine_max_threads", "method": "determine_max_threads",             "note": "??"},
 
-      {"object": "ZCL_ABAPGIT_FILE_STATUS", "class": "ltcl_calculate_status", "method": "complete", "note": "??"},
-      {"object": "ZCL_ABAPGIT_FILE_STATUS", "class": "ltcl_calculate_status", "method": "only_local2", "note": "? sy-subrc = 4 vs 8 ?"},
+      {"object": "ZCL_ABAPGIT_FILE_STATUS", "class": "ltcl_calculate_status", "method": "deleted_remote", "note": "READ TABLE subrc 4 vs subrc 8"},
+      {"object": "ZCL_ABAPGIT_FILE_STATUS", "class": "ltcl_calculate_status", "method": "complete", "note": "READ TABLE subrc 4 vs subrc 8"},
 
       {"object": "ZCL_ABAPGIT_PERSIST_PACKAGES", "class": "ltcl_packages", "method": "test_package", "note": "ZABAPGIT table not existing, error cx_sy_dynamic_osql_semantics"},
 
@@ -136,7 +132,7 @@
       {"object": "ZCL_ABAPGIT_INJECTOR", "class": "ltcl_no_dependency_injection", "method": "no_injection"},
       {"object": "ZCL_ABAPGIT_INJECTOR", "class": "ltcl_simple_dependency_inject", "method": "simple_injection"},
 
-      {"object": "ZCL_ABAPGIT_ENVIRONMENT", "class": "ltcl_test", "method": "is_repo_object_changes_allowed", "note": "Void type: TADIR-EDTFLAG"},
+      {"object": "ZCL_ABAPGIT_ENVIRONMENT", "class": "ltcl_test", "method": "is_repo_object_changes_allowed", "note": "Void type: UVERS"},
 
       {"object": "ZCL_ABAPGIT_FILE_DESERIALIZE", "class": "ltcl_prio_deserialization", "method": "clas_before_pinf", "note": "hmm, something with promises? or cyclic requires"},
       {"object": "ZCL_ABAPGIT_FILE_DESERIALIZE", "class": "ltcl_prio_deserialization", "method": "ddls_before_dcls", "note": "hmm, something with promises?"},
@@ -157,6 +153,8 @@
       {"object": "ZCL_ABAPGIT_FILE_DESERIALIZE", "class": "ltcl_prio_deserialization", "method": "webi_before_sprx", "note": "hmm, something with promises?"},
       {"object": "ZCL_ABAPGIT_FILE_DESERIALIZE", "class": "ltcl_prio_deserialization", "method": "xslt_before_clas", "note": "hmm, something with promises?"},
       {"object": "ZCL_ABAPGIT_FILE_DESERIALIZE", "class": "ltcl_prio_deserialization", "method": "xslt_before_prog", "note": "hmm, something with promises?"},
+
+      {"object": "ZCL_ABAPGIT_OBJECT_INTF", "class": "ltcl_aff_metadata", "method": "serialize_default", "note": "??"},
 
       {"object": "ZCL_ABAPGIT_DOT_ABAPGIT", "class": "ltcl_dot_abapgit", "method": "identity", "note": " https://github.com/open-abap/open-abap/issues/471 "},
 
@@ -197,9 +195,7 @@
       {"object": "ZCL_ABAPGIT_SERVICES_BASIS", "class": "ltcl_create_package", "method": "raise_error_if_package_exists", "note": "Void type: SCOMPKDTLN"},
       {"object": "ZCL_ABAPGIT_SERVICES_BASIS", "class": "ltcl_create_package", "method": "package_given_in_popup",        "note": "Void type: SCOMPKDTLN"},
       {"object": "ZCL_ABAPGIT_SERVICES_BASIS", "class": "ltcl_create_package", "method": "package_not_created_when_canc", "note": "Void type: SCOMPKDTLN"},
-      {"object": "ZCL_ABAPGIT_SERVICES_BASIS", "class": "ltcl_create_package", "method": "package_created_when_confirm",  "note": "Void type: SCOMPKDTLN"},
-
-      {"object": "ZCL_ABAPGIT_REPO_CHECKSUMS", "class": "ltcl_test_checksums", "method": "rebuild_simple", "note": "??"}
+      {"object": "ZCL_ABAPGIT_SERVICES_BASIS", "class": "ltcl_create_package", "method": "package_created_when_confirm",  "note": "Void type: SCOMPKDTLN"}
     ]
   }
 }
