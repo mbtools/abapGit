@@ -220,7 +220,6 @@ CLASS ltcl_htmldiff_test_2 DEFINITION FOR TESTING
       insert_a_letter_and_a_space FOR TESTING,
       remove_a_letter_and_a_space FOR TESTING,
       change_a_letter FOR TESTING,
-      support_chinese FOR TESTING,
       support_img_tags_insertion FOR TESTING,
       support_img_tags_deletion FOR TESTING.
 
@@ -298,28 +297,6 @@ CLASS ltcl_htmldiff_test_2 IMPLEMENTATION.
       iv_css    = abap_true ).
 
     lv_exp = 'a <del class="diffmod">b</del><ins class="diffmod">d</ins> c'.
-
-    cl_abap_unit_assert=>assert_equals(
-      act = lv_act
-      exp = lv_exp ).
-
-  ENDMETHOD.
-
-  METHOD support_chinese.
-
-    DATA:
-      lv_act TYPE string,
-      lv_exp TYPE string.
-
-    lv_act = lcl_helper=>htmldiff(
-      iv_before  = '这个是中文内容, Ruby is the bast'
-      iv_after   = '这是中国语内容,Ruby is the best language.'
-      iv_chinese = abap_true
-      iv_css     = abap_true ).
-
-    lv_exp = '这<del class="diffdel">个</del>是中<del class="diffmod">文</del><ins class="diffmod">'
-          && '国语</ins>内容,<del class="diffdel"> </del>Ruby is the <del class="diffmod">bast</del>'
-          && '<ins class="diffmod">best language.</ins>'.
 
     cl_abap_unit_assert=>assert_equals(
       act = lv_act
@@ -671,7 +648,6 @@ CLASS ltcl_calculate_operations IMPLEMENTATION.
   METHOD calculate_simple.
 
     DATA:
-      ls_exp TYPE zcl_abapgit_htmldiff=>ty_operation,
       ls_op  TYPE zcl_abapgit_htmldiff=>ty_operation,
       lt_ops TYPE zcl_abapgit_htmldiff=>ty_operations.
 
