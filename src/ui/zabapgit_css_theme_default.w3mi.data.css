@@ -237,6 +237,10 @@ div.diff_content {
   border-top-color: #ddd;
   border-bottom-color: #ddd;
 }
+.diff_line ins {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15));
+  text-decoration: none;
+}
 
 /* STATE BLOCK COLORS */
 
