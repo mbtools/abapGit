@@ -187,7 +187,7 @@ CLASS zcl_abapgit_folder_logic IMPLEMENTATION.
     lv_parent  = iv_top.
 
     " Convert special package for local user objects to $TMP
-    IF zcl_abapgit_tmp_package=>is_user_package( iv_top ).
+    IF zcl_abapgit_tmp_package=>is_user_package( iv_top ) = abap_true.
       rv_package = zcl_abapgit_tmp_package=>map_package_name( iv_top ).
       RETURN.
     ENDIF.
