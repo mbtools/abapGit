@@ -95,7 +95,7 @@ CLASS zcl_abapgit_folder_logic IMPLEMENTATION.
           lv_parentcl     TYPE tdevc-parentcl,
           lv_folder_logic TYPE string.
 
-    IF iv_top = iv_package.
+    IF iv_top = iv_package OR zcl_abapgit_tmp_package=>is_tmp_package( iv_package ) = abap_true.
       rv_path = io_dot->get_starting_folder( ).
     ELSE.
       lv_parentcl = get_parent(
@@ -185,6 +185,13 @@ CLASS zcl_abapgit_folder_logic IMPLEMENTATION.
 
     lv_path    = iv_path+lv_length.
     lv_parent  = iv_top.
+
+    " Convert special package for local user objects to $TMP
+    IF zcl_abapgit_tmp_package=>is_user_package( iv_top ).
+      rv_package = zcl_abapgit_tmp_package=>map_package_name( iv_top ).
+      RETURN.
+    ENDIF.
+
     rv_package = iv_top.
 
     " Automatically create package using minimal properties
