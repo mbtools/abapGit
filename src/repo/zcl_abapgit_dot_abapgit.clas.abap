@@ -117,6 +117,16 @@ CLASS zcl_abapgit_dot_abapgit DEFINITION
       IMPORTING
         !iv_original_system TYPE csequence .
 
+    METHODS get_packaging
+      RETURNING
+        VALUE(rs_packaging) TYPE zif_abapinst_dot_abapgit=>ty_packaging
+      RAISING
+        zcx_abapgit_exception.
+
+    METHODS set_packaging
+      IMPORTING
+        !is_packaging TYPE zif_abapinst_dot_abapgit=>ty_packaging.
+
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -268,6 +278,21 @@ CLASS zcl_abapgit_dot_abapgit IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD get_packaging.
+
+    FIELD-SYMBOLS <ls_dependency> LIKE LINE OF rs_packaging-dependencies.
+
+    rs_packaging = ms_data-packaging.
+
+    rs_packaging-sem_version = zcl_abapgit_version=>conv_str_to_version( rs_packaging-version ).
+
+    LOOP AT rs_packaging-dependencies ASSIGNING <ls_dependency>.
+      <ls_dependency>-sem_version = zcl_abapgit_version=>conv_str_to_version( <ls_dependency>-version ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
   METHOD get_requirements.
     rt_requirements = ms_data-requirements.
   ENDMETHOD.
@@ -379,6 +404,21 @@ CLASS zcl_abapgit_dot_abapgit IMPLEMENTATION.
 
   METHOD set_original_system.
     ms_data-original_system = iv_original_system.
+  ENDMETHOD.
+
+
+  METHOD set_packaging.
+
+    FIELD-SYMBOLS <ls_dependency> LIKE LINE OF ms_data-packaging-dependencies.
+
+    ms_data-packaging = is_packaging.
+
+    CLEAR ms_data-packaging-sem_version.
+
+    LOOP AT ms_data-packaging-dependencies ASSIGNING <ls_dependency>.
+      CLEAR <ls_dependency>-sem_version.
+    ENDLOOP.
+
   ENDMETHOD.
 
 

@@ -22,6 +22,7 @@ INTERFACE zif_abapgit_dot_abapgit PUBLIC.
       version_constant      TYPE string,
       abap_language_version TYPE string,
       original_system       TYPE tadir-srcsystem,
+      packaging             TYPE zif_abapinst_dot_abapgit=>ty_packaging,
     END OF ty_dot_abapgit .
 
   CONSTANTS:
