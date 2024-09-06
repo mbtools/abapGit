@@ -514,7 +514,8 @@ CLASS lcl_aff_metadata_handler DEFINITION.
     CLASS-METHODS deserialize_translation
       IMPORTING io_files           TYPE REF TO zcl_abapgit_objects_files
                 is_item            TYPE zif_abapgit_definitions=>ty_item
-      EXPORTING et_description     TYPE zcl_abapgit_object_intf=>ty_intf-description
+      EXPORTING et_description_int TYPE zcl_abapgit_object_intf=>ty_intf-description_int
+                et_description     TYPE zcl_abapgit_object_intf=>ty_intf-description
                 et_description_sub TYPE zcl_abapgit_object_intf=>ty_intf-description_sub
       RAISING   zcx_abapgit_exception.
   PRIVATE SECTION.
@@ -700,11 +701,13 @@ CLASS lcl_aff_metadata_handler IMPLEMENTATION.
 
   METHOD deserialize_translation.
     DATA: lo_properties_file  TYPE REF TO zcl_abapgit_properties_file,
+          lt_description_int  LIKE LINE OF et_description_int,
           lt_translation_file TYPE zif_abapgit_i18n_file=>ty_table_of,
           li_translation_file LIKE LINE OF lt_translation_file,
           ls_aff_data         TYPE zif_abapgit_aff_intf_v1=>ty_main,
           lo_type_mapper      TYPE REF TO zif_abapgit_aff_type_mapping,
-          ls_ag_data          TYPE zcl_abapgit_object_intf=>ty_intf.
+          ls_ag_data          TYPE zcl_abapgit_object_intf=>ty_intf,
+          lv_sap1             TYPE sy-langu.
 
     lt_translation_file = io_files->read_i18n_files( ).
 
@@ -715,7 +718,9 @@ CLASS lcl_aff_metadata_handler IMPLEMENTATION.
       lo_properties_file ?= li_translation_file.
       lo_properties_file->get_translations( IMPORTING ev_data = ls_aff_data ).
 
-      ls_aff_data-header-original_language = to_upper( li_translation_file->lang( ) ). " is target language
+      lv_sap1 = zcl_abapgit_convert=>language_sap2_to_sap1( li_translation_file->lang( ) ).
+      ls_aff_data-header-original_language = lv_sap1.
+
 
       CREATE OBJECT lo_type_mapper TYPE lcl_aff_type_mapping.
       lo_type_mapper->to_abapgit(
@@ -725,7 +730,13 @@ CLASS lcl_aff_metadata_handler IMPLEMENTATION.
         IMPORTING
           es_data        = ls_ag_data ).
 
-      APPEND LINES OF ls_ag_data-description TO et_description.
+
+      lt_description_int-clsname  = ls_ag_data-vseointerf-clsname.
+      lt_description_int-langu    = ls_ag_data-vseointerf-langu.
+      lt_description_int-descript = ls_ag_data-vseointerf-descript.
+
+      APPEND lt_description_int TO et_description_int.
+      APPEND LINES OF ls_ag_data-description     TO et_description.
       APPEND LINES OF ls_ag_data-description_sub TO et_description_sub.
 
     ENDLOOP.

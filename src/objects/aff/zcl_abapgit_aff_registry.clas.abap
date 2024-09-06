@@ -46,20 +46,26 @@ CLASS ZCL_ABAPGIT_AFF_REGISTRY IMPLEMENTATION.
 
 
   METHOD initialize_registry_table.
+    register( 'BGQC' ).
     register( 'CDBO' ).
     register( 'CHKC' ).
     register( 'CHKO' ).
     register( 'CHKV' ).
     register( 'DRTY' ).
     register( 'DTEB' ).
+    register( 'DSFI' ).
+    register( 'DRAS' ).
+    register( 'DSFD' ).
     register( 'EVTB' ).
     register( 'EEEC' ).
     register( 'GSMP' ).
     register( iv_obj_type     = 'INTF'
               iv_experimental = abap_true ).
     register( 'SMBC' ).
+    register( 'SWCR' ).
     register( 'NONT' ).
     register( 'RONT' ).
+    register( 'UIAD' ).
     register( 'UIPG' ).
     register( 'UIST' ).
   ENDMETHOD.

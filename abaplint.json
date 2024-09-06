@@ -25,6 +25,10 @@
       ]
     },
     "abapdoc": false,
+    "align_pseudo_comments": false,
+    "invalid_table_index": true,
+    "tables_declared_locally": true,
+    "unused_macros": true,
     "align_parameters": false,
     "allowed_object_naming": true,
     "allowed_object_types": {
@@ -121,8 +125,11 @@
     },
     "double_space": true,
     "downport": false,
+    "add_test_attributes": true,
+    "implicit_start_of_selection": true,
+    "empty_event": true,
     "dynpro_checks": false,
-    "easy_to_find_messages": true,
+    "easy_to_find_messages": false,
     "empty_line_in_statement": {
       "allowChained": true
     },
@@ -131,6 +138,7 @@
       "at": true,
       "case": true,
       "do": true,
+      "loopAllowIfSubrc": false,
       "if": false,
       "loop": true,
       "select": true,
@@ -202,6 +210,7 @@
         "^sychar70$",
         "^sydatum$",
         "^sylangu$",
+        "^syst_langu$",
         "^syst_title$",
         "^syuzeit$",
         "^xubname$"
