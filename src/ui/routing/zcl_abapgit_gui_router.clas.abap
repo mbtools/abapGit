@@ -65,6 +65,18 @@ CLASS zcl_abapgit_gui_router DEFINITION
         VALUE(rs_handled) TYPE zif_abapgit_gui_event_handler=>ty_handling_result
       RAISING
         zcx_abapgit_exception .
+    METHODS zip_export_transport
+      IMPORTING
+        iv_key TYPE zif_abapgit_persistence=>ty_repo-key
+      RAISING
+        zcx_abapgit_exception.
+    METHODS go_stage_transport
+      IMPORTING
+        iv_key TYPE zif_abapgit_persistence=>ty_repo-key
+      RETURNING
+        VALUE(ro_filter) TYPE REF TO zcl_abapgit_object_filter_tran
+      RAISING
+        zcx_abapgit_exception.
     METHODS repository_services
       IMPORTING
         !ii_event         TYPE REF TO zif_abapgit_gui_event
@@ -142,7 +154,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_GUI_ROUTER IMPLEMENTATION.
+CLASS zcl_abapgit_gui_router IMPLEMENTATION.
 
 
   METHOD abapgit_services_actions.
@@ -236,11 +248,8 @@ CLASS ZCL_ABAPGIT_GUI_ROUTER IMPLEMENTATION.
 
   METHOD general_page_routing.
 
-    DATA: lv_key              TYPE zif_abapgit_persistence=>ty_repo-key,
-          lv_last_repo_key    TYPE zif_abapgit_persistence=>ty_repo-key,
-          lo_obj_filter_trans TYPE REF TO zcl_abapgit_object_filter_tran,
-          lo_repo             TYPE REF TO zcl_abapgit_repo,
-          lt_r_trkorr         TYPE zif_abapgit_definitions=>ty_trrngtrkor_tt.
+    DATA: lv_key           TYPE zif_abapgit_persistence=>ty_repo-key,
+          lv_last_repo_key TYPE zif_abapgit_persistence=>ty_repo-key.
 
     lv_key = ii_event->query( )->get( 'KEY' ).
 
@@ -283,17 +292,8 @@ CLASS ZCL_ABAPGIT_GUI_ROUTER IMPLEMENTATION.
         rs_handled-page  = get_page_stage( ii_event ).
         rs_handled-state = get_state_diff( ii_event ).
       WHEN zif_abapgit_definitions=>c_action-go_stage_transport.              " Go Staging page by Transport
-
-        lt_r_trkorr = zcl_abapgit_ui_factory=>get_popups( )->popup_select_wb_tc_tr_and_tsk( ).
-
-        lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( lv_key ).
-
-        CREATE OBJECT lo_obj_filter_trans.
-        lo_obj_filter_trans->set_filter_values( iv_package  = lo_repo->get_package( )
-                                                it_r_trkorr = lt_r_trkorr ).
-
         rs_handled-page = get_page_stage( ii_event      = ii_event
-                                          ii_obj_filter = lo_obj_filter_trans ).
+                                          ii_obj_filter = go_stage_transport( lv_key ) ).
         rs_handled-state = get_state_diff( ii_event ).
       WHEN zif_abapgit_definitions=>c_action-go_tutorial.                     " Go to tutorial
         rs_handled-page  = zcl_abapgit_gui_page_tutorial=>create( ).
@@ -593,15 +593,16 @@ CLASS ZCL_ABAPGIT_GUI_ROUTER IMPLEMENTATION.
         rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
       WHEN zif_abapgit_definitions=>c_action-clipboard.
         lv_clip_content = ii_event->query( )->get( 'CLIPBOARD' ).
+        IF lv_clip_content IS INITIAL.
+          " yank mode sends via form_data
+          lv_clip_content = ii_event->form_data( )->get( 'CLIPBOARD' ).
+        ENDIF.
+        IF lv_clip_content IS INITIAL.
+          zcx_abapgit_exception=>raise( 'Export to clipboard failed, no data' ).
+        ENDIF.
         APPEND lv_clip_content TO lt_clipboard.
         zcl_abapgit_ui_factory=>get_frontend_services( )->clipboard_export( lt_clipboard ).
-        MESSAGE 'Successfully exported URL to Clipboard.' TYPE 'S'.
-        rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
-      WHEN zif_abapgit_definitions=>c_action-yank_to_clipboard.
-        lv_clip_content = ii_event->form_data( )->get( 'CLIPBOARD' ).
-        APPEND lv_clip_content TO lt_clipboard.
-        zcl_abapgit_ui_factory=>get_frontend_services( )->clipboard_export( lt_clipboard ).
-        MESSAGE 'Successfully exported to Clipboard.' TYPE 'S'.
+        MESSAGE 'Successfully exported to clipboard' TYPE 'S'.
         rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
     ENDCASE.
 
@@ -763,17 +764,15 @@ CLASS ZCL_ABAPGIT_GUI_ROUTER IMPLEMENTATION.
 
   METHOD zip_services.
 
-    DATA: lv_key              TYPE zif_abapgit_persistence=>ty_repo-key,
-          lo_repo             TYPE REF TO zcl_abapgit_repo,
-          lv_path             TYPE string,
-          lv_dest             TYPE rfcdest,
-          lv_msg              TYPE c LENGTH 200,
-          lv_xstr             TYPE xstring,
-          lv_package          TYPE zif_abapgit_persistence=>ty_repo-package,
-          lv_folder_logic     TYPE string,
-          lv_main_lang_only   TYPE zif_abapgit_persistence=>ty_local_settings-main_language_only,
-          lo_obj_filter_trans TYPE REF TO zcl_abapgit_object_filter_tran,
-          lt_r_trkorr         TYPE zif_abapgit_definitions=>ty_trrngtrkor_tt.
+    DATA: lv_key            TYPE zif_abapgit_persistence=>ty_repo-key,
+          lo_repo           TYPE REF TO zcl_abapgit_repo,
+          lv_path           TYPE string,
+          lv_dest           TYPE rfcdest,
+          lv_xstr           TYPE xstring,
+          lv_msg            TYPE c LENGTH 200,
+          lv_package        TYPE zif_abapgit_persistence=>ty_repo-package,
+          lv_folder_logic   TYPE string,
+          lv_main_lang_only TYPE zif_abapgit_persistence=>ty_local_settings-main_language_only.
 
     CONSTANTS:
       BEGIN OF lc_page,
@@ -843,18 +842,7 @@ CLASS ZCL_ABAPGIT_GUI_ROUTER IMPLEMENTATION.
                        iv_xstr    = lv_xstr ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
       WHEN zif_abapgit_definitions=>c_action-zip_export_transport.                      " Export repo as ZIP
-
-        lt_r_trkorr = zcl_abapgit_ui_factory=>get_popups( )->popup_select_wb_tc_tr_and_tsk( ).
-        lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( lv_key ).
-        lo_repo->refresh( ).
-        CREATE OBJECT lo_obj_filter_trans.
-        lo_obj_filter_trans->set_filter_values( iv_package  = lo_repo->get_package( )
-                                                it_r_trkorr = lt_r_trkorr ).
-
-        lv_xstr = zcl_abapgit_zip=>encode_files( lo_repo->get_files_local_filtered( lo_obj_filter_trans ) ).
-        lo_repo->refresh( ).
-        file_download( iv_package = lo_repo->get_package( )
-                       iv_xstr    = lv_xstr ).
+        zip_export_transport( lv_key ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
       WHEN zif_abapgit_definitions=>c_action-zip_package.                     " Export package as ZIP
         rs_handled-page  = zcl_abapgit_gui_page_ex_pckage=>create( ).
@@ -870,6 +858,42 @@ CLASS ZCL_ABAPGIT_GUI_ROUTER IMPLEMENTATION.
         rs_handled-page  = zcl_abapgit_gui_page_whereused=>create( ii_repo = lo_repo ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
     ENDCASE.
+
+  ENDMETHOD.
+
+  METHOD zip_export_transport.
+
+    DATA lo_obj_filter_trans TYPE REF TO zcl_abapgit_object_filter_tran.
+    DATA lt_r_trkorr         TYPE zif_abapgit_definitions=>ty_trrngtrkor_tt.
+    DATA lo_repo             TYPE REF TO zcl_abapgit_repo.
+    DATA lv_xstr             TYPE xstring.
+
+    lt_r_trkorr = zcl_abapgit_ui_factory=>get_popups( )->popup_select_wb_tc_tr_and_tsk( ).
+    lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
+    lo_repo->refresh( ).
+    CREATE OBJECT lo_obj_filter_trans.
+    lo_obj_filter_trans->set_filter_values( iv_package  = lo_repo->get_package( )
+                                            it_r_trkorr = lt_r_trkorr ).
+
+    lv_xstr = zcl_abapgit_zip=>encode_files( lo_repo->get_files_local_filtered( lo_obj_filter_trans ) ).
+    lo_repo->refresh( ).
+    file_download( iv_package = lo_repo->get_package( )
+                   iv_xstr    = lv_xstr ).
+
+  ENDMETHOD.
+
+  METHOD go_stage_transport.
+
+    DATA lt_r_trkorr TYPE zif_abapgit_definitions=>ty_trrngtrkor_tt.
+    DATA lo_repo TYPE REF TO zcl_abapgit_repo.
+
+    lt_r_trkorr = zcl_abapgit_ui_factory=>get_popups( )->popup_select_wb_tc_tr_and_tsk( ).
+
+    lo_repo ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
+
+    CREATE OBJECT ro_filter.
+    ro_filter->set_filter_values( iv_package  = lo_repo->get_package( )
+                                  it_r_trkorr = lt_r_trkorr ).
 
   ENDMETHOD.
 ENDCLASS.

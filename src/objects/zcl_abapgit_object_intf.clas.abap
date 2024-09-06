@@ -12,6 +12,7 @@ CLASS zcl_abapgit_object_intf DEFINITION PUBLIC FINAL INHERITING FROM zcl_abapgi
       BEGIN OF ty_intf,
         vseointerf      TYPE vseointerf,
         docu            TYPE ty_docu,
+        description_int TYPE zif_abapgit_oo_object_fnc=>ty_seoclasstx_tt,
         description     TYPE zif_abapgit_oo_object_fnc=>ty_seocompotx_tt,
         description_sub TYPE zif_abapgit_oo_object_fnc=>ty_seosubcotx_tt,
       END OF ty_intf.
@@ -44,18 +45,27 @@ CLASS zcl_abapgit_object_intf DEFINITION PUBLIC FINAL INHERITING FROM zcl_abapgi
       RETURNING VALUE(rs_docu)       TYPE ty_docu
       RAISING
                 zcx_abapgit_exception.
-    METHODS serialize_descr
+    METHODS serialize_descr_class
       IMPORTING
-                !iv_clsname           TYPE seoclsname
-      RETURNING VALUE(rs_description) TYPE ty_intf-description
+        !iv_clsname           TYPE seoclsname
+      RETURNING
+        VALUE(rs_description) TYPE ty_intf-description_int
       RAISING
-                zcx_abapgit_exception.
-    METHODS serialize_descr_sub
+        zcx_abapgit_exception.
+    METHODS serialize_descr_compo
       IMPORTING
-                !iv_clsname           TYPE seoclsname
-      RETURNING VALUE(rs_description) TYPE ty_intf-description_sub
+        !iv_clsname           TYPE seoclsname
+      RETURNING
+        VALUE(rs_description) TYPE ty_intf-description
       RAISING
-                zcx_abapgit_exception.
+        zcx_abapgit_exception.
+    METHODS serialize_descr_subco
+      IMPORTING
+        !iv_clsname           TYPE seoclsname
+      RETURNING
+        VALUE(rs_description) TYPE ty_intf-description_sub
+      RAISING
+        zcx_abapgit_exception.
     METHODS serialize_xml
       IMPORTING
         !io_xml TYPE REF TO zif_abapgit_xml_output
@@ -88,10 +98,13 @@ CLASS zcl_abapgit_object_intf DEFINITION PUBLIC FINAL INHERITING FROM zcl_abapgi
       RAISING
         zcx_abapgit_exception.
 
-    METHODS deserialize_descriptions
+    METHODS deserialize_descr_class
+      IMPORTING
+        it_description TYPE zif_abapgit_oo_object_fnc=>ty_seoclasstx_tt OPTIONAL.
+    METHODS deserialize_descr_compo
       IMPORTING
         it_description TYPE zif_abapgit_oo_object_fnc=>ty_seocompotx_tt OPTIONAL.
-    METHODS deserialize_descr_sub
+    METHODS deserialize_descr_subco
       IMPORTING
         it_description TYPE zif_abapgit_oo_object_fnc=>ty_seosubcotx_tt OPTIONAL.
     METHODS read_xml
@@ -104,6 +117,9 @@ CLASS zcl_abapgit_object_intf DEFINITION PUBLIC FINAL INHERITING FROM zcl_abapgi
       RETURNING VALUE(rs_intf) TYPE ty_intf
       RAISING
                 zcx_abapgit_exception.
+    METHODS extract_languages_for_transl
+      IMPORTING is_intf          TYPE ty_intf
+      RETURNING VALUE(rs_result) TYPE zif_abapgit_definitions=>ty_languages.
 ENDCLASS.
 
 
@@ -130,21 +146,32 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD deserialize_descriptions.
-    DATA:  ls_clskey TYPE seoclskey.
+  METHOD deserialize_descr_class.
+    DATA ls_clskey TYPE seoclskey.
     ls_clskey-clsname = ms_item-obj_name.
 
-    mi_object_oriented_object_fct->update_descriptions(
+    mi_object_oriented_object_fct->update_descriptions_class(
+      is_key          = ls_clskey
+      iv_language     = mv_language
+      it_descriptions = it_description ).
+  ENDMETHOD.
+
+
+  METHOD deserialize_descr_compo.
+    DATA ls_clskey TYPE seoclskey.
+    ls_clskey-clsname = ms_item-obj_name.
+
+    mi_object_oriented_object_fct->update_descriptions_compo(
       is_key          = ls_clskey
       it_descriptions = it_description ).
   ENDMETHOD.
 
 
-  METHOD deserialize_descr_sub.
-    DATA:  ls_clskey TYPE seoclskey.
+  METHOD deserialize_descr_subco.
+    DATA ls_clskey TYPE seoclskey.
     ls_clskey-clsname = ms_item-obj_name.
 
-    mi_object_oriented_object_fct->update_descriptions_sub(
+    mi_object_oriented_object_fct->update_descriptions_subco(
       is_key          = ls_clskey
       it_descriptions = it_description ).
   ENDMETHOD.
@@ -279,6 +306,8 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
   METHOD read_xml.
     ii_xml->read( EXPORTING iv_name = 'VSEOINTERF'
                   CHANGING  cg_data = rs_intf-vseointerf ).
+    ii_xml->read( EXPORTING iv_name = 'DESCRIPTIONS_INTERFACE'
+                  CHANGING  cg_data = rs_intf-description_int ).
     ii_xml->read( EXPORTING iv_name = 'DESCRIPTIONS'
                   CHANGING  cg_data = rs_intf-description ).
     ii_xml->read( EXPORTING iv_name = 'DESCRIPTIONS_SUB'
@@ -290,7 +319,34 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD serialize_descr.
+  METHOD serialize_descr_class.
+
+    DATA: lt_descriptions    TYPE zif_abapgit_oo_object_fnc=>ty_seoclasstx_tt,
+          lt_language_filter TYPE zif_abapgit_environment=>ty_system_language_filter.
+
+    " Main language is already in VSEOCLASS so we serialize only translations
+    IF mo_i18n_params->ms_params-main_language_only = abap_true.
+      RETURN.
+    ENDIF.
+
+    lt_descriptions = mi_object_oriented_object_fct->read_descriptions_class(
+      iv_object_name = iv_clsname
+      iv_language    = mv_language ).
+
+    " Remove technical languages
+    lt_language_filter = mo_i18n_params->build_language_filter( ).
+    DELETE lt_descriptions WHERE NOT langu IN lt_language_filter AND langu <> mv_language.
+
+    IF lines( lt_descriptions ) = 0.
+      RETURN.
+    ENDIF.
+
+    rs_description = lt_descriptions.
+
+  ENDMETHOD.
+
+
+  METHOD serialize_descr_compo.
 
     DATA: lt_descriptions    TYPE zif_abapgit_oo_object_fnc=>ty_seocompotx_tt,
           lv_language        TYPE spras,
@@ -300,7 +356,7 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
       lv_language = mv_language.
     ENDIF.
 
-    lt_descriptions = mi_object_oriented_object_fct->read_descriptions(
+    lt_descriptions = mi_object_oriented_object_fct->read_descriptions_compo(
       iv_object_name = iv_clsname
       iv_language    = lv_language ).
 
@@ -317,7 +373,7 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD serialize_descr_sub.
+  METHOD serialize_descr_subco.
 
     DATA: lt_descriptions    TYPE zif_abapgit_oo_object_fnc=>ty_seosubcotx_tt,
           lv_language        TYPE spras,
@@ -327,7 +383,7 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
       lv_language = mv_language.
     ENDIF.
 
-    lt_descriptions = mi_object_oriented_object_fct->read_descriptions_sub(
+    lt_descriptions = mi_object_oriented_object_fct->read_descriptions_subco(
       iv_object_name = iv_clsname
       iv_language    = lv_language ).
 
@@ -389,12 +445,13 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
   METHOD serialize_xml.
 
     DATA:
-      ls_intf             TYPE ty_intf,
-      ls_clskey           TYPE seoclskey,
-      lv_serialized_data  TYPE xstring,
-      lt_langu_additional TYPE zif_abapgit_lang_definitions=>ty_langus,
-      lt_i18n_file        TYPE zif_abapgit_i18n_file=>ty_table_of,
-      lo_i18n_file        TYPE REF TO zif_abapgit_i18n_file.
+      ls_intf                      TYPE ty_intf,
+      ls_clskey                    TYPE seoclskey,
+      lv_serialized_data           TYPE xstring,
+      lt_langu_additional          TYPE zif_abapgit_lang_definitions=>ty_langus,
+      lt_i18n_file                 TYPE zif_abapgit_i18n_file=>ty_table_of,
+      lo_i18n_file                 TYPE REF TO zif_abapgit_i18n_file,
+      lt_languages_for_translation TYPE zif_abapgit_definitions=>ty_languages.
 
     ls_clskey-clsname = ms_item-obj_name.
 
@@ -416,17 +473,21 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
       iv_clsname          = ls_clskey-clsname
       it_langu_additional = lt_langu_additional ).
 
-    ls_intf-description = serialize_descr( ls_clskey-clsname ).
-    ls_intf-description_sub = serialize_descr_sub( ls_clskey-clsname ).
+    ls_intf-description_int = serialize_descr_class( ls_clskey-clsname ).
+    ls_intf-description     = serialize_descr_compo( ls_clskey-clsname ).
+    ls_intf-description_sub = serialize_descr_subco( ls_clskey-clsname ).
 
     " HERE: switch with feature flag for XML or JSON file format
     IF mv_aff_enabled = abap_true.
       lv_serialized_data = lcl_aff_metadata_handler=>serialize( ls_intf ).
       mo_files->add_raw( iv_ext  = 'json'
                          iv_data = lv_serialized_data ).
+
+      lt_languages_for_translation = extract_languages_for_transl( ls_intf ).
+
       lt_i18n_file = lcl_aff_metadata_handler=>serialize_translations(
         is_intf     = ls_intf
-        it_language = mo_i18n_params->ms_params-translation_languages ).
+        it_language = lt_languages_for_translation ).
 
       LOOP AT lt_i18n_file INTO lo_i18n_file.
         mo_files->add_i18n_file( lo_i18n_file ).
@@ -434,6 +495,8 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
     ELSE.
       io_xml->add( iv_name = 'VSEOINTERF'
                    ig_data = ls_intf-vseointerf ).
+      io_xml->add( iv_name = 'DESCRIPTIONS_INTERFACE'
+                   ig_data = ls_intf-description_int ).
       io_xml->add( iv_name = 'DESCRIPTIONS'
                    ig_data = ls_intf-description ).
       io_xml->add( iv_name = 'DESCRIPTIONS_SUB'
@@ -525,6 +588,7 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
       ls_clskey          TYPE seoclskey,
       ls_intf            TYPE ty_intf,
       lt_description     TYPE zif_abapgit_oo_object_fnc=>ty_seocompotx_tt,
+      lt_description_int TYPE zif_abapgit_oo_object_fnc=>ty_seoclasstx_tt,
       lt_description_sub TYPE zif_abapgit_oo_object_fnc=>ty_seosubcotx_tt.
 
     IF iv_step = zif_abapgit_object=>gc_step_id-abap.
@@ -538,9 +602,11 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
             is_item            = ms_item
           IMPORTING
             et_description     = lt_description
+            et_description_int = lt_description_int
             et_description_sub = lt_description_sub ).
 
         APPEND LINES OF lt_description TO ls_intf-description.
+        APPEND LINES OF lt_description_int TO ls_intf-description_int.
         APPEND LINES OF lt_description_sub TO ls_intf-description_sub.
 
       ELSE.
@@ -570,9 +636,11 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
           iv_version = ls_intf-vseointerf-unicode
           it_source  = lt_source ).
 
-        deserialize_descriptions( ls_intf-description ).
+        deserialize_descr_class( ls_intf-description_int ).
 
-        deserialize_descr_sub( ls_intf-description_sub ).
+        deserialize_descr_compo( ls_intf-description ).
+
+        deserialize_descr_subco( ls_intf-description_sub ).
 
         deserialize_docu(
           is_docu = ls_intf-docu
@@ -709,4 +777,39 @@ CLASS zcl_abapgit_object_intf IMPLEMENTATION.
     serialize_xml( io_xml ).
 
   ENDMETHOD.
+
+  METHOD extract_languages_for_transl.
+    DATA: lv_desc              TYPE seocompotx,
+          lv_desc_int          TYPE seoclasstx,
+          lv_desc_sub          TYPE seosubcotx,
+          lv_unique            TYPE sy-langu,
+          lv_sap2              TYPE string,
+          lt_unique_language   TYPE STANDARD TABLE OF sy-langu,
+          lv_original_language TYPE sy-langu.
+
+
+    lv_original_language = mo_i18n_params->ms_params-main_language.
+
+    LOOP AT is_intf-description INTO lv_desc WHERE langu <> lv_original_language.
+      APPEND lv_desc-langu TO lt_unique_language.
+    ENDLOOP.
+
+    LOOP AT is_intf-description_int INTO lv_desc_int WHERE langu <> lv_original_language.
+      APPEND lv_desc_int-langu TO lt_unique_language.
+    ENDLOOP.
+
+    LOOP AT is_intf-description_sub INTO lv_desc_sub WHERE langu <> lv_original_language.
+      APPEND lv_desc_sub-langu TO lt_unique_language.
+    ENDLOOP.
+
+    SORT lt_unique_language ASCENDING.
+    DELETE ADJACENT DUPLICATES FROM lt_unique_language.
+
+    LOOP AT lt_unique_language INTO lv_unique.
+      lv_sap2 = zcl_abapgit_convert=>language_sap1_to_sap2( lv_unique ).
+      APPEND lv_sap2 TO rs_result.
+    ENDLOOP.
+
+  ENDMETHOD.
+
 ENDCLASS.
