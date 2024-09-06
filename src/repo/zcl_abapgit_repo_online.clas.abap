@@ -345,9 +345,14 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
       ELSE.
         lv_offs = find(
           val = reverse( ms_data-switched_origin )
-          sub = '@' ).
+          sub = '@' ). " PR
         IF lv_offs = -1.
-          zcx_abapgit_exception=>raise( 'Incorrect format of switched origin' ).
+          lv_offs = find(
+            val = reverse( ms_data-switched_origin )
+            sub = '#' ). " Fork
+          IF lv_offs = -1.
+            zcx_abapgit_exception=>raise( 'Incorrect format of switched origin' ).
+          ENDIF.
         ENDIF.
         lv_offs = strlen( ms_data-switched_origin ) - lv_offs - 1.
         set_url( substring(
@@ -359,7 +364,7 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
         set( iv_switched_origin = '' ).
       ENDIF.
     ELSEIF ms_data-switched_origin IS INITIAL.
-      set( iv_switched_origin = ms_data-url && '@' && ms_data-branch_name ).
+      set( iv_switched_origin = ms_data-url && iv_separator && ms_data-branch_name ).
       set_url( iv_url ).
       select_branch( iv_branch ).
     ELSE.
