@@ -572,7 +572,8 @@ table.stage_tab td.highlight {
 table.stage_tab td.name {
   word-break: break-all;
 }
-table.stage_tab tr:hover {
+table.stage_tab tr:first-child td { border-top: 0px; }
+table.stage_tab tr:hover td {
   background-image: linear-gradient(rgba(0, 0, 0, 0.075), rgba(0, 0, 0, 0.075));
 }
 
@@ -1013,8 +1014,6 @@ div.tutorial h1, h2 { color: var(--theme-primary-font-color3); }
   float: left;
   margin: 0;
   padding: 0;
-  max-height: 700px;
-  overflow: auto;
 }
 .nav-container.float-right ul ul { left: auto; right: 0; }
 .nav-container ul li.current-menu-item { font-weight: 700; }
@@ -1031,6 +1030,8 @@ div.tutorial h1, h2 { color: var(--theme-primary-font-color3); }
   z-index: 1;
   padding: 0;
   box-shadow: 1px 1px 3px 0px #bbb;
+  max-height: 700px;
+  overflow: auto;
 }
 
 .nav-container ul ul li {
@@ -1919,7 +1920,7 @@ table.unit_tests {
   border-right: none;
   border-left: none;
   border-bottom: none;
-  border-radius: 6px; /* doesn't work in IE ? */
+  border-radius: 6px; /* does not work in IE ? */
   padding-bottom: 1em;
   border-color: #dfdfdf;
 }
@@ -1932,6 +1933,9 @@ table.unit_tests {
   padding-left: 0.5em;
   padding-right: 0.5em;
   color: #ccc;
+}
+.dialog .dialog-help {
+  float: left;
 }
 
 /* STICKY HEADERS */
