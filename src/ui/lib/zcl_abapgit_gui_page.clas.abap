@@ -207,12 +207,17 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
     ii_html->add( '<link rel="stylesheet" type="text/css" href="css/ag-icons.css">' ).
 
     " Themes
-    ii_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-default.css">' ). " Theme basis
     CASE mo_settings->get_ui_theme( ).
+      WHEN zcl_abapgit_settings=>c_ui_theme-default.
+        ii_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-default.css">' ).
       WHEN zcl_abapgit_settings=>c_ui_theme-dark.
         ii_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-dark.css">' ).
       WHEN zcl_abapgit_settings=>c_ui_theme-belize.
         ii_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-belize-blue.css">' ).
+      WHEN zcl_abapgit_settings=>c_ui_theme-quartz.
+        ri_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-quartz.css">' ).
+      WHEN zcl_abapgit_settings=>c_ui_theme-quartz_dark.
+        ri_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-quartz-dark.css">' ).
     ENDCASE.
 
     " Page stylesheets
