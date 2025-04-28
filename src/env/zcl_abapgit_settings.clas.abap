@@ -16,6 +16,8 @@ CLASS zcl_abapgit_settings DEFINITION
         default         TYPE string VALUE 'default',
         dark            TYPE string VALUE 'dark',
         belize          TYPE string VALUE 'belize',
+        quartz          TYPE string VALUE 'quartz',
+        quartz_dark     TYPE string VALUE 'quartz_dark',
         synced_with_gui TYPE string VALUE 'synced_with_gui',
       END OF c_ui_theme .
 
@@ -333,6 +335,10 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
       CASE lv_frontend_theme.
         WHEN 'Belize'.
           rv_ui_theme = c_ui_theme-belize.
+        WHEN 'fiori_3'.
+          rv_ui_theme = c_ui_theme-quartz.
+        WHEN 'fiori_3_dark'.
+          rv_ui_theme = c_ui_theme-quartz_dark.
         WHEN OTHERS.
           IF lv_frontend_theme CS 'dark'.
             rv_ui_theme = c_ui_theme-dark.
@@ -471,6 +477,8 @@ CLASS zcl_abapgit_settings IMPLEMENTATION.
     IF ms_user_settings-ui_theme <> c_ui_theme-default
         AND ms_user_settings-ui_theme <> c_ui_theme-dark
         AND ms_user_settings-ui_theme <> c_ui_theme-belize
+        AND ms_user_settings-ui_theme <> c_ui_theme-quartz
+        AND ms_user_settings-ui_theme <> c_ui_theme-quartz_dark
         AND ms_user_settings-ui_theme <> c_ui_theme-synced_with_gui.
       ms_user_settings-ui_theme = c_ui_theme-default. " Reset to default
     ENDIF.
