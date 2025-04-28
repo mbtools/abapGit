@@ -215,9 +215,9 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
       WHEN zcl_abapgit_settings=>c_ui_theme-belize.
         ii_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-belize-blue.css">' ).
       WHEN zcl_abapgit_settings=>c_ui_theme-quartz.
-        ri_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-quartz.css">' ).
+        ii_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-quartz.css">' ).
       WHEN zcl_abapgit_settings=>c_ui_theme-quartz_dark.
-        ri_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-quartz-dark.css">' ).
+        ii_html->add( '<link rel="stylesheet" type="text/css" href="css/theme-quartz-dark.css">' ).
     ENDCASE.
 
     " Page stylesheets
