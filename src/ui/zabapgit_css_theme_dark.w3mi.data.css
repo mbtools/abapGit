@@ -20,18 +20,14 @@
   --theme-greyscale-light: #CCCCCC;
   --theme-greyscale-lighter: #E5E5E5;
   --theme-list-hover-background-color: black;
-
-  --theme-table-background-color: #333333;
-  --theme-table-head-background-color: #202020;
 }
 
 /* GLOBALS */
-
 body {
   background-color: var(--theme-background-color);
   color: var(--theme-primary-font-color);
 }
-select, input, textarea {
+select, input, textarea { 
   color: var(--theme-primary-font-color);
   border-color: #ffffff;
   background-color: var(--theme-background-color);
@@ -39,52 +35,30 @@ select, input, textarea {
 a:hover { color: var(--theme-link-color-hover); }
 
 /* HEADER */
-
 #header a, #header a:visited { color: var(--theme-link-color); }
 
 /* MENU */
-
 div#toc .favorites a { opacity: 1; }
 .nav-container ul a:hover { text-decoration: underline; }
 .nav-container ul ul { background-color: #555555; }
-.nav-container ul li:hover { background-color: #555555; }
 .nav-container ul ul li:hover { background-color: var(--theme-list-hover-background-color); }
 table.repo_tab {
     border-color: var(--theme-container-background-color);
     background-color: var(--theme-background-color);
 }
 
-/* ABAPGIT OBJECTS */
-
-span.user-box {
-  background-color: #4c6782;
-  border-color: #7491b2;
-}
-span.package-box {
-  background-color: #705a6d;
-  border-color: #987095;
-}
-span.path-box,
-span.transport-box {
-  background-color: #456d5d;
-  border-color: #60a087;
-}
-
 /* PANELS */
-
 #debug-output { color: var(--theme-greyscale-dark); }
 
 /* abapGit logo in header and footer */
-.logo .icon.icon-abapgit {
-  color: var(--theme-primary-font-color);
+.logo .icon.icon-abapgit { 
+  color: var(--theme-primary-font-color); 
 }
 
 /* TUTORIAL */
-
 div.tutorial h1, h2 { color: var(--theme-primary-font-color); }
 
 /* REPOSITORY */
-
 div.repo { background-color: var(--theme-container-background-color); }
 .repo_name span.name { color: var(--theme-primary-font-color-reduced); }
 .repo_name span.url  { color: var(--theme-greyscale-medium); }
@@ -97,7 +71,6 @@ span.branch_branch {
 }
 
 /* REPOSITORY TABLE */
-
 .repo_tab td { color: var(--theme-primary-font-color); }
 .repo_tab tr.unsupported { background-color: #555; }
 .repo_tab tr.modified { background-color: #555; }
@@ -105,68 +78,58 @@ span.branch_branch {
 
 .repo_tab th {
   border-top-color: var(--theme-greyscale-dark);
-  background-color: black;
 }
 .repo_tab td {
   border-top-color: var(--theme-greyscale-dark);
 }
 
 /* STAGE */
-
-.stage_tab {
+.stage_tab { 
   border-color: var(--theme-greyscale-dark);
-  background-color: var(--theme-background-color);
+  background-color: var(--theme-background-color); 
 }
-.stage_tab th {
-  border-top-color: var(--theme-greyscale-dark);
-  background-color: black;
-}
-.stage_tab td {
-  color: var(--theme-primary-font-color);
+.stage_tab td { 
+  color: var(--theme-primary-font-color); 
   border-top-color:  var(--theme-greyscale-dark);
 }
-.stage_tab td.status.highlight {
+.stage_tab td.status.highlight { 
   color: var(--theme-primary-font-color) !important;
   background-color: var(--theme-background-color);
 }
-.stage_tab td.status {
+.stage_tab td.status { 
   color: #777;
-  background-color: var(--theme-background-color);
+  background-color: var(--theme-background-color); 
 }
 .stage_tab th { background-color: var(--theme-container-background-color); }
 .stage_tab tr:hover {background-color: var(--theme-list-hover-background-color) !important;}
 
-/* COMMIT */
 
+/* COMMIT */
 div.form-container { background-color: var(--theme-background-color); }
 
 /* SETTINGS STYLES */
-
 div.settings_container { color: var(--theme-primary-font-color); }
 
 /* DIFF */
-
 .diff_ins { background-color: #352; }
 .diff_del { background-color: #411; }
 .diff_upd { background-color: #551; }
 div.diff_content { background-color: var(--theme-background-color); }
 
 /* DIFF TABLE */
-
 table.diff_tab td,th { color: #fff; }
 table.diff_tab thead.nav_line { background-color: var(--theme-container-background-color); }
 
-/* STYLES FOR SYNTAX HIGHLIGHTING */
-
-/* ABAP */
+/* STYLES for Syntax Highlighting */
+/* abap */
 .syntax-hl span.keyword  { color: #4af; }
 .syntax-hl span.text     { color: #8f8; }
 .syntax-hl span.comment  { color: #999; }
-/* XML+HTML */
+/* xml+html */
 .syntax-hl span.xml_tag  { color: #659cff; }
 .syntax-hl span.attr     { color: #bab2f9; }
 .syntax-hl span.attr_val { color: #b777fb; }
-/* CSS+JS */
+/* css+js */
 .syntax-hl span.properties   { color:#0a69ce; }
 .syntax-hl span.values       { color:blue; }
 .syntax-hl span.units        { color:maroon; }
@@ -179,11 +142,9 @@ table.diff_tab thead.nav_line { background-color: var(--theme-container-backgrou
 .syntax-hl span.variables    { color:purple; }
 
 /* DEBUG INFO STYLES */
-
 div.debug_container#debug_info { color: var(--theme-primary-font-color); }
 
 /* DB ENTRIES */
-
 div.db_list { background-color: var(--theme-container-background-color); }
 table.db_tab td      { color: var(--theme-primary-font-color); }
 table.db_tab td.data { opacity: 0.5; }
@@ -193,74 +154,7 @@ table.db_tab th {
   border-bottom-color: #333;
 }
 
-table.db_tab tr.selected {
-  background: rgba(92, 92, 92, 1) !important;
-}
-
 /* ERROR LOGS */
-
 div.log { color: var(--theme-greyscale-dark); }
 .close-btn, .message-panel, .message-panel-commands a { color: var(--theme-greyscale-dark); }
 .message-panel-commands a:hover { color: var(--theme-greyscale-dark); }
-
-/* DIALOGS */
-
-.dialog {
-  color: var(--theme-primary-font-color-reduced);
-  background-color: var(--theme-container-background-color);
-}
-.dialog li.dialog-commands a,
-.dialog li.dialog-commands input[type="submit"] {
-  border-color: #ccc;
-  background-color: var(--theme-greyscale-dark);
-  color: #fff;
-}
-.dialog li.dialog-commands a.main,
-.dialog li.dialog-commands input[type="submit"].main {
-  background-color: #64a8ff;
-  color: #fff;
-}
-.dialog label {
-  color: var(--theme-primary-font-color);
-}
-.dialog label em {
-  color: #64a8ff;
-}
-.dialog li.error small {
-  color: #ff5959;
-}
-.dialog li.error input[type="number"],
-.dialog li.error input[type="text"] {
-  border-color: #ff5959;
-}
-.dialog .radio-container {
-  border-color: #ddd;
-  background-color: var(--theme-greyscale-dark);
-}
-.dialog .radio-container input[type="radio"] + label {
-  color: #fff;
-}
-.dialog .radio-container input[type="radio"]:checked + label {
-  background-color: #64a8ff;
-  color: #fff;
-}
-.dialog li.with-command input[type="button"]:hover,
-.dialog li.with-command input[type="submit"]:hover {
-  background-color: #64a8ff;
-  color: #fff;
-}
-.dialog fieldset {
-  border-color: #dfdfdf;
-}
-.dialog fieldset legend {
-  color: var(--theme-primary-font-color);
-}
-.dialog input:read-only {
-  background-color: var(--theme-greyscale-dark);
-  color: var(--theme-greyscale-medium);
-}
-/* for IE */
-.dialog input[readonly] {
-  background-color: var(--theme-greyscale-dark);
-  color: var(--theme-greyscale-medium);
-}
