@@ -1,5 +1,7 @@
 /*
  * ABAPGIT COMMON CSS
+ *
+ * Validated CSS level 3 using https://jigsaw.w3.org/css-validator/validator
  */
 
 /* GLOBALS */
@@ -1230,7 +1232,7 @@ div.message-panel:hover .message-panel-commands {
   display: block;
 }
 
-~/* TOOLTIP TEXT */
+/* TOOLTIP TEXT */
 
 .link-hint {
   line-height: 1em;
