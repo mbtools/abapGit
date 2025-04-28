@@ -87,7 +87,7 @@ CLASS zcl_abapgit_ui_factory IMPLEMENTATION.
     li_asset_man->register_asset(
       iv_url       = 'css/theme-quartz.css'
       iv_type      = 'text/css'
-      iv_cachable  = abap_false
+      iv_cacheable = abap_false
       iv_mime_name = 'ZABAPGIT_CSS_THEME_QUARTZ'
       iv_inline    = lo_buf->join_w_newline_and_flush( ) ).
 
@@ -95,7 +95,7 @@ CLASS zcl_abapgit_ui_factory IMPLEMENTATION.
     li_asset_man->register_asset(
       iv_url       = 'css/theme-quartz-dark.css'
       iv_type      = 'text/css'
-      iv_cachable  = abap_false
+      iv_cacheable = abap_false
       iv_mime_name = 'ZABAPGIT_CSS_THEME_QUARTZ_DARK'
       iv_inline    = lo_buf->join_w_newline_and_flush( ) ).
 
