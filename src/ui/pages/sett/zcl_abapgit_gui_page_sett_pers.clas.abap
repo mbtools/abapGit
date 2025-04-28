@@ -138,11 +138,11 @@ CLASS zcl_abapgit_gui_page_sett_pers IMPLEMENTATION.
       iv_label         = 'Belize'
       iv_value         = zcl_abapgit_settings=>c_ui_theme-belize
     )->option(
-      iv_label         = 'Quarz'
-      iv_value         = zcl_abapgit_settings=>c_ui_theme-quarz
+      iv_label         = 'Quartz'
+      iv_value         = zcl_abapgit_settings=>c_ui_theme-quartz
     )->option(
-      iv_label         = 'Quarz Dark'
-      iv_value         = zcl_abapgit_settings=>c_ui_theme-quarz_dark
+      iv_label         = 'Quartz Dark'
+      iv_value         = zcl_abapgit_settings=>c_ui_theme-quartz_dark
     )->option(
       iv_label         = 'Synced with SAP GUI'
       iv_value         = zcl_abapgit_settings=>c_ui_theme-synced_with_gui
