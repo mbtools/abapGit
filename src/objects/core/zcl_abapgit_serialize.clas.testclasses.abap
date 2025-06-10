@@ -17,7 +17,7 @@ CLASS ltd_settings DEFINITION FINAL FOR TESTING
 
   PRIVATE SECTION.
     DATA:
-      mv_parallel_proc_disabled TYPE zif_abapgit_definitions=>ty_s_user_settings-parallel_proc_disabled.
+      mv_parallel_proc_disabled TYPE zif_abapgit_persist_user=>ty_s_user_settings-parallel_proc_disabled.
 
 ENDCLASS.
 
@@ -178,6 +178,9 @@ ENDCLASS.
 CLASS ltd_exit IMPLEMENTATION.
 
   METHOD zif_abapgit_exit~adjust_display_commit_url.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_exit~change_committer_info.
   ENDMETHOD.
 
   METHOD zif_abapgit_exit~adjust_display_filename.

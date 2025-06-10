@@ -57,7 +57,7 @@ CLASS zcl_abapgit_services_git IMPLEMENTATION.
     DATA: ls_comment TYPE zif_abapgit_git_definitions=>ty_comment,
           li_user    TYPE REF TO zif_abapgit_persist_user.
 
-    li_user = zcl_abapgit_persistence_user=>get_instance( ).
+    li_user = zcl_abapgit_persist_factory=>get_user( ).
     li_user->set_repo_git_user_name( iv_url      = ii_repo_online->get_url( )
                                      iv_username = is_commit-committer_name ).
     li_user->set_repo_git_user_email( iv_url   = ii_repo_online->get_url( )
@@ -124,8 +124,8 @@ CLASS zcl_abapgit_services_git IMPLEMENTATION.
 
     li_repo_online->create_branch( lv_name ).
 
-    lv_msg = |Branch switched from { zcl_abapgit_git_branch_list=>get_display_name( lv_source_branch_name )
-      } to new branch { zcl_abapgit_git_branch_list=>get_display_name( lv_name ) }|.
+    lv_msg = |Branch switched from { zcl_abapgit_git_branch_utils=>get_display_name( lv_source_branch_name )
+      } to new branch { zcl_abapgit_git_branch_utils=>get_display_name( lv_name ) }|.
     MESSAGE lv_msg TYPE 'S'.
 
   ENDMETHOD.

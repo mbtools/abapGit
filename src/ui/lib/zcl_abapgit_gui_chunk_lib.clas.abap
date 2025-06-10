@@ -26,15 +26,16 @@ CLASS zcl_abapgit_gui_chunk_lib DEFINITION
         VALUE(ri_html) TYPE REF TO zif_abapgit_html .
     CLASS-METHODS render_repo_top
       IMPORTING
-        !ii_repo               TYPE REF TO zif_abapgit_repo
-        !iv_show_package       TYPE abap_bool DEFAULT abap_true
-        !iv_show_branch        TYPE abap_bool DEFAULT abap_true
-        !iv_show_commit        TYPE abap_bool DEFAULT abap_true
-        !iv_show_edit          TYPE abap_bool DEFAULT abap_false
-        !iv_interactive_branch TYPE abap_bool DEFAULT abap_false
-        !io_news               TYPE REF TO zcl_abapgit_repo_news OPTIONAL
+        !ii_repo                 TYPE REF TO zif_abapgit_repo
+        !iv_show_package         TYPE abap_bool DEFAULT abap_true
+        !iv_show_branch          TYPE abap_bool DEFAULT abap_true
+        !iv_show_commit          TYPE abap_bool DEFAULT abap_true
+        !iv_show_edit            TYPE abap_bool DEFAULT abap_false
+        !iv_interactive_branch   TYPE abap_bool DEFAULT abap_false
+        !iv_interactive_favorite TYPE abap_bool DEFAULT abap_true
+        !io_news                 TYPE REF TO zcl_abapgit_repo_news OPTIONAL
       RETURNING
-        VALUE(ri_html)         TYPE REF TO zif_abapgit_html
+        VALUE(ri_html)           TYPE REF TO zif_abapgit_html
       RAISING
         zcx_abapgit_exception .
     CLASS-METHODS render_item_state
@@ -366,7 +367,7 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
 
     IF iv_branch IS NOT INITIAL.
       lv_branch = iv_branch.
-      lv_text = zcl_abapgit_git_branch_list=>get_display_name( lv_branch ).
+      lv_text = zcl_abapgit_git_branch_utils=>get_display_name( lv_branch ).
     ELSEIF ii_repo_online IS BOUND.
       lv_selected_commit = ii_repo_online->get_selected_commit( ).
       IF lv_selected_commit IS NOT INITIAL.
@@ -375,13 +376,13 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
         lv_text = |({ lv_commit_short_sha }...)|.
       ELSE.
         lv_branch = ii_repo_online->get_selected_branch( ).
-        lv_text = zcl_abapgit_git_branch_list=>get_display_name( lv_branch ).
+        lv_text = zcl_abapgit_git_branch_utils=>get_display_name( lv_branch ).
       ENDIF.
     ELSE.
       zcx_abapgit_exception=>raise( 'Either iv_branch or ii_repo_online must be supplied' ).
     ENDIF.
 
-    CASE zcl_abapgit_git_branch_list=>get_type( lv_branch ).
+    CASE zcl_abapgit_git_branch_utils=>get_type( lv_branch ).
       WHEN zif_abapgit_git_definitions=>c_git_branch_type-branch.
         lv_class = 'branch branch_branch'.
         lv_icon  = 'code-branch/grey70'.
@@ -933,13 +934,11 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
   METHOD render_repo_top.
 
     DATA: li_repo_online TYPE REF TO zif_abapgit_repo_online,
-          lo_pback       TYPE REF TO zcl_abapgit_persist_background,
           lx_error       TYPE REF TO zcx_abapgit_exception,
           lv_hint        TYPE string,
           lv_icon        TYPE string.
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
-    CREATE OBJECT lo_pback.
 
     IF ii_repo->is_offline( ) = abap_true.
       lv_icon = 'plug/darkgrey'.
@@ -1015,18 +1014,24 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
     ri_html->add( '<td class="repo_attr right">' ).
 
     " Fav
-    IF abap_true = zcl_abapgit_persistence_user=>get_instance( )->is_favorite_repo( ii_repo->get_key( ) ).
+    IF abap_true = zcl_abapgit_persist_factory=>get_user( )->is_favorite_repo( ii_repo->get_key( ) ).
       lv_icon = 'star/blue'.
     ELSE.
       lv_icon = 'star/grey'.
     ENDIF.
-    ri_html->add_a( iv_act = |{ zif_abapgit_definitions=>c_action-repo_toggle_fav }?key={ ii_repo->get_key( ) }|
-                    iv_txt = ri_html->icon( iv_name  = lv_icon
-                                            iv_class = 'pad-sides'
-                                            iv_hint  = 'Toggle Favorite' ) ).
+    IF iv_interactive_favorite = abap_true.
+      ri_html->add_a( iv_act = |{ zif_abapgit_definitions=>c_action-repo_toggle_fav }?key={ ii_repo->get_key( ) }|
+                      iv_txt = ri_html->icon( iv_name  = lv_icon
+                                              iv_class = 'pad-sides'
+                                              iv_hint  = 'Toggle Favorite' ) ).
+    ELSE.
+      ri_html->add( ri_html->icon(
+          iv_name  = lv_icon
+          iv_class = 'pad-sides' ) ).
+    ENDIF.
 
     " BG
-    IF lo_pback->exists( ii_repo->get_key( ) ) = abap_true.
+    IF zcl_abapgit_persist_factory=>get_background( )->exists( ii_repo->get_key( ) ) = abap_true.
       ri_html->add( '<span class="bg_marker" title="background">BG</span>' ).
     ENDIF.
 

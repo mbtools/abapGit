@@ -419,26 +419,39 @@ CLASS zcl_abapgit_cts_api IMPLEMENTATION.
     CLEAR ev_object.
     CLEAR ev_obj_name.
 
-    IF iv_object = 'MESS'.
-      ev_object = 'MSAG'.
-      ev_obj_name = substring( val = iv_obj_name
-                               len = strlen( iv_obj_name ) - 3 ).
-      RETURN.
-    ENDIF.
+    CASE iv_object.
+      WHEN 'MESS'.
+        ev_object = 'MSAG'.
+        ev_obj_name = substring( val = iv_obj_name
+                                 len = strlen( iv_obj_name ) - 3 ).
+      WHEN 'TABT'.
+* Technical Attributes of a Table
+        ev_object = 'TABL'.
+        ev_obj_name = iv_obj_name.
+      WHEN 'DTED'.
+* Data Element Definition
+        ev_object = 'DTEL'.
+        ev_obj_name = iv_obj_name.
+      WHEN 'DOMD'.
+* Domain Definition
+        ev_object = 'DOMA'.
+        ev_obj_name = iv_obj_name.
+      WHEN OTHERS.
+        CALL FUNCTION 'GET_R3TR_OBJECT_FROM_LIMU_OBJ'
+          EXPORTING
+            p_limu_objtype = iv_object
+            p_limu_objname = iv_obj_name
+          IMPORTING
+            p_r3tr_objtype = ev_object
+            p_r3tr_objname = ev_obj_name
+          EXCEPTIONS
+            no_mapping     = 1
+            OTHERS         = 2.
+        IF sy-subrc <> 0 OR ev_obj_name IS INITIAL.
+          zcx_abapgit_exception=>raise( |No R3TR Object found for { iv_object } { iv_obj_name }| ).
+        ENDIF.
+    ENDCASE.
 
-    CALL FUNCTION 'GET_R3TR_OBJECT_FROM_LIMU_OBJ'
-      EXPORTING
-        p_limu_objtype = iv_object
-        p_limu_objname = iv_obj_name
-      IMPORTING
-        p_r3tr_objtype = ev_object
-        p_r3tr_objname = ev_obj_name
-      EXCEPTIONS
-        no_mapping     = 1
-        OTHERS         = 2.
-    IF sy-subrc <> 0 OR ev_obj_name IS INITIAL.
-      zcx_abapgit_exception=>raise( |No R3TR Object found for { iv_object } { iv_obj_name }| ).
-    ENDIF.
   ENDMETHOD.
 
 
@@ -576,8 +589,34 @@ CLASS zcl_abapgit_cts_api IMPLEMENTATION.
 * find all tasks first
     SELECT trkorr trfunction strkorr
       FROM e070 INTO TABLE lt_e070
-      WHERE as4user = sy-uname
+      WHERE as4user = iv_user
       AND trstatus = zif_abapgit_cts_api=>c_transport_status-modifiable
+      AND strkorr <> ''
+      ORDER BY PRIMARY KEY.
+
+    IF lines( lt_e070 ) > 0.
+      SELECT trkorr FROM e070
+        INTO TABLE rt_trkorr
+        FOR ALL ENTRIES IN lt_e070
+        WHERE trkorr = lt_e070-strkorr
+        AND trfunction = zif_abapgit_cts_api=>c_transport_type-wb_request.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD zif_abapgit_cts_api~list_open_requests.
+
+    TYPES: BEGIN OF ty_e070,
+             trkorr     TYPE e070-trkorr,
+             trfunction TYPE e070-trfunction,
+             strkorr    TYPE e070-strkorr,
+           END OF ty_e070.
+    DATA lt_e070 TYPE STANDARD TABLE OF ty_e070 WITH DEFAULT KEY.
+
+* find all tasks first
+    SELECT trkorr trfunction strkorr
+      FROM e070 INTO TABLE lt_e070
+      WHERE trstatus = zif_abapgit_cts_api=>c_transport_status-modifiable
       AND strkorr <> ''
       ORDER BY PRIMARY KEY.
 
@@ -694,7 +733,13 @@ CLASS zcl_abapgit_cts_api IMPLEMENTATION.
     SELECT SINGLE as4text FROM e07t
       INTO rv_description
       WHERE trkorr = iv_trkorr
-      AND langu = sy-langu ##SUBRC_OK.
+      AND langu = sy-langu.
+    IF sy-subrc <> 0.
+* fallback to any language
+      SELECT SINGLE as4text FROM e07t
+        INTO rv_description
+        WHERE trkorr = iv_trkorr ##SUBRC_OK. "#EC CI_NOORDER
+    ENDIF.
 
   ENDMETHOD.
 

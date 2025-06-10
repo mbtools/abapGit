@@ -10,6 +10,7 @@
     "coverage": "npm run unit && c8 node output/index.mjs --skip-critical && c8 report --reporter=html",
     "integration": "npm run build && echo RUNNING && node output/index.mjs --only-critical",
     "abaplint": "abaplint --format codeframe",
+    "express": "npm run build && node test/express.mjs",
     "eslint": "eslint src"
   },
   "repository": {
@@ -23,14 +24,14 @@
     ]
   },
   "devDependencies": {
-    "@abaplint/cli": "^2.113.110",
+    "@abaplint/cli": "^2.113.126",
     "@abaplint/database-sqlite": "^2.10.24",
-    "@abaplint/runtime": "^2.10.44",
+    "@abaplint/runtime": "^2.10.59",
     "express": "^4.21.2",
-    "@abaplint/transpiler-cli": "^2.10.44",
-    "globals": "^16.0.0",
+    "@abaplint/transpiler-cli": "^2.10.59",
+    "globals": "^16.2.0",
     "abapmerge": "^0.16.6",
     "c8": "^10.1.3",
-    "eslint": "^9.25.1"
+    "eslint": "^9.28.0"
   }
 }
