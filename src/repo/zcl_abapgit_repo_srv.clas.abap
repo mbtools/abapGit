@@ -713,6 +713,11 @@ CLASS zcl_abapgit_repo_srv IMPLEMENTATION.
 
     zcl_abapgit_factory=>get_sap_package( iv_package )->validate_name( ).
 
+    " Special package for local user objects can't use sub-packages
+    IF zcl_abapgit_tmp_package=>is_user_package( iv_package ) = abap_true AND iv_ign_subpkg = abap_false.
+      zcx_abapgit_exception=>raise( |Package { iv_package } can only be used when ignoring sub-packages| ).
+    ENDIF.
+
     " Check if package owned by SAP is allowed (new packages are ok, since they are created automatically)
     lv_as4user = zcl_abapgit_factory=>get_sap_package( iv_package )->read_responsible( ).
 
