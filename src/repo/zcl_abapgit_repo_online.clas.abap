@@ -245,12 +245,22 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
       rs_settings-branch    = get_selected_branch( ).
       rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-commit.
     ELSEIF get_switched_origin( ) IS NOT INITIAL.
-      " get_switched_origin( ) returns the original repo url + HEAD concatenated with @
+      " get_switched_origin( ) returns the original repo url + HEAD concatenated with @ (for PR) or # (for fork)
       " get_branch( ) returns the branch of the PR in the source repo
       " get_url( ) returns the source repo of the PR branch
 
       rs_settings-switched_origin = get_switched_origin( ).
-      SPLIT rs_settings-switched_origin AT '@' INTO rs_settings-url rs_settings-branch.
+
+      IF rs_settings-switched_origin CS zif_abapgit_repo_online=>c_separator-pull_request.
+        SPLIT rs_settings-switched_origin AT zif_abapgit_repo_online=>c_separator-pull_request
+          INTO rs_settings-url rs_settings-branch.
+        rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-pull_request.
+      ELSE.
+        SPLIT rs_settings-switched_origin AT zif_abapgit_repo_online=>c_separator-fork
+          INTO rs_settings-url rs_settings-branch.
+        rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-fork.
+      ENDIF.
+
       IF rs_settings-branch CP zif_abapgit_git_definitions=>c_git_branch-tags.
         rs_settings-tag = rs_settings-branch.
         CLEAR rs_settings-branch.
@@ -259,8 +269,12 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
       lv_branch = get_selected_branch( ).
       REPLACE FIRST OCCURRENCE OF zif_abapgit_git_definitions=>c_git_branch-heads_prefix IN lv_branch WITH space.
       CONDENSE lv_branch.
-      rs_settings-pull_request = |{ get_url( ) }@{ lv_branch }|.
-      rs_settings-head_type    = zif_abapgit_git_definitions=>c_head_types-pull_request.
+
+      IF rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-pull_request.
+        rs_settings-pull_request = |{ get_url( ) }{ zif_abapgit_repo_online=>c_separator-pull_request }{ lv_branch }|.
+      ELSE.
+        rs_settings-fork = |{ get_url( ) }{ zif_abapgit_repo_online=>c_separator-fork }{ lv_branch }|.
+      ENDIF.
     ELSE.
       rs_settings-branch    = get_selected_branch( ).
       rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-branch.
@@ -389,9 +403,14 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
       ELSE.
         lv_offs = find(
           val = reverse( ms_data-switched_origin )
-          sub = '@' ).
+          sub = zif_abapgit_repo_online=>c_separator-pull_request ).
         IF lv_offs = -1.
-          zcx_abapgit_exception=>raise( 'Incorrect format of switched origin' ).
+          lv_offs = find(
+            val = reverse( ms_data-switched_origin )
+            sub = zif_abapgit_repo_online=>c_separator-fork ).
+          IF lv_offs = -1.
+            zcx_abapgit_exception=>raise( 'Incorrect format of switched origin' ).
+          ENDIF.
         ENDIF.
         lv_offs = strlen( ms_data-switched_origin ) - lv_offs - 1.
         set_url( substring(
@@ -403,7 +422,7 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
         set( iv_switched_origin = '' ).
       ENDIF.
     ELSEIF ms_data-switched_origin IS INITIAL.
-      set( iv_switched_origin = ms_data-url && '@' && ms_data-branch_name ).
+      set( iv_switched_origin = ms_data-url && iv_separator && ms_data-branch_name ).
       set_url( iv_url ).
       select_branch( iv_branch ).
     ELSE.

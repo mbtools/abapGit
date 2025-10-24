@@ -2,6 +2,12 @@ INTERFACE zif_abapgit_repo_online PUBLIC.
 
   INTERFACES zif_abapgit_repo.
 
+  CONSTANTS:
+    BEGIN OF c_separator,
+      pull_request TYPE c LENGTH 1 VALUE '@',
+      fork         TYPE c LENGTH 1 VALUE '#',
+    END OF c_separator.
+
   METHODS get_url
     RETURNING
       VALUE(rv_url) TYPE zif_abapgit_persistence=>ty_repo-url .
@@ -38,6 +44,7 @@ INTERFACE zif_abapgit_repo_online PUBLIC.
       !iv_url       TYPE zif_abapgit_persistence=>ty_repo-url
       !iv_branch    TYPE zif_abapgit_persistence=>ty_repo-branch_name OPTIONAL
       !iv_overwrite TYPE abap_bool DEFAULT abap_false
+      !iv_separator TYPE c DEFAULT c_separator-pull_request
     RAISING
       zcx_abapgit_exception .
   METHODS get_switched_origin

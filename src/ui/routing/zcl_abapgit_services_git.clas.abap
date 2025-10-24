@@ -199,8 +199,10 @@ CLASS zcl_abapgit_services_git IMPLEMENTATION.
   METHOD switch_branch.
 
     DATA: li_repo_online TYPE REF TO zif_abapgit_repo_online,
+          ls_settings    TYPE zif_abapgit_persistence=>ty_remote_settings,
+          lv_fork_url    TYPE string,
+          lv_rest        TYPE string,
           ls_branch      TYPE zif_abapgit_git_definitions=>ty_git_branch.
-
 
     li_repo_online ?= zcl_abapgit_repo_srv=>get_instance( )->get( iv_key ).
 
@@ -217,11 +219,22 @@ CLASS zcl_abapgit_services_git IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    ls_settings = li_repo_online->get_remote_settings( ).
+
     " Reset commit and pull request
     li_repo_online->select_commit( '' ).
     li_repo_online->switch_origin( '' ).
 
-    li_repo_online->select_branch( ls_branch-name ).
+    IF ls_settings-head_type <> zif_abapgit_git_definitions=>c_head_types-fork.
+      li_repo_online->select_branch( ls_branch-name ).
+    ELSE.
+      SPLIT ls_settings-fork AT zif_abapgit_repo_online=>c_separator-fork INTO lv_fork_url lv_rest.
+      li_repo_online->switch_origin(
+        iv_url       = lv_fork_url
+        iv_branch    = ls_branch-name
+        iv_separator = zif_abapgit_repo_online=>c_separator-fork ).
+    ENDIF.
+
     COMMIT WORK AND WAIT.
 
   ENDMETHOD.
@@ -230,6 +243,7 @@ CLASS zcl_abapgit_services_git IMPLEMENTATION.
   METHOD switch_tag.
 
     DATA: li_repo_online TYPE REF TO zif_abapgit_repo_online,
+          ls_settings    TYPE zif_abapgit_persistence=>ty_remote_settings,
           ls_tag         TYPE zif_abapgit_git_definitions=>ty_git_tag,
           lv_text        TYPE string.
 
@@ -238,6 +252,12 @@ CLASS zcl_abapgit_services_git IMPLEMENTATION.
     ls_tag = zcl_abapgit_ui_factory=>get_popups( )->tag_list_popup( li_repo_online->get_url( ) ).
     IF ls_tag IS INITIAL.
       RAISE EXCEPTION TYPE zcx_abapgit_cancel.
+    ENDIF.
+
+    ls_settings = li_repo_online->get_remote_settings( ).
+
+    IF ls_settings-head_type = zif_abapgit_git_definitions=>c_head_types-fork.
+      zcx_abapgit_exception=>raise( 'Switching to tags is not supported for forks' ).
     ENDIF.
 
     " Reset commit and pull request

@@ -156,6 +156,7 @@ INTERFACE zif_abapgit_git_definitions
       tag          TYPE ty_head_type VALUE 'T',
       commit       TYPE ty_head_type VALUE 'C',
       pull_request TYPE ty_head_type VALUE 'P',
+      fork         TYPE ty_head_type VALUE 'F',
     END OF c_head_types.
 
 ENDINTERFACE.
