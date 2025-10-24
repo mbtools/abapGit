@@ -44,17 +44,6 @@ CLASS zcl_abapgit_repo_checksums DEFINITION
       RAISING
         zcx_abapgit_exception.
 
-    METHODS add_meta
-      CHANGING
-        cv_cs_blob TYPE string
-      RAISING
-        zcx_abapgit_exception.
-
-    METHODS extract_meta
-      CHANGING
-*        co_string_map - return string map with meta when it is needed
-        cv_cs_blob TYPE string.
-
     METHODS get_latest_local_files
       IMPORTING
         it_updated_files TYPE zif_abapgit_git_definitions=>ty_file_signatures_tt
@@ -68,17 +57,6 @@ ENDCLASS.
 
 
 CLASS zcl_abapgit_repo_checksums IMPLEMENTATION.
-
-
-  METHOD add_meta.
-
-    DATA lv_meta_str TYPE string.
-
-    lv_meta_str = |#repo_name#{ mi_repo->get_name( ) }|.
-
-    cv_cs_blob = lv_meta_str && |\n| && cv_cs_blob.
-
-  ENDMETHOD.
 
 
   METHOD build_checksums_from_files.
@@ -116,21 +94,6 @@ CLASS zcl_abapgit_repo_checksums IMPLEMENTATION.
     mv_repo_key = iv_repo_key.
     mi_repo = zcl_abapgit_repo_srv=>get_instance( )->get( mv_repo_key ).
     " Should be safe as repo_srv is supposed to be single source of repo instances
-  ENDMETHOD.
-
-
-  METHOD extract_meta.
-
-    DATA lv_meta_str TYPE string.
-
-    IF cv_cs_blob+0(1) <> '#'.
-      RETURN. " No meta ? just ignore it
-    ENDIF.
-
-    SPLIT cv_cs_blob AT |\n| INTO lv_meta_str cv_cs_blob.
-    " Just remove the header meta string - this is OK for now.
-    " There is just repo name for the moment - needed to for DB util and potential debug
-
   ENDMETHOD.
 
 
@@ -195,11 +158,23 @@ CLASS zcl_abapgit_repo_checksums IMPLEMENTATION.
   METHOD save_checksums.
 
     DATA lv_cs_blob TYPE string.
+    DATA ls_cs_key  TYPE lcl_checksum_key=>ty_db_key_with_description.
+
+    ls_cs_key = lcl_checksum_key=>get(
+      iv_repo_key = mv_repo_key
+      ii_repo     = mi_repo ).
 
     lv_cs_blob = lcl_checksum_serializer=>serialize( it_checksums ).
-    add_meta( CHANGING cv_cs_blob = lv_cs_blob ).
+
+    lcl_checksum_meta=>add(
+      EXPORTING
+        ii_repo    = mi_repo
+        iv_text    = ls_cs_key-text
+      CHANGING
+        cv_cs_blob = lv_cs_blob ).
+
     zcl_abapgit_persist_factory=>get_repo_cs( )->update(
-      iv_key     = mv_repo_key
+      iv_key     = ls_cs_key-key
       iv_cs_blob = lv_cs_blob ).
 
   ENDMETHOD.
@@ -208,16 +183,26 @@ CLASS zcl_abapgit_repo_checksums IMPLEMENTATION.
   METHOD zif_abapgit_repo_checksums~get.
 
     DATA lv_cs_blob TYPE string.
+    DATA ls_cs_key  TYPE lcl_checksum_key=>ty_db_key_with_description.
 
     TRY.
-        lv_cs_blob = zcl_abapgit_persist_factory=>get_repo_cs( )->read( mv_repo_key ).
+        ls_cs_key = lcl_checksum_key=>get(
+          iv_repo_key = mv_repo_key
+          ii_repo     = mi_repo ).
+
+        IF ls_cs_key-is_new = abap_true.
+          " Initialize checksums for new branch, tag, etc.
+          zif_abapgit_repo_checksums~rebuild( ).
+        ENDIF.
+
+        lv_cs_blob = zcl_abapgit_persist_factory=>get_repo_cs( )->read( ls_cs_key-key ).
       CATCH zcx_abapgit_exception zcx_abapgit_not_found.
         " Ignore currently, it's not critical for execution, just return empty
         RETURN.
     ENDTRY.
 
     IF lv_cs_blob IS NOT INITIAL.
-      extract_meta( CHANGING cv_cs_blob = lv_cs_blob ).
+      lcl_checksum_meta=>extract( CHANGING cv_cs_blob = lv_cs_blob ).
       rt_checksums = lcl_checksum_serializer=>deserialize( lv_cs_blob ).
     ENDIF.
 
@@ -226,7 +211,8 @@ CLASS zcl_abapgit_repo_checksums IMPLEMENTATION.
 
   METHOD zif_abapgit_repo_checksums~get_checksums_per_file.
 
-    DATA lt_checksums   TYPE zif_abapgit_persistence=>ty_local_checksum_tt.
+    DATA lt_checksums TYPE zif_abapgit_persistence=>ty_local_checksum_tt.
+
     FIELD-SYMBOLS <ls_object> LIKE LINE OF lt_checksums.
 
     lt_checksums = zif_abapgit_repo_checksums~get( ).
@@ -257,7 +243,7 @@ CLASS zcl_abapgit_repo_checksums IMPLEMENTATION.
     DATA lt_checksums   TYPE zif_abapgit_persistence=>ty_local_checksum_tt.
     DATA lt_local_files TYPE zif_abapgit_definitions=>ty_files_item_tt.
 
-    lt_checksums   = zif_abapgit_repo_checksums~get( ).
+    lt_checksums = zif_abapgit_repo_checksums~get( ).
 
     " Checksum update does not need full repo serialized
     " Getting the latest files of objects that changed is sufficient

@@ -250,6 +250,8 @@ CLASS lcl_repo_mock IMPLEMENTATION.
   METHOD zif_abapgit_repo~has_remote_source.
   ENDMETHOD.
   METHOD zif_abapgit_repo~is_offline.
+    " Setting to offline avoids conflict with new checksums
+    rv_offline = abap_true.
   ENDMETHOD.
   METHOD zif_abapgit_repo~deserialize.
   ENDMETHOD.
