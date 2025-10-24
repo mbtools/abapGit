@@ -44,6 +44,7 @@ CLASS zcl_abapgit_gui_page_sett_remo DEFINITION
         commit       TYPE string VALUE 'commit',
         pull_request TYPE string VALUE 'pull_request',
         fork         TYPE string VALUE 'fork',
+        fork_branch  TYPE string VALUE 'fork_branch',
         head_type    TYPE string VALUE 'head_type',
       END OF c_id.
     CONSTANTS:
@@ -173,6 +174,7 @@ CLASS zcl_abapgit_gui_page_sett_remo DEFINITION
       IMPORTING
         !iv_revert TYPE abap_bool DEFAULT abap_false
         !iv_fork   TYPE string OPTIONAL
+        !iv_branch TYPE string OPTIONAL
       RAISING
         zcx_abapgit_exception.
 
@@ -218,7 +220,8 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
         RETURN.
       ENDIF.
 
-      lv_url         = mo_form_data->get( c_id-url ).
+      lv_url = mo_form_data->get( c_id-url ).
+
       lv_branch_name = mo_form_data->get( c_id-branch ).
 
       mo_popup_picklist = zcl_abapgit_popup_branch_list=>create(
@@ -452,6 +455,17 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
         iv_label = 'Fork'
         iv_value = zif_abapgit_git_definitions=>c_head_types-fork ).
 
+      IF lv_head_type = zif_abapgit_git_definitions=>c_head_types-fork.
+        ro_form->text(
+          iv_name        = c_id-fork
+          iv_label       = 'Fork URL'
+          iv_required    = abap_true ). "TODO: side-action
+        ro_form->text(
+          iv_name        = c_id-fork_branch
+          iv_label       = 'Fork Branch'
+          iv_required    = abap_true ). "TODO: side-action
+      ENDIF.
+
       IF lv_head_type = zif_abapgit_git_definitions=>c_head_types-branch OR
          lv_head_type = zif_abapgit_git_definitions=>c_head_types-commit.
         ro_form->text(
@@ -485,13 +499,6 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
           iv_label       = 'Pull Request'
           iv_required    = abap_true
           iv_side_action = c_event-choose_pull_request ).
-      ENDIF.
-
-      IF lv_head_type = zif_abapgit_git_definitions=>c_head_types-fork.
-        ro_form->text(
-          iv_name        = c_id-fork
-          iv_label       = 'Fork'
-          iv_required    = abap_true ). "TODO: side-action
       ENDIF.
 
     ENDIF.
@@ -532,7 +539,9 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
         WHEN zif_abapgit_git_definitions=>c_head_types-pull_request.
           rs_settings-pull_request = io_form_data->get( c_id-pull_request ).
         WHEN zif_abapgit_git_definitions=>c_head_types-fork.
-          rs_settings-fork = io_form_data->get( c_id-fork ).
+          rs_settings-fork        = io_form_data->get( c_id-fork ).
+          rs_settings-fork_branch = zif_abapgit_git_definitions=>c_git_branch-heads_prefix &&
+            io_form_data->get( c_id-fork_branch ).
       ENDCASE.
     ENDIF.
 
@@ -628,6 +637,9 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
       ro_form_data->set(
         iv_key = c_id-fork
         iv_val = ms_settings_snapshot-fork ).
+      ro_form_data->set(
+        iv_key = c_id-fork_branch
+        iv_val = ms_settings_snapshot-fork_branch ).
     ENDIF.
 
   ENDMETHOD.
@@ -643,9 +655,6 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
           iv_key = c_id-pull_request
           iv_val = '' ).
         ro_form_data->set(
-          iv_key = c_id-fork
-          iv_val = '' ).
-        ro_form_data->set(
           iv_key = c_id-commit
           iv_val = '' ).
         ro_form_data->set(
@@ -654,9 +663,6 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
       WHEN zif_abapgit_git_definitions=>c_head_types-tag.
         ro_form_data->set(
           iv_key = c_id-pull_request
-          iv_val = '' ).
-        ro_form_data->set(
-          iv_key = c_id-fork
           iv_val = '' ).
         ro_form_data->set(
           iv_key = c_id-commit
@@ -668,12 +674,12 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
         ro_form_data->set(
           iv_key = c_id-pull_request
           iv_val = '' ).
-        ro_form_data->set(
-          iv_key = c_id-fork
-          iv_val = '' ).
       WHEN zif_abapgit_git_definitions=>c_head_types-pull_request.
         ro_form_data->set(
           iv_key = c_id-fork
+          iv_val = '' ).
+        ro_form_data->set(
+          iv_key = c_id-fork_branch
           iv_val = '' ).
         ro_form_data->set(
           iv_key = c_id-commit
@@ -749,7 +755,9 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
       WHEN zif_abapgit_git_definitions=>c_head_types-fork.
         switch_to_commit( iv_revert = abap_true ).
         switch_to_pull_req( iv_revert = abap_true ).
-        switch_to_fork( iv_fork = ls_settings_new-fork ).
+        switch_to_fork(
+          iv_fork   = ls_settings_new-fork
+          iv_branch = ls_settings_new-fork_branch ).
     ENDCASE.
 
     IF mi_repo->is_offline( ) = abap_false AND
@@ -851,10 +859,7 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
 
   METHOD switch_to_fork.
 
-    DATA:
-      li_repo_online TYPE REF TO zif_abapgit_repo_online,
-      lv_url         TYPE ty_remote_settings-url,
-      lv_branch      TYPE ty_remote_settings-branch.
+    DATA li_repo_online TYPE REF TO zif_abapgit_repo_online.
 
     check_protection( ).
 
@@ -864,10 +869,9 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
     li_repo_online->switch_origin( '' ).
 
     IF iv_revert = abap_false.
-      SPLIT iv_fork AT zif_abapgit_repo_online=>c_separator-fork INTO lv_url lv_branch.
       li_repo_online->switch_origin(
-        iv_url       = lv_url
-        iv_branch    = zif_abapgit_git_definitions=>c_git_branch-heads_prefix && lv_branch
+        iv_url       = iv_fork
+        iv_branch    = iv_branch
         iv_separator = zif_abapgit_repo_online=>c_separator-fork ).
     ENDIF.
 
@@ -911,7 +915,6 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
       lv_url                   TYPE ty_remote_settings-url,
       lv_branch_check_error_id TYPE string,
       lv_pull_request          TYPE ty_remote_settings-pull_request,
-      lv_fork                  TYPE ty_remote_settings-fork,
       lv_commit                TYPE ty_remote_settings-commit.
 
     ro_validation_log = zcl_abapgit_html_form_utils=>create( mo_form )->validate( io_form_data ).
@@ -967,17 +970,26 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
           ENDIF.
           lv_branch_check_error_id = c_id-pull_request.
         WHEN zif_abapgit_git_definitions=>c_head_types-fork.
-          lv_fork = io_form_data->get( c_id-fork ).
-          IF lv_fork NA zif_abapgit_repo_online=>c_separator-fork.
-            ro_validation_log->set(
-              iv_key = c_id-fork
-              iv_val = |Invalid format: must be <url>{ zif_abapgit_repo_online=>c_separator-fork }<branch>| ).
+          lv_url = io_form_data->get( c_id-fork ).
+          TRY.
+              zcl_abapgit_url=>name(
+                iv_url      = lv_url
+                iv_validate = abap_true ).
+
+              " Provider-specific URL check
+              CREATE OBJECT lo_url.
+              lo_url->validate_url( lv_url ).
+            CATCH zcx_abapgit_exception INTO lx_error.
+              ro_validation_log->set(
+                iv_key = c_id-fork
+                iv_val = lx_error->get_text( ) ).
+          ENDTRY.
+
+          IF iv_connection_check = abap_true.
+            zcl_abapgit_http=>check_connection( lv_url ).
           ENDIF.
-          SPLIT lv_fork AT zif_abapgit_repo_online=>c_separator-fork INTO lv_url lv_branch.
-          IF lv_branch IS NOT INITIAL.
-            lv_branch = zif_abapgit_git_definitions=>c_git_branch-heads_prefix && lv_branch.
-          ENDIF.
-          lv_branch_check_error_id = c_id-fork.
+          lv_branch = zif_abapgit_git_definitions=>c_git_branch-heads_prefix && io_form_data->get( c_id-fork_branch ).
+          lv_branch_check_error_id = c_id-fork_branch.
         WHEN zif_abapgit_git_definitions=>c_head_types-commit.
           lv_commit = io_form_data->get( c_id-commit ).
 

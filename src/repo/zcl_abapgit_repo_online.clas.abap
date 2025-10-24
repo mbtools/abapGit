@@ -244,21 +244,21 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
       rs_settings-commit    = get_selected_commit( ).
       rs_settings-branch    = get_selected_branch( ).
       rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-commit.
-    ELSEIF get_switched_origin( ) IS NOT INITIAL.
+    ELSEIF rs_settings-switched_origin IS NOT INITIAL.
       " get_switched_origin( ) returns the original repo url + HEAD concatenated with @ (for PR) or # (for fork)
-      " get_branch( ) returns the branch of the PR in the source repo
+      " get_selected_branch( ) returns the branch of the PR in the source repo
       " get_url( ) returns the source repo of the PR branch
-
-      rs_settings-switched_origin = get_switched_origin( ).
 
       IF rs_settings-switched_origin CS zif_abapgit_repo_online=>c_separator-pull_request.
         SPLIT rs_settings-switched_origin AT zif_abapgit_repo_online=>c_separator-pull_request
           INTO rs_settings-url rs_settings-branch.
         rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-pull_request.
-      ELSE.
+      ELSEIF rs_settings-switched_origin CS zif_abapgit_repo_online=>c_separator-fork.
         SPLIT rs_settings-switched_origin AT zif_abapgit_repo_online=>c_separator-fork
           INTO rs_settings-url rs_settings-branch.
         rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-fork.
+      ELSE.
+        zcx_abapgit_exception=>raise( 'Bad switched_origin. Open an issue' ).
       ENDIF.
 
       IF rs_settings-branch CP zif_abapgit_git_definitions=>c_git_branch-tags.
@@ -273,7 +273,8 @@ CLASS zcl_abapgit_repo_online IMPLEMENTATION.
       IF rs_settings-head_type = zif_abapgit_git_definitions=>c_head_types-pull_request.
         rs_settings-pull_request = |{ get_url( ) }{ zif_abapgit_repo_online=>c_separator-pull_request }{ lv_branch }|.
       ELSE.
-        rs_settings-fork = |{ get_url( ) }{ zif_abapgit_repo_online=>c_separator-fork }{ lv_branch }|.
+        rs_settings-fork        = get_url( ).
+        rs_settings-fork_branch = lv_branch.
       ENDIF.
     ELSE.
       rs_settings-branch    = get_selected_branch( ).
