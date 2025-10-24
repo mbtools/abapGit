@@ -39,6 +39,7 @@ CLASS zcl_abapgit_gui_page_addonline DEFINITION
       BEGIN OF c_event,
         choose_package  TYPE string VALUE 'choose-package',
         create_package  TYPE string VALUE 'create-package',
+        derive_package  TYPE string VALUE 'derive-package-name',
         choose_branch   TYPE string VALUE 'choose-branch',
         choose_labels   TYPE string VALUE 'choose-labels',
         add_online_repo TYPE string VALUE 'add-repo-online',
@@ -64,6 +65,12 @@ CLASS zcl_abapgit_gui_page_addonline DEFINITION
     METHODS choose_labels
       RAISING
         zcx_abapgit_exception.
+
+    METHODS derive_package
+      IMPORTING
+        iv_url            TYPE string
+      RETURNING
+        VALUE(rv_package) TYPE devclass.
 
 ENDCLASS.
 
@@ -107,6 +114,29 @@ CLASS zcl_abapgit_gui_page_addonline IMPLEMENTATION.
     ri_page = zcl_abapgit_gui_page_hoc=>create(
       iv_page_title      = 'New Online Repository'
       ii_child_component = lo_component ).
+
+  ENDMETHOD.
+
+
+  METHOD derive_package.
+
+    " Derive package from URL (repo name)
+    TRY.
+        rv_package = to_upper( replace(
+          val  = zcl_abapgit_url=>name( iv_url )
+          sub  = '.git'
+          with = '' ) ).
+      CATCH zcx_abapgit_exception.
+        RETURN.
+    ENDTRY.
+
+    " Map to valid package name
+    IF rv_package(1) NA 'YZ'.
+      rv_package = '$' && rv_package.
+    ENDIF.
+    IF strlen( rv_package ) > 30.
+      rv_package = rv_package(30).
+    ENDIF.
 
   ENDMETHOD.
 
@@ -202,6 +232,9 @@ CLASS zcl_abapgit_gui_page_addonline IMPLEMENTATION.
       iv_label       = 'Create Package'
       iv_action      = c_event-create_package
     )->command(
+      iv_label       = 'Derive Package'
+      iv_action      = c_event-derive_package
+    )->command(
       iv_label       = 'Back'
       iv_action      = zif_abapgit_definitions=>c_action-go_back ).
 
@@ -293,6 +326,22 @@ CLASS zcl_abapgit_gui_page_addonline IMPLEMENTATION.
         ELSE.
           rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
         ENDIF.
+
+      WHEN c_event-derive_package.
+
+        lv_package = derive_package( mo_form_data->get( c_id-url ) ).
+
+        IF lv_package IS NOT INITIAL.
+          mo_form_data->set(
+            iv_key = c_id-package
+            iv_val = lv_package ).
+
+          mo_form_data->set(
+            iv_key = c_id-display_name
+            iv_val = zcl_abapgit_factory=>get_sap_package( lv_package )->read_description( ) ).
+        ENDIF.
+
+        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
 
       WHEN c_event-choose_branch.
 
