@@ -999,7 +999,7 @@ CLASS zcl_abapgit_gui_page_diff_base IMPLEMENTATION.
   METHOD render_diff_head_after_state.
 
     IF is_diff-fstate = c_fstate-both AND mv_unified = abap_true.
-      ii_html->add( '<span class="attention pad-sides">Attention: Unified mode'
+      ii_html->add( '<span class="attention add pad-sides">Attention: mode'
                  && ' highlighting for MM assumes local file is newer ! </span>' ).
     ENDIF.
 
@@ -1021,6 +1021,9 @@ CLASS zcl_abapgit_gui_page_diff_base IMPLEMENTATION.
   METHOD render_lines.
 
     DATA: lo_highlighter TYPE REF TO zcl_abapgit_syntax_highlighter,
+          li_htmldiff    TYPE REF TO zif_abapgit_htmldiff,
+          lv_new         TYPE string,
+          lv_old         TYPE string,
           lt_diffs       TYPE zif_abapgit_definitions=>ty_diffs_tt,
           lv_insert_nav  TYPE abap_bool,
           lv_tabix       TYPE syst-tabix.
@@ -1031,6 +1034,11 @@ CLASS zcl_abapgit_gui_page_diff_base IMPLEMENTATION.
     lo_highlighter = zcl_abapgit_syntax_factory=>create( iv_filename     = is_diff-filename
                                                          iv_hidden_chars = ms_view-hidden_chars ).
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
+
+    CREATE OBJECT li_htmldiff TYPE zcl_abapgit_htmldiff
+      EXPORTING
+        iv_inserts = abap_true
+        iv_deletes = abap_false.
 
     lt_diffs = is_diff-o_diff->get( ).
 
@@ -1074,6 +1082,17 @@ CLASS zcl_abapgit_gui_page_diff_base IMPLEMENTATION.
                                 format = cl_abap_format=>e_html_attr ).
         <ls_diff>-old = escape( val    = <ls_diff>-old
                                 format = cl_abap_format=>e_html_attr ).
+      ENDIF.
+
+      IF <ls_diff>-new <> <ls_diff>-old AND <ls_diff>-new IS NOT INITIAL AND <ls_diff>-old IS NOT INITIAL.
+        lv_new = li_htmldiff->htmldiff(
+          iv_before = <ls_diff>-old
+          iv_after  = <ls_diff>-new ).
+        <ls_diff>-new = lv_new.
+        lv_old = li_htmldiff->htmldiff(
+          iv_before = <ls_diff>-new
+          iv_after  = <ls_diff>-old ).
+        <ls_diff>-old = lv_old.
       ENDIF.
 
       CONDENSE <ls_diff>-new_num. "get rid of leading spaces

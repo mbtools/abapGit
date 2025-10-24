@@ -151,6 +151,11 @@ div.settings_container { color: var(--theme-primary-font-color); }
 .diff_upd { background-color: #551; }
 div.diff_content { background-color: var(--theme-background-color); }
 
+.diff_line ins {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.15));
+  text-decoration: none;
+}
+
 /* DIFF TABLE */
 
 table.diff_tab td,th { color: #fff; }
