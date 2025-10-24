@@ -220,9 +220,13 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
         RETURN.
       ENDIF.
 
-      lv_url = mo_form_data->get( c_id-url ).
-
-      lv_branch_name = mo_form_data->get( c_id-branch ).
+      IF mo_form_data->get( c_id-head_type ) = zif_abapgit_git_definitions=>c_head_types-fork.
+        lv_url         = mo_form_data->get( c_id-fork ).
+        lv_branch_name = mo_form_data->get( c_id-fork_branch ).
+      ELSE.
+        lv_url         = mo_form_data->get( c_id-url ).
+        lv_branch_name = mo_form_data->get( c_id-branch ).
+      ENDIF.
 
       mo_popup_picklist = zcl_abapgit_popup_branch_list=>create(
         iv_show_new_option = abap_false
@@ -238,9 +242,15 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
       IF lv_popup_cancelled = abap_false.
         mo_popup_picklist->get_result_item( CHANGING cs_selected = ls_branch ).
         IF ls_branch IS NOT INITIAL.
-          mo_form_data->set(
-            iv_key = c_id-branch
-            iv_val = ls_branch-display_name ).
+          IF mo_form_data->get( c_id-head_type ) = zif_abapgit_git_definitions=>c_head_types-fork.
+            mo_form_data->set(
+              iv_key = c_id-fork_branch
+              iv_val = ls_branch-display_name ).
+          ELSE.
+            mo_form_data->set(
+              iv_key = c_id-branch
+              iv_val = ls_branch-display_name ).
+          ENDIF.
         ENDIF.
       ENDIF.
 
@@ -459,11 +469,12 @@ CLASS zcl_abapgit_gui_page_sett_remo IMPLEMENTATION.
         ro_form->text(
           iv_name        = c_id-fork
           iv_label       = 'Fork URL'
-          iv_required    = abap_true ). "TODO: side-action
+          iv_required    = abap_true ).
         ro_form->text(
           iv_name        = c_id-fork_branch
           iv_label       = 'Fork Branch'
-          iv_required    = abap_true ). "TODO: side-action
+          iv_required    = abap_true
+          iv_side_action = c_event-choose_branch ).
       ENDIF.
 
       IF lv_head_type = zif_abapgit_git_definitions=>c_head_types-branch OR
