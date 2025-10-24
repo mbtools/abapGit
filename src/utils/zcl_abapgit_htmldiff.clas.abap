@@ -589,7 +589,7 @@ CLASS zcl_abapgit_htmldiff IMPLEMENTATION.
 
       CLEAR lt_new_match_length_at.
 
-      READ TABLE it_index_before_in_after INTO ls_index_row WITH TABLE KEY token = lv_looking_for.
+      READ TABLE it_index_before_in_after INTO ls_index_row WITH KEY token = lv_looking_for.
       ASSERT sy-subrc = 0. " all tokens must be in index
       lt_locations_in_after = ls_index_row-locations.
 
