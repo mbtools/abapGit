@@ -5,16 +5,13 @@ CLASS zcl_abapgit_htmldiff DEFINITION
 ************************************************************************
 * ABAP HTML Diff
 *
-* https://github.com/Marc-Bernard-Tools/ABAP-HTML-Diff
-*
 * This  is a port of JavaScript        (https://github.com/alaorneto/htmldiffer, no license)
 * which is a port of CoffeeScript      (https://github.com/tnwinc/htmldiff.js, MIT license)
 * which is a port of the original Ruby (https://github.com/myobie/htmldiff, MIT license)
 *
-* Copyright 2021 Marc Bernard <https://marcbernardtools.com/>
+* Copyright 2024 apm.to Inc. <https://apm.to>
 * SPDX-License-Identifier: MIT
 ************************************************************************
-
   PUBLIC SECTION.
 
     CONSTANTS c_version TYPE string VALUE '1.0.1' ##NEEDED.
@@ -558,6 +555,7 @@ CLASS zcl_abapgit_htmldiff IMPLEMENTATION.
       lv_best_match_length    TYPE i,
       lv_index_in_before      TYPE i,
       lv_index_in_after       TYPE i,
+      lv_index_in_after_key   TYPE i,
       lv_new_match_length     TYPE i,
       lv_looking_for          TYPE ty_token,
       ls_index_row            TYPE ty_index_row,
@@ -602,7 +600,8 @@ CLASS zcl_abapgit_htmldiff IMPLEMENTATION.
           EXIT.
         ENDIF.
 
-        READ TABLE lt_match_length_at INTO ls_match_length_at WITH TABLE KEY key = lv_index_in_after - 1.
+        lv_index_in_after_key = lv_index_in_after - 1.
+        READ TABLE lt_match_length_at INTO ls_match_length_at WITH TABLE KEY key = lv_index_in_after_key.
         IF sy-subrc <> 0.
           ls_match_length_at-key = lv_index_in_after - 1.
           ls_match_length_at-val = 0.
