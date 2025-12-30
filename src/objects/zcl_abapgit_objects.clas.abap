@@ -399,7 +399,7 @@ CLASS zcl_abapgit_objects IMPLEMENTATION.
               is_item     = is_item
               iv_language = zif_abapgit_definitions=>c_english.
         ENDIF.
-      CATCH cx_sy_create_object_error.
+      CATCH cx_sy_create_object_error zcx_abapgit_exception.
         IF iv_native_only = abap_true.
           " No native support? -> fail
           RAISE EXCEPTION TYPE zcx_abapgit_type_not_supported EXPORTING obj_type = is_item-obj_type.
@@ -417,7 +417,7 @@ CLASS zcl_abapgit_objects IMPLEMENTATION.
                 EXPORTING
                   is_item = is_item.
             ENDIF.
-          CATCH cx_sy_create_object_error.
+          CATCH cx_sy_create_object_error zcx_abapgit_exception.
             RAISE EXCEPTION TYPE zcx_abapgit_type_not_supported EXPORTING obj_type = is_item-obj_type.
         ENDTRY.
     ENDTRY.
@@ -649,6 +649,8 @@ CLASS zcl_abapgit_objects IMPLEMENTATION.
               iv_path = <ls_result>-path ).
 
             zcl_abapgit_factory=>get_sap_package( lv_package )->check_object_type( ls_item-obj_type ).
+          ELSE.
+            lv_package = ii_repo->get_package( ).
           ENDIF.
 
           IF ls_item-obj_type = 'DEVC'.
@@ -972,7 +974,7 @@ CLASS zcl_abapgit_objects IMPLEMENTATION.
   METHOD get_extra_from_filename.
 
     IF iv_filename IS NOT INITIAL.
-      FIND REGEX '\..*\.([\-a-z0-9_%]*)\.' IN iv_filename SUBMATCHES rv_extra.
+      FIND REGEX '\..*\.([\-a-z0-9_%]*)\.' IN iv_filename SUBMATCHES rv_extra ##REGEX_POSIX.
       IF sy-subrc = 0.
         rv_extra = cl_http_utility=>unescape_url( rv_extra ).
       ENDIF.
