@@ -110,7 +110,7 @@ CLASS lcl_data IMPLEMENTATION.
     ls_main-display_name = zif_abapgit_flow_logic=>c_main.
 
     ls_file-filename = c_filename.
-    ls_file-data = '001122333'.
+    ls_file-data = '00112233'.
     INSERT ls_file INTO TABLE ls_main-files.
 
     INSERT ls_main INTO TABLE mt_branches.
@@ -211,6 +211,9 @@ ENDCLASS.
 CLASS lcl_cts IMPLEMENTATION.
   METHOD constructor.
     mo_data = io_data.
+  ENDMETHOD.
+  METHOD zif_abapgit_cts_api~read_request_and_tasks.
+    RETURN. " todo, implement method
   ENDMETHOD.
   METHOD zif_abapgit_cts_api~confirm_transport_messages.
     RETURN. " todo, implement method
