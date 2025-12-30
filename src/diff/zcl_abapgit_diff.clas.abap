@@ -97,7 +97,7 @@ CLASS zcl_abapgit_diff IMPLEMENTATION.
       CREATE OBJECT lo_regex
         EXPORTING
           pattern     = lv_regex
-          ignore_case = abap_true.
+          ignore_case = abap_true ##REGEX_POSIX.
       APPEND lo_regex TO rt_regex_set.
     ENDLOOP.
 
@@ -148,7 +148,7 @@ CLASS zcl_abapgit_diff IMPLEMENTATION.
       <ls_diff>-beacon = lv_beacon_idx.
 
       LOOP AT lt_regex INTO lo_regex.
-        FIND FIRST OCCURRENCE OF REGEX lo_regex IN <ls_diff>-new SUBMATCHES lv_submatch.
+        FIND FIRST OCCURRENCE OF REGEX lo_regex IN <ls_diff>-new SUBMATCHES lv_submatch ##REGEX_POSIX.
         IF sy-subrc = 0. " Match
           lv_beacon_str = <ls_diff>-new.
           lv_submatch = to_upper( lv_submatch ).
@@ -169,7 +169,7 @@ CLASS zcl_abapgit_diff IMPLEMENTATION.
             lv_beacon_2lev = replace( val   = lv_beacon_str
                                       regex = '\s+(DEFINITION|IMPLEMENTATION)'
                                       with  = ''
-                                      occ   = 0 ).
+                                      occ   = 0 ) ##REGEX_POSIX.
           ELSEIF lv_submatch = 'METHOD'.
             lv_beacon_str = lv_beacon_2lev && ` => ` && lv_beacon_str.
           ELSEIF lv_submatch = 'PUBLIC' OR lv_submatch = 'PROTECTED' OR lv_submatch = 'PRIVATE'.
