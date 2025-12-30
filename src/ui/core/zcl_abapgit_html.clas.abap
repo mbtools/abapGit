@@ -122,7 +122,7 @@ CLASS zcl_abapgit_html IMPLEMENTATION.
     CREATE OBJECT go_single_tags_re
       EXPORTING
         pattern     = '<(AREA|BASE|BR|COL|COMMAND|EMBED|HR|IMG|INPUT|LINK|META|PARAM|SOURCE|!)'
-        ignore_case = abap_false.
+        ignore_case = abap_false ##REGEX_POSIX.
 
     gv_spaces = repeat(
       val = ` `
@@ -316,7 +316,7 @@ CLASS zcl_abapgit_html IMPLEMENTATION.
       FIND ALL OCCURRENCES OF '</' IN lv_line MATCH COUNT rs_result-closings.
       IF rs_result-closings <> rs_result-openings.
 * if everything is closings, there are no single tags
-        FIND ALL OCCURRENCES OF REGEX go_single_tags_re IN lv_line MATCH COUNT rs_result-singles.
+        FIND ALL OCCURRENCES OF REGEX go_single_tags_re IN lv_line MATCH COUNT rs_result-singles ##REGEX_POSIX.
       ENDIF.
       rs_result-openings = rs_result-openings - rs_result-closings - rs_result-singles.
 

@@ -202,7 +202,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
       RETURN. " Not found ? nothing to delete !
     ENDIF.
 
-    DELETE mt_json_tree INDEX sy-tabix. " where path = iv_path and name = iv_name.
+    DELETE mt_json_tree INDEX sy-tabix. "#EC CI_SORTSEQ where path = iv_path and name = iv_name.
 
     IF rs_top_node-children > 0. " only for objects and arrays
       lv_parent_path = iv_path && iv_name && '/*'.
@@ -447,7 +447,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     IF lr_item IS NOT INITIAL AND lr_item->type = zif_abapgit_ajson_types=>node_type-string.
       FIND FIRST OCCURRENCE OF REGEX '^(\d{4})-(\d{2})-(\d{2})(T|$)'
         IN lr_item->value
-        SUBMATCHES lv_y lv_m lv_d.
+        SUBMATCHES lv_y lv_m lv_d ##REGEX_POSIX.
       CONCATENATE lv_y lv_m lv_d INTO rv_value.
     ENDIF.
 
@@ -736,7 +736,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
     ENDIF.
 
     IF go_float_regex IS NOT BOUND.
-      CREATE OBJECT go_float_regex EXPORTING pattern = '^([1-9][0-9]*|0)\.[0-9]+$'.
+      CREATE OBJECT go_float_regex EXPORTING pattern = '^([1-9][0-9]*|0)\.[0-9]+$' ##REGEX_POSIX.
       " expects fractional, because ints are detected separately
     ENDIF.
 
@@ -915,7 +915,7 @@ CLASS zcl_abapgit_ajson IMPLEMENTATION.
 
     lv_path_pattern = lv_normalized_path && `*`.
 
-    LOOP AT mt_json_tree INTO ls_item WHERE path CP lv_path_pattern.
+    LOOP AT mt_json_tree INTO ls_item WHERE path CP lv_path_pattern. "#EC CI_SORTSEQ
 
       ls_item-path = substring( val = ls_item-path
                                 off = lv_path_len - 1 ). " less closing '/'

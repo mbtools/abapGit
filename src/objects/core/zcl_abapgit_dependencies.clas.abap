@@ -6,8 +6,10 @@ CLASS zcl_abapgit_dependencies DEFINITION
   PUBLIC SECTION.
 
     CLASS-METHODS resolve
+      IMPORTING
+        !iv_skip_ddic TYPE abap_bool DEFAULT abap_false
       CHANGING
-        !ct_tadir TYPE zif_abapgit_definitions=>ty_tadir_tt
+        !ct_tadir     TYPE zif_abapgit_definitions=>ty_tadir_tt
       RAISING
         zcx_abapgit_exception .
   PROTECTED SECTION.
@@ -119,7 +121,7 @@ CLASS zcl_abapgit_dependencies IMPLEMENTATION.
           " AUTH after DCLS
           <ls_tadir>-korrnum = '715000'.
         WHEN 'SUSH'.
-          " SUSH after SUSC and SRVB
+          " SUSH after SUSC, SRVB, and G4BA
           <ls_tadir>-korrnum = '712000'.
         WHEN 'SUSC'.
           " SUSC after SUSO
@@ -191,7 +193,9 @@ CLASS zcl_abapgit_dependencies IMPLEMENTATION.
       ENDCASE.
     ENDLOOP.
 
-    resolve_ddic( CHANGING ct_tadir = ct_tadir ).
+    IF iv_skip_ddic = abap_false.
+      resolve_ddic( CHANGING ct_tadir = ct_tadir ).
+    ENDIF.
     resolve_packages( CHANGING ct_tadir = ct_tadir ).
 
     SORT ct_tadir BY korrnum ASCENDING.
