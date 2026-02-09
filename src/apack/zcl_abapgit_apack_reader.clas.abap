@@ -44,6 +44,11 @@ CLASS zcl_abapgit_apack_reader DEFINITION
       IMPORTING
         !iv_package_name TYPE ty_package_name .
     METHODS refresh.
+    METHODS get_signature
+      RETURNING
+        VALUE(rs_signature) TYPE zif_abapgit_git_definitions=>ty_file_signature
+      RAISING
+        zcx_abapgit_exception .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -69,6 +74,18 @@ CLASS zcl_abapgit_apack_reader DEFINITION
     METHODS format_version
       RAISING
         zcx_abapgit_exception.
+
+    CLASS-METHODS to_xml
+      IMPORTING
+        is_data       TYPE zif_abapgit_apack_definitions=>ty_descriptor
+      RETURNING
+        VALUE(rv_xml) TYPE string.
+
+    METHODS serialize
+      RETURNING
+        VALUE(rv_xml) TYPE xstring
+      RAISING
+        zcx_abapgit_exception .
 
 ENDCLASS.
 
@@ -241,6 +258,15 @@ CLASS zcl_abapgit_apack_reader IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD get_signature.
+
+    rs_signature-path     = zif_abapgit_definitions=>c_root_dir.
+    rs_signature-filename = zif_abapgit_apack_definitions=>c_dot_apack_manifest.
+    rs_signature-sha1     = zcl_abapgit_hash=>sha1_blob( serialize( ) ).
+
+  ENDMETHOD.
+
+
   METHOD has_manifest.
 
     DATA: ls_returned_manifest TYPE zif_abapgit_apack_definitions=>ty_descriptor.
@@ -257,9 +283,23 @@ CLASS zcl_abapgit_apack_reader IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD serialize.
+    rv_xml = zcl_abapgit_convert=>string_to_xstring_utf8( to_xml( get_manifest_descriptor( ) ) ).
+  ENDMETHOD.
+
+
   METHOD set_manifest_descriptor.
     mv_is_cached = abap_true.
     ms_cached_descriptor = is_manifest_descriptor.
     format_version( ).
+  ENDMETHOD.
+
+
+  METHOD to_xml.
+
+    CALL TRANSFORMATION id
+      SOURCE data = is_data
+      RESULT XML rv_xml.
+
   ENDMETHOD.
 ENDCLASS.

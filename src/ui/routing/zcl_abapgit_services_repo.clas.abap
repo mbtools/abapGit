@@ -94,6 +94,11 @@ CLASS zcl_abapgit_services_repo DEFINITION
       RAISING
         zcx_abapgit_cancel
         zcx_abapgit_exception .
+    CLASS-METHODS popup_files_overwrite
+      CHANGING
+        !ct_changed_files TYPE zif_abapgit_definitions=>ty_changed_files
+      RAISING
+        zcx_abapgit_exception .
     CLASS-METHODS popup_objects_overwrite
       CHANGING
         !ct_overwrite TYPE zif_abapgit_definitions=>ty_overwrite_tt
@@ -308,7 +313,7 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
     " find troublesome objects
     ls_checks = ii_repo->deserialize_checks( ).
 
-    IF ls_checks-overwrite IS INITIAL.
+    IF ls_checks-overwrite IS INITIAL AND ls_checks-changed_files IS INITIAL.
       zcx_abapgit_exception=>raise(
         'There is nothing to pull. The local state completely matches the remote repository.' ).
     ENDIF.
@@ -476,6 +481,78 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD popup_decisions.
+
+    DATA:
+      lt_decision     TYPE zif_abapgit_definitions=>ty_overwrite_tt,
+      lt_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt,
+      lt_dependencies TYPE zif_abapgit_apack_definitions=>ty_dependencies.
+
+    FIELD-SYMBOLS:
+      <ls_overwrite> LIKE LINE OF cs_checks-overwrite,
+      <ls_decision>  LIKE LINE OF lt_decision.
+
+    lt_decision = cs_checks-overwrite.
+
+    " If there's a new namespace, it has to be pulled before all other objects
+    READ TABLE lt_decision ASSIGNING <ls_decision> WITH KEY obj_type = 'NSPC'.
+    IF sy-subrc = 0 AND <ls_decision>-action = zif_abapgit_objects=>c_deserialize_action-add.
+      <ls_decision>-decision = zif_abapgit_definitions=>c_yes.
+    ELSE.
+      " Set all new objects to YES
+      LOOP AT lt_decision ASSIGNING <ls_decision> WHERE action = zif_abapgit_objects=>c_deserialize_action-add.
+        <ls_decision>-decision = zif_abapgit_definitions=>c_yes.
+      ENDLOOP.
+    ENDIF.
+
+    " Ask user what to do
+    IF cs_checks-requirements-met = zif_abapgit_definitions=>c_no.
+      lt_requirements = ii_repo->get_dot_abapgit( )->get_data( )-requirements.
+      zcl_abapgit_repo_requirements=>requirements_popup( lt_requirements ).
+      cs_checks-requirements-decision = zif_abapgit_definitions=>c_yes.
+    ENDIF.
+
+    IF cs_checks-dependencies-met = zif_abapgit_definitions=>c_no.
+      lt_dependencies = ii_repo->get_dot_apack( )->get_manifest_descriptor( )-dependencies.
+      zcl_abapgit_apack_helper=>dependencies_popup( lt_dependencies ).
+      cs_checks-dependencies-decision = zif_abapgit_definitions=>c_yes.
+    ENDIF.
+
+    popup_files_overwrite( CHANGING ct_changed_files = cs_checks-changed_files ).
+
+    popup_objects_overwrite( CHANGING ct_overwrite = lt_decision ).
+
+    popup_data_loss_overwrite(
+      EXPORTING
+        it_overwrite = lt_decision
+      CHANGING
+        ct_data_loss = cs_checks-data_loss ).
+
+    popup_package_overwrite( CHANGING ct_overwrite = cs_checks-warning_package ).
+
+    popup_delete_tabl_data(
+      EXPORTING
+        it_overwrite   = lt_decision
+      CHANGING
+        ct_delete_tabl = cs_checks-delete_tabl_with_data ).
+
+    IF cs_checks-transport-required = abap_true AND cs_checks-transport-transport IS INITIAL.
+      cs_checks-transport-transport =
+        zcl_abapgit_ui_factory=>get_popups( )->popup_transport_request( cs_checks-transport-type ).
+    ENDIF.
+
+    " Update decisions
+    LOOP AT cs_checks-overwrite ASSIGNING <ls_overwrite>.
+      READ TABLE lt_decision ASSIGNING <ls_decision> WITH KEY object_type_and_name COMPONENTS
+        obj_type = <ls_overwrite>-obj_type
+        obj_name = <ls_overwrite>-obj_name.
+      ASSERT sy-subrc = 0.
+      <ls_overwrite>-decision = <ls_decision>-decision.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
   METHOD popup_delete_tabl_data.
 
     DATA: lt_columns  TYPE zif_abapgit_popups=>ty_alv_column_tt,
@@ -483,9 +560,9 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
           li_popups   TYPE REF TO zif_abapgit_popups.
     DATA lt_preselected_rows TYPE zif_abapgit_popups=>ty_rows.
 
-    FIELD-SYMBOLS: <ls_overwrite>    LIKE LINE OF it_overwrite,
-                   <ls_delete_tabl>  LIKE LINE OF ct_delete_tabl,
-                   <ls_column>       TYPE zif_abapgit_popups=>ty_alv_column.
+    FIELD-SYMBOLS: <ls_overwrite>   LIKE LINE OF it_overwrite,
+                   <ls_delete_tabl> LIKE LINE OF ct_delete_tabl,
+                   <ls_column>      TYPE zif_abapgit_popups=>ty_alv_column.
 
     LOOP AT it_overwrite ASSIGNING <ls_overwrite> WHERE decision <> zif_abapgit_definitions=>c_yes.
       DELETE ct_delete_tabl WHERE obj_type = <ls_overwrite>-obj_type AND obj_name = <ls_overwrite>-obj_name.
@@ -539,71 +616,60 @@ CLASS zcl_abapgit_services_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD popup_decisions.
+  METHOD popup_files_overwrite.
 
-    DATA:
-      lt_decision     TYPE zif_abapgit_definitions=>ty_overwrite_tt,
-      lt_requirements TYPE zif_abapgit_dot_abapgit=>ty_requirement_tt,
-      lt_dependencies TYPE zif_abapgit_apack_definitions=>ty_dependencies.
+    DATA: lt_columns          TYPE zif_abapgit_popups=>ty_alv_column_tt,
+          lt_selected         LIKE ct_changed_files,
+          li_popups           TYPE REF TO zif_abapgit_popups,
+          lt_preselected_rows TYPE zif_abapgit_popups=>ty_rows.
 
-    FIELD-SYMBOLS:
-      <ls_overwrite> LIKE LINE OF cs_checks-overwrite,
-      <ls_decision>  LIKE LINE OF lt_decision.
+    FIELD-SYMBOLS: <ls_change> LIKE LINE OF ct_changed_files,
+                   <ls_column> TYPE zif_abapgit_popups=>ty_alv_column.
 
-    lt_decision = cs_checks-overwrite.
-
-    " If there's a new namespace, it has to be pulled before all other objects
-    READ TABLE lt_decision ASSIGNING <ls_decision> WITH KEY obj_type = 'NSPC'.
-    IF sy-subrc = 0 AND <ls_decision>-action = zif_abapgit_objects=>c_deserialize_action-add.
-      <ls_decision>-decision = zif_abapgit_definitions=>c_yes.
-    ELSE.
-      " Set all new objects to YES
-      LOOP AT lt_decision ASSIGNING <ls_decision> WHERE action = zif_abapgit_objects=>c_deserialize_action-add.
-        <ls_decision>-decision = zif_abapgit_definitions=>c_yes.
-      ENDLOOP.
+    IF lines( ct_changed_files ) = 0.
+      RETURN.
     ENDIF.
 
-    " Ask user what to do
-    IF cs_checks-requirements-met = zif_abapgit_definitions=>c_no.
-      lt_requirements = ii_repo->get_dot_abapgit( )->get_data( )-requirements.
-      zcl_abapgit_repo_requirements=>requirements_popup( lt_requirements ).
-      cs_checks-requirements-decision = zif_abapgit_definitions=>c_yes.
-    ENDIF.
+    APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
+    <ls_column>-name = 'PATH'.
+    APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
+    <ls_column>-name = 'FILENAME'.
+    APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
+    <ls_column>-name = 'STATE'.
+    <ls_column>-text = 'State'.
+    <ls_column>-length = 3.
+    APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
+    <ls_column>-name = 'ICON'.
+    <ls_column>-text = 'Action'.
+    <ls_column>-show_icon = abap_true.
+    <ls_column>-length = 5.
+    APPEND INITIAL LINE TO lt_columns ASSIGNING <ls_column>.
+    <ls_column>-name = 'TEXT'.
+    <ls_column>-text = 'Description'.
 
-    IF cs_checks-dependencies-met = zif_abapgit_definitions=>c_no.
-      lt_dependencies = ii_repo->get_dot_apack( )->get_manifest_descriptor( )-dependencies.
-      zcl_abapgit_apack_helper=>dependencies_popup( lt_dependencies ).
-      cs_checks-dependencies-decision = zif_abapgit_definitions=>c_yes.
-    ENDIF.
+    LOOP AT ct_changed_files ASSIGNING <ls_change>.
+      INSERT sy-tabix INTO TABLE lt_preselected_rows.
+    ENDLOOP.
 
-    popup_objects_overwrite( CHANGING ct_overwrite = lt_decision ).
-
-    popup_data_loss_overwrite(
+    li_popups = zcl_abapgit_ui_factory=>get_popups( ).
+    li_popups->popup_to_select_from_list(
       EXPORTING
-        it_overwrite = lt_decision
-      CHANGING
-        ct_data_loss = cs_checks-data_loss ).
+        it_list               = ct_changed_files
+        iv_header_text        = |The following files are different between local and remote repository.| &&
+                                | Select the files which should be brought in line with the remote version.|
+        iv_select_column_text = 'Change?'
+        it_columns_to_display = lt_columns
+        it_preselected_rows   = lt_preselected_rows
+      IMPORTING
+        et_list               = lt_selected ).
 
-    popup_package_overwrite( CHANGING ct_overwrite = cs_checks-warning_package ).
-
-    popup_delete_tabl_data(
-      EXPORTING
-        it_overwrite   = lt_decision
-      CHANGING
-        ct_delete_tabl = cs_checks-delete_tabl_with_data ).
-
-    IF cs_checks-transport-required = abap_true AND cs_checks-transport-transport IS INITIAL.
-      cs_checks-transport-transport =
-        zcl_abapgit_ui_factory=>get_popups( )->popup_transport_request( cs_checks-transport-type ).
-    ENDIF.
-
-    " Update decisions
-    LOOP AT cs_checks-overwrite ASSIGNING <ls_overwrite>.
-      READ TABLE lt_decision ASSIGNING <ls_decision> WITH KEY object_type_and_name COMPONENTS
-        obj_type = <ls_overwrite>-obj_type
-        obj_name = <ls_overwrite>-obj_name.
-      ASSERT sy-subrc = 0.
-      <ls_overwrite>-decision = <ls_decision>-decision.
+    LOOP AT ct_changed_files ASSIGNING <ls_change>.
+      READ TABLE lt_selected WITH KEY path = <ls_change>-path filename = <ls_change>-filename TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        <ls_change>-decision = zif_abapgit_definitions=>c_yes.
+      ELSE.
+        <ls_change>-decision = zif_abapgit_definitions=>c_no.
+      ENDIF.
     ENDLOOP.
 
   ENDMETHOD.

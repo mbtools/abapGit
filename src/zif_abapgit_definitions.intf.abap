@@ -40,6 +40,18 @@ INTERFACE zif_abapgit_definitions
     ty_yes_no         TYPE c LENGTH 1,
     ty_yes_no_partial TYPE c LENGTH 1.
   TYPES:
+    BEGIN OF ty_changed_file.
+      INCLUDE TYPE zif_abapgit_git_definitions=>ty_file.
+  TYPES:
+      state    TYPE c LENGTH 2,
+      action   TYPE i,
+      icon     TYPE icon_d,
+      text     TYPE string,
+      decision TYPE ty_yes_no,
+    END OF ty_changed_file.
+  TYPES:
+    ty_changed_files TYPE STANDARD TABLE OF ty_changed_file WITH KEY path filename.
+  TYPES:
     BEGIN OF ty_overwrite.
       INCLUDE TYPE ty_item.
   TYPES:
@@ -84,6 +96,7 @@ INTERFACE zif_abapgit_definitions
       dependencies          TYPE ty_dependencies,
       transport             TYPE ty_transport,
       customizing           TYPE ty_transport,
+      changed_files         TYPE ty_changed_files,
     END OF ty_deserialize_checks .
   TYPES:
     BEGIN OF ty_delete_checks,

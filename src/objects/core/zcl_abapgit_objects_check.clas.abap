@@ -106,6 +106,22 @@ CLASS zcl_abapgit_objects_check DEFINITION
       RAISING
         zcx_abapgit_exception.
 
+    CLASS-METHODS warning_files_adjust
+      IMPORTING
+        !it_changed_files TYPE zif_abapgit_definitions=>ty_changed_files
+      CHANGING
+        !ct_results       TYPE zif_abapgit_definitions=>ty_results_tt
+      RAISING
+        zcx_abapgit_exception.
+
+    CLASS-METHODS warning_files_find
+      IMPORTING
+        !it_results             TYPE zif_abapgit_definitions=>ty_results_tt
+      RETURNING
+        VALUE(rt_changed_files) TYPE zif_abapgit_definitions=>ty_changed_files
+      RAISING
+        zcx_abapgit_exception.
+
     CLASS-METHODS determine_transport_request
       IMPORTING
         ii_repo                     TYPE REF TO zif_abapgit_repo
@@ -155,6 +171,12 @@ CLASS zcl_abapgit_objects_check IMPLEMENTATION.
     " Make sure to get the current status, as something might have changed in the meanwhile
     " - Remove objects from results that were deselected in confirmation popup
     " - Raise exception if an object has no decision of what to do
+
+    warning_files_adjust(
+      EXPORTING
+        it_changed_files = is_checks-changed_files
+      CHANGING
+        ct_results       = ct_results ).
 
     warning_overwrite_adjust(
       EXPORTING
@@ -235,6 +257,7 @@ CLASS zcl_abapgit_objects_check IMPLEMENTATION.
 
     check_multiple_files( lt_results ).
 
+    rs_checks-changed_files = warning_files_find( lt_results ).
     rs_checks-overwrite = warning_overwrite_find( lt_results ).
 
     rs_checks-warning_package = warning_package_find(
@@ -255,8 +278,8 @@ CLASS zcl_abapgit_objects_check IMPLEMENTATION.
       IF NOT rs_checks-transport-required IS INITIAL.
         rs_checks-transport-type = li_package->get_transport_type( ).
         rs_checks-transport-transport = determine_transport_request(
-                                            ii_repo           = ii_repo
-                                            iv_transport_type = rs_checks-transport-type ).
+          ii_repo           = ii_repo
+          iv_transport_type = rs_checks-transport-type ).
       ENDIF.
     ENDIF.
 
@@ -345,6 +368,79 @@ CLASS zcl_abapgit_objects_check IMPLEMENTATION.
         ENDIF.
       ENDIF.
 
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD warning_files_adjust.
+
+    DATA:
+      ls_change            LIKE LINE OF it_changed_files,
+      lt_changed_files_new LIKE it_changed_files.
+
+    FIELD-SYMBOLS <ls_change> LIKE LINE OF it_changed_files.
+
+    lt_changed_files_new = warning_files_find( ct_results ).
+
+    LOOP AT lt_changed_files_new ASSIGNING <ls_change>.
+
+      READ TABLE it_changed_files INTO ls_change WITH KEY path = <ls_change>-path filename = <ls_change>-filename.
+      IF sy-subrc <> 0 OR ls_change-decision IS INITIAL.
+        zcx_abapgit_exception=>raise( |Change of file { <ls_change>-path }{ <ls_change>-filename } undecided| ).
+      ENDIF.
+
+      IF ls_change-decision = zif_abapgit_definitions=>c_no.
+        DELETE ct_results WHERE path = <ls_change>-path AND filename = <ls_change>-filename.
+        ASSERT sy-subrc = 0.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD warning_files_find.
+
+    DATA lv_status TYPE c LENGTH 2.
+
+    FIELD-SYMBOLS:
+      <ls_result> LIKE LINE OF it_results,
+      <ls_change> LIKE LINE OF rt_changed_files.
+
+    " collect all actions for object that have been changed
+    LOOP AT it_results ASSIGNING <ls_result> USING KEY sec_key
+      WHERE obj_type IS INITIAL AND filename IS NOT INITIAL AND match = abap_false.
+
+      APPEND INITIAL LINE TO rt_changed_files ASSIGNING <ls_change>.
+      MOVE-CORRESPONDING <ls_result> TO <ls_change>.
+
+      CONCATENATE <ls_result>-lstate <ls_result>-rstate INTO lv_status RESPECTING BLANKS.
+      <ls_change>-state = lv_status.
+      REPLACE ALL OCCURRENCES OF ` ` IN <ls_change>-state WITH '_'.
+
+      CASE lv_status.
+        WHEN '  '. " no change
+          <ls_change>-action = zif_abapgit_objects=>c_deserialize_action-none.
+        WHEN ' A' OR 'D ' OR 'DM'. " added remotely or deleted locally
+          <ls_change>-action = zif_abapgit_objects=>c_deserialize_action-add.
+          <ls_change>-icon   = icon_create.
+          <ls_change>-text   = 'Add local object'.
+        WHEN 'A ' OR ' D' OR 'MD'. " added locally or deleted remotely
+          <ls_change>-action = zif_abapgit_objects=>c_deserialize_action-delete.
+          <ls_change>-icon   = icon_delete.
+          <ls_change>-text   = 'Delete local object'.
+        WHEN 'M ' OR 'MM'. " modified locally
+          <ls_change>-action = zif_abapgit_objects=>c_deserialize_action-overwrite.
+          <ls_change>-icon   = icon_change.
+          <ls_change>-text   = 'Overwrite local object'.
+        WHEN ' M'. " modified only remotely
+          <ls_change>-action = zif_abapgit_objects=>c_deserialize_action-update.
+          <ls_change>-icon   = icon_change.
+          <ls_change>-text   = 'Update local object'.
+        WHEN OTHERS.
+          ASSERT 0 = 1.
+      ENDCASE.
     ENDLOOP.
 
   ENDMETHOD.

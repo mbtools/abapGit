@@ -93,8 +93,17 @@ CLASS zcl_abapgit_repo DEFINITION
       RAISING
         zcx_abapgit_exception .
     METHODS deserialize_dot_abapgit
+      IMPORTING
+        !is_checks TYPE zif_abapgit_definitions=>ty_deserialize_checks
       CHANGING
-        !ct_files TYPE zif_abapgit_git_definitions=>ty_file_signatures_tt
+        !ct_files  TYPE zif_abapgit_git_definitions=>ty_file_signatures_tt
+      RAISING
+        zcx_abapgit_exception .
+    METHODS deserialize_apack
+      IMPORTING
+        !is_checks TYPE zif_abapgit_definitions=>ty_deserialize_checks
+      CHANGING
+        !ct_files  TYPE zif_abapgit_git_definitions=>ty_file_signatures_tt
       RAISING
         zcx_abapgit_exception .
     METHODS deserialize_objects
@@ -208,6 +217,27 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD deserialize_apack.
+
+    DATA lo_dot TYPE REF TO zcl_abapgit_apack_reader.
+
+    FIELD-SYMBOLS <ls_remote> LIKE LINE OF mt_remote.
+
+    READ TABLE is_checks-changed_files TRANSPORTING NO FIELDS WITH KEY
+      path     = zif_abapgit_definitions=>c_root_dir
+      filename = zif_abapgit_apack_definitions=>c_dot_apack_manifest
+      decision = zif_abapgit_definitions=>c_yes.
+    IF sy-subrc = 0.
+
+      lo_dot = find_remote_dot_apack( ).
+
+      INSERT lo_dot->get_signature( ) INTO TABLE ct_files.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD deserialize_data.
 
     DATA:
@@ -244,7 +274,23 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
 
 
   METHOD deserialize_dot_abapgit.
-    INSERT get_dot_abapgit( )->get_signature( ) INTO TABLE ct_files.
+
+    DATA lo_dot TYPE REF TO zcl_abapgit_dot_abapgit.
+
+    FIELD-SYMBOLS <ls_remote> LIKE LINE OF mt_remote.
+
+    READ TABLE is_checks-changed_files TRANSPORTING NO FIELDS WITH KEY
+      path     = zif_abapgit_definitions=>c_root_dir
+      filename = zif_abapgit_definitions=>c_dot_abapgit
+      decision = zif_abapgit_definitions=>c_yes.
+    IF sy-subrc = 0.
+
+      lo_dot = find_remote_dot_abapgit( ).
+
+      INSERT lo_dot->get_signature( ) INTO TABLE ct_files.
+
+    ENDIF.
+
   ENDMETHOD.
 
 
@@ -518,9 +564,7 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
   METHOD zif_abapgit_repo~deserialize.
 
     DATA lt_updated_files TYPE zif_abapgit_git_definitions=>ty_file_signatures_tt.
-
-    find_remote_dot_abapgit( ).
-    find_remote_dot_apack( ).
+    DATA li_exit TYPE REF TO zif_abapgit_exit.
 
     check_write_protect( ).
     check_language( ).
@@ -537,7 +581,19 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
       zcx_abapgit_exception=>raise( |No transport request was supplied| ).
     ENDIF.
 
-    deserialize_dot_abapgit( CHANGING ct_files = lt_updated_files ).
+    get_files_remote( ).
+
+    deserialize_dot_abapgit(
+      EXPORTING
+        is_checks = is_checks
+      CHANGING
+        ct_files  = lt_updated_files ).
+
+    deserialize_apack(
+      EXPORTING
+        is_checks = is_checks
+      CHANGING
+        ct_files  = lt_updated_files ).
 
     deserialize_objects(
       EXPORTING
@@ -551,6 +607,17 @@ CLASS zcl_abapgit_repo IMPLEMENTATION.
         is_checks = is_checks
       CHANGING
         ct_files  = lt_updated_files ).
+
+*   Call postprocessing
+    li_exit = zcl_abapgit_exit=>get_instance( ).
+
+    li_exit->deserialize_postprocess(
+      EXPORTING
+        iv_package       = get_package( )
+        it_remote        = mt_remote
+        ii_log           = ii_log
+      CHANGING
+        ct_updated_files = lt_updated_files ).
 
     CLEAR mt_local. " Should be before CS update which uses NEW local
 
