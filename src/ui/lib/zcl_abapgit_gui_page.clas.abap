@@ -82,6 +82,11 @@ CLASS zcl_abapgit_gui_page DEFINITION PUBLIC ABSTRACT
         !ii_html TYPE REF TO zif_abapgit_html
       RAISING
         zcx_abapgit_exception .
+    METHODS render_back_navigation
+      IMPORTING
+        !ii_html TYPE REF TO zif_abapgit_html
+      RAISING
+        zcx_abapgit_exception .
     METHODS render_command_palettes
       IMPORTING
         !ii_html TYPE REF TO zif_abapgit_html
@@ -131,7 +136,7 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
     ri_html->add( '<div id="footer">' ).
     ri_html->add( '<table class="w100"><tr>' ).
 
-    ri_html->add( '<td class="w40 sponsor">' ).
+    ri_html->add( '<td class="sponsor">' ).
     ri_html->add_a( iv_act = zif_abapgit_definitions=>c_action-sponsor
                     iv_txt = ri_html->icon( iv_name = 'heart-regular/pink'
                                             iv_hint = 'Sponsor us' ) ).
@@ -150,7 +155,7 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
     ri_html->add( |<div id="footer-version" class="version">{ get_version_details( ) }</div>| ).
     ri_html->add( '</td>' ).
 
-    ri_html->add( '<td id="debug-output" class="w40"></td>' ).
+    ri_html->add( '<td id="debug-output"></td>' ).
 
     ri_html->add( '</tr></table>' ).
     ri_html->add( '</div>' ).
@@ -172,20 +177,15 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
 
     lo_frontend_serv = zcl_abapgit_ui_factory=>get_frontend_services( ).
 
-    CASE abap_true.
-      WHEN lo_frontend_serv->is_webgui( ).
-        rv_version = rv_version && ` - Web`.
-      WHEN lo_frontend_serv->is_sapgui_for_windows( ).
-        rv_version = rv_version && ` - Win`.
-      WHEN lo_frontend_serv->is_sapgui_for_java( ).
-        rv_version = rv_version && ` - Java`.
-      WHEN OTHERS.
-* eg. open-abap?
-        rv_version = rv_version && ` - Unknown`.
-    ENDCASE.
+    rv_version = rv_version && | - { lo_frontend_serv->get_gui_type( ) }|.
 
+    " Only SAP GUI for Windows embeds a browser control whose type is worth
+    " reporting. The HTML GUI runs in the browser of the user, and guessing the
+    " control from its user agent produced nonsense there (e.g. "IE" on Chrome).
     " Will be filled by JS method displayBrowserControlFooter
-    rv_version = rv_version && '<span id="browser-control-footer"></span>'.
+    IF lo_frontend_serv->is_sapgui_for_windows( ) = abap_true.
+      rv_version = rv_version && '<span id="browser-control-footer"></span>'.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -258,28 +258,46 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
       lv_gui_patch         TYPE zif_abapgit_frontend_services=>ty_gui_patch,
       li_frontend_services TYPE REF TO zif_abapgit_frontend_services.
 
+    rv_result = abap_true.
+
+    " only relevant with SAPGUI for Windows, always hide for javagui or WebGUI
+    IF zcl_abapgit_ui_factory=>get_frontend_services( )->is_sapgui_for_windows( ) = abap_false.
+      rv_result = abap_false.
+      RETURN.
+    ENDIF.
+
     " With SAP GUI 8.00 PL3 and 7.70 PL13 Edge browser control is basically working.
     " For lower releases we render the browser control warning
     " and toggle it via JS function toggleBrowserControlWarning.
 
-    rv_result = abap_true.
 
     TRY.
         li_frontend_services = zcl_abapgit_ui_factory=>get_frontend_services( ).
         li_frontend_services->get_gui_version(
           IMPORTING
-            ev_gui_release        = lv_gui_release
-            ev_gui_sp             = lv_gui_sp
-            ev_gui_patch          = lv_gui_patch ).
+            ev_gui_release = lv_gui_release
+            ev_gui_sp      = lv_gui_sp
+            ev_gui_patch   = lv_gui_patch ).
 
       CATCH zcx_abapgit_exception.
         RETURN.
     ENDTRY.
 
     IF lv_gui_release >= '7700' AND lv_gui_sp >= '1' AND lv_gui_patch >= '13'
-    OR lv_gui_release >= '8000' AND lv_gui_sp >= '1' AND lv_gui_patch >= '3'.
+    OR lv_gui_release >= '8000' AND lv_gui_sp >= '1' AND lv_gui_patch >= '3'
+    OR lv_gui_release >= '8100' AND lv_gui_sp >= '1' AND lv_gui_patch >= '0'.
       rv_result = abap_false.
     ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD render_back_navigation.
+
+    ii_html->add( 'addHotkey({' ).
+    ii_html->add( '  toggleKey: "F3",' ).
+    ii_html->add( '  hotkeyDescription: "Go back"' ).
+    ii_html->add( '});' ).
 
   ENDMETHOD.
 
@@ -291,9 +309,9 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
     CREATE OBJECT li_documentation_link TYPE zcl_abapgit_html.
 
     li_documentation_link->add_a(
-        iv_txt = 'Documentation'
-        iv_typ = zif_abapgit_html=>c_action_type-url
-        iv_act = 'https://docs.abapgit.org/guide-sapgui.html#sap-gui-for-windows' ).
+      iv_txt = 'Documentation'
+      iv_typ = zif_abapgit_html=>c_action_type-url
+      iv_act = 'https://docs.abapgit.org/guide-sapgui.html#sap-gui-for-windows' ).
 
     ii_html->add( '<div id="browser-control-warning" class="browser-control-warning">' ).
     ii_html->add( zcl_abapgit_gui_chunk_lib=>render_warning_banner(
@@ -308,7 +326,7 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
   METHOD render_command_palettes.
 
     ii_html->add( 'var gCommandPalette = new CommandPalette(enumerateUiActions, {' ).
-    ii_html->add( '  toggleKey: "F1",' ).
+    ii_html->add( '  toggleKey: ["F1", "^p"],' ).
     ii_html->add( '  hotkeyDescription: "Command Palette"' ).
     ii_html->add( '});' ).
 
@@ -388,14 +406,17 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 
+    render_link_hints( ri_html ).
+    render_command_palettes( ri_html ).
+
     render_deferred_parts(
       ii_html          = ri_html
       iv_part_category = c_html_parts-scripts ).
 
-    render_link_hints( ri_html ).
-    render_command_palettes( ri_html ).
     ri_html->add( |toggleBrowserControlWarning();| ).
     ri_html->add( |displayBrowserControlFooter();| ).
+    ri_html->add( |redirectBrowserBackToSapEvent();| ).
+    render_back_navigation( ri_html ).
 
   ENDMETHOD.
 
@@ -511,14 +532,28 @@ CLASS zcl_abapgit_gui_page IMPLEMENTATION.
 
     ri_html->add( '<div class="not_sticky">' ).
 
+    ri_html->add( '<div id="main">' ).
     ri_html->add( render_content( ) ). " TODO -> render child
+    ri_html->add( '</div>' ).
 
     ri_html->add( render_hotkey_overview( ) ).
     ri_html->add( render_error_message_box( ) ).
 
+    " Extension point for pages that need their own hidden form. No page in
+    " abapGit uses it since the global sapevent form below replaced the
+    " per-action stub forms, but it stays available to subclasses.
     render_deferred_parts(
       ii_html          = ri_html
       iv_part_category = c_html_parts-hidden_forms ).
+
+    " Reusable, server-rendered sapevent form. On WebGUI a sapevent only routes
+    " through a form/anchor that ITS wired up while rendering the page; a form
+    " built in JS at submit time is not wired, so the raw sapevent: scheme is
+    " rejected. submitSapeventForm submits through this form whenever the caller
+    " does not supply one of its own, so JS-triggered sapevents work on WebGUI.
+    " On the desktop browser control its action is simply overwritten, so it is
+    " harmless there.
+    ri_html->add( |<form id="global_sapevent_form" method="post" action="sapevent:noop"></form>| ).
 
     ri_html->add( footer( lo_timer->end( ) ) ).
 

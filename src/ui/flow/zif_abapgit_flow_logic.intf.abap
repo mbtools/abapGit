@@ -32,15 +32,19 @@ INTERFACE zif_abapgit_flow_logic
            END OF repo,
            branch          TYPE ty_branch,
            BEGIN OF pr,
-             title  TYPE string,
-             url    TYPE string,
-             number TYPE i,
-             draft  TYPE abap_bool,
+             title     TYPE string,
+             title_raw TYPE string,
+             url       TYPE string,
+             number    TYPE i,
+             draft     TYPE abap_bool,
+             author    TYPE string,
            END OF pr,
            BEGIN OF transport,
-             trkorr TYPE trkorr,
-             title  TYPE string,
-             users  TYPE ty_users_tt,
+             trkorr     TYPE trkorr,
+             title      TYPE string,
+             users      TYPE ty_users_tt,
+             created_on TYPE d,
+             changed_at TYPE timestamp,
            END OF transport,
            full_match      TYPE abap_bool,
            changed_files   TYPE ty_path_name_tt,
@@ -55,9 +59,12 @@ INTERFACE zif_abapgit_flow_logic
             errors               TYPE string_table,
             transport_duplicates TYPE ty_transport_duplicates_tt,
             enabled_repositories TYPE i,
+            github_username      TYPE string,
          END OF ty_information.
 
   CONSTANTS c_main TYPE string VALUE 'main'.
+  CONSTANTS c_commit_days TYPE i VALUE 730.
+  CONSTANTS c_open_transport_days TYPE i VALUE 730.
 
 **************************************
 

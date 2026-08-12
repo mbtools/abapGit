@@ -3,33 +3,62 @@
  **********************************************************/
 
 /**********************************************************
-  Global variables used from outside
+ * Where used in ABAP / ESLint hints
+ **********************************************************
+ *
+ *  "--" is the ABAP caller
+ *
  **********************************************************/
 
-/* exported setInitialFocus */
-/* exported setInitialFocusWithQuerySelector */
-/* exported submitFormById */
-/* exported errorStub */
-/* exported confirmInitialized */
-/* exported perfOut */
-/* exported perfLog */
-/* exported perfClear */
-/* exported enableArrowListNavigation */
-/* exported activateLinkHints */
-/* exported setKeyBindings */
-/* exported preparePatch */
-/* exported registerStagePatch */
-/* exported toggleRepoListDetail */
-/* exported onTagTypeChange */
-/* exported getIndocStyleSheet */
-/* exported addMarginBottom */
-/* exported enumerateJumpAllFiles */
-/* exported createRepoCatalogEnumerator */
-/* exported enumerateUiActions */
-/* exported onDiffCollapse */
-/* exported restoreScrollPosition */
-/* exported toggleBrowserControlWarning */
-/* exported displayBrowserControlFooter */
+/* exported confirmInitialized
+   -- zcl_abapgit_gui_page->zif_abapgit_gui_renderable~render */
+
+/* exported toggleBrowserControlWarning, displayBrowserControlFooter,
+            redirectBrowserBackToSapEvent, addHotkey
+   -- zcl_abapgit_gui_page->scripts */
+
+/* exported activateLinkHints, setInitialFocusWithQuerySelector,
+            enableArrowListNavigation
+   -- zcl_abapgit_gui_page->render_link_hints */
+
+/* exported enumerateUiActions
+   -- zcl_abapgit_gui_page->render_command_palettes,
+      as new CommandPalette( enumerateUiActions ) */
+
+/* exported createRepoCatalogEnumerator
+   -- zcl_abapgit_gui_chunk_lib->render_repo_palette,
+      as new CommandPalette( createRepoCatalogEnumerator ) */
+
+/* exported submitFormById
+   -- zcl_abapgit_gui_page_db_entry->build_toolbar
+   -- zcl_abapgit_gui_page_merge_res (three call sites) */
+
+/* exported restoreScrollPosition, addMarginBottom, enumerateJumpAllFiles
+   -- zcl_abapgit_gui_page_diff_base->render_scripts,
+      which also does new CommandPalette( enumerateJumpAllFiles ) */
+
+/* exported onDiffCollapse
+   -- zcl_abapgit_gui_page_diff_base->render_diff_head */
+
+/* exported preparePatch, registerStagePatch
+   -- zcl_abapgit_gui_page_patch->render_scripts */
+
+/* exported setKeyBindings
+   -- zcl_abapgit_gui_hotkey_ctl->render_scripts */
+
+/* exported perfOut, perfLog, perfClear
+    -- not called from ABAP, for frontend debugging */
+
+/* Constructors instantiated from ABAP. These need no "exported"
+   directive - the XxxHelper.prototype assignments further down already
+   count as a use - but they belong in the where-used list:
+
+     new RepoOverViewHelper   zcl_abapgit_gui_page_repo_over->render_scripts
+     new StageHelper          zcl_abapgit_gui_page_stage->render_scripts
+     new DiffHelper           zcl_abapgit_gui_page_diff_base->render_scripts
+     new DiffColumnSelection  zcl_abapgit_gui_page_diff_base->render_scripts
+     new CommandPalette       see enumerateUiActions / createRepoCatalogEnumerator /
+                              enumerateJumpAllFiles above                            */
 
 /**********************************************************
  * Polyfills
@@ -100,10 +129,42 @@ if (window.NodeList && !NodeList.prototype.forEach) {
 
 // Output text to the debug div
 function debugOutput(text, dstID) {
-  var stdout  = document.getElementById(dstID || "debug-output");
-  var wrapped = "<p>" + text + "</p>";
+  var stdout    = document.getElementById(dstID || "debug-output");
+  var paragraph = document.createElement("p");
 
-  stdout.innerHTML = stdout.innerHTML + wrapped;
+  // text is trusted, server-generated debug markup (e.g. the Debug Info table),
+  // so render it as HTML rather than escaping it
+  paragraph.innerHTML = text;
+  stdout.appendChild(paragraph);
+}
+
+// Set to true right before we navigate via a sapevent (form submit or a
+// programmatic Back-element click), so the browser-back trap
+// (redirectBrowserBackToSapEvent) can tell a self-initiated navigation from a
+// genuine user Back press. See that function for details.
+var gSapeventNavPending = false;
+
+// Encode a sapevent action for the ITS "PARAMS=" slot. PARAMS carries the whole
+// action including its own query string, so characters that would terminate the
+// value inside the enclosing URL have to be escaped (ITS decodes the parameter
+// again before handing it to the control). "?" and "=" are deliberately left
+// alone so single-parameter actions keep producing the exact URL they did
+// before.
+function encodeItsParams(action) {
+  return action.replace(/[%&#+]/g, function(character) {
+    return "%" + character.charCodeAt(0).toString(16).toUpperCase();
+  });
+}
+
+// Append params to a sapevent action as a query string, the way a GET form
+// submit would have appended them to the action URL
+function appendParamsToAction(action, params) {
+  var pairs = [];
+  for (var key in params) {
+    pairs.push(encodeURIComponent(key) + "=" + encodeURIComponent(params[key]));
+  }
+  if (!pairs.length) return action;
+  return action + (action.indexOf("?") === -1 ? "?" : "&") + pairs.join("&");
 }
 
 // Use a supplied form, a pre-created form or create a hidden form
@@ -124,14 +185,68 @@ function submitSapeventForm(params, action, method, form) {
     }
   }
 
-  var stub_form_id = "form_" + action;
+  // A GET submit replaces the action URL's query string with the form fields.
+  // On WebGUI that would wipe the ITS routing parameters the wired-up form
+  // action carries (~control / ~event / PARAMS), so the request no longer
+  // routes as a sapevent. Carry the params in the action instead and post: the
+  // desktop controls end up navigating to exactly the sapevent URL a GET submit
+  // produced, and WebGUI keeps its routing parameters intact.
+  if (method && method.toLowerCase() === "get") {
+    action = appendParamsToAction(action, params);
+    params = null;
+    method = "post";
+  }
 
-  form = form
-    || document.getElementById(stub_form_id)
-    || document.createElement("form");
+  var isGlobalForm = false;
+
+  if (!form) {
+    // Reuse the page-global, server-rendered form. On WebGUI a sapevent only
+    // routes through a form ITS wired up while rendering the page; a form
+    // created here is not wired and the raw "sapevent:" scheme is rejected.
+    // The global form is harmless on the desktop control, where its action is
+    // overwritten below.
+    form = document.getElementById("global_sapevent_form");
+    isGlobalForm = Boolean(form);
+  }
+  if (!form) {
+    // Fallback for a page not rendered through the standard scaffold
+    form = document.createElement("form");
+  }
+
+  // The global form is shared across submits; drop fields a previous submit
+  // appended so stale values do not accumulate (matters for actions that do
+  // not navigate away, e.g. filtering or clipboard yank).
+  if (isGlobalForm) {
+    var priorFields = form.querySelectorAll("input[data-sapevent-field]");
+    for (var p = 0; p < priorFields.length; p++) {
+      priorFields[p].parentNode.removeChild(priorFields[p]);
+    }
+  }
 
   form.setAttribute("method", method || "post");
-  if (/sapevent/i.test(action)) {
+  var form_action = form.getAttribute("action");
+
+  // SAP GUI for HTML: ITS wires the sapevent routing into the form while it
+  // renders the page. Depending on the release (and on the form) it ends up
+  // either in hidden fields, leaving a dummy action behind, or in the action:
+  // ~control=116&~event=OnSAPEvent&ALINK=1&frameName=&PARAMS=stage_commit
+  // The event to raise sits in PARAMS, the rest of the routing has to be kept
+  // exactly as ITS set it up.
+  var itsParams = form.querySelectorAll("input[name='PARAMS']");
+  var isItsForm = itsParams.length > 0 || /~control=/i.test(form_action);
+  var i;
+
+  if (itsParams.length > 0) {
+    // A form can carry several of them, one per element ITS wired up (e.g. the
+    // form itself plus its hidden submit button), so set all of them - a
+    // request with conflicting PARAMS would raise whichever event ITS picks.
+    // No escaping here, unlike the action below: the browser encodes the value
+    for (i = 0; i < itsParams.length; i++) {
+      itsParams[i].value = action;
+    }
+  } else if (/~control=/i.test(form_action)) {
+    form.setAttribute("action", form_action.replace(/PARAMS=.*$/, "PARAMS=" + encodeItsParams(action)));
+  } else if (/sapevent/i.test(action)) {
     form.setAttribute("action", action);
   } else {
     form.setAttribute("action", getSapeventPrefix() + "SAPEVENT:" + action);
@@ -142,16 +257,48 @@ function submitSapeventForm(params, action, method, form) {
     hiddenField.setAttribute("type", "hidden");
     hiddenField.setAttribute("name", key);
     hiddenField.setAttribute("value", params[key]);
+    if (isGlobalForm) hiddenField.setAttribute("data-sapevent-field", "");
     form.appendChild(hiddenField);
   }
 
-  var formExistsInDOM = form.id && Boolean(document.querySelector("#" + form.id));
+  // getElementById, not a selector: a generated form id carries a timestamp
+  // and its dot would have to be escaped in a selector
+  var formExistsInDOM = form.id && Boolean(document.getElementById(form.id));
 
-  if (form.id !== stub_form_id && !formExistsInDOM) {
+  if (!formExistsInDOM) {
     document.body.appendChild(form);
   }
 
+  if (isItsForm) {
+    // ITS replaces submit() and collects the fields of the form itself, reading
+    // the value of every entry of form.elements. A fieldset is part of that
+    // collection but has no value, so the collection dies on any dialog using
+    // field groups. Hand out an empty value for those to keep it going.
+    for (i = 0; i < form.elements.length; i++) {
+      if (form.elements[i].value === undefined) {
+        form.elements[i].value = "";
+      }
+    }
+  }
+
+  // Mark that the popstate the browser control may emit while handling this
+  // sapevent navigation is self-initiated, not a user Back press
+  gSapeventNavPending = true;
   form.submit();
+}
+
+// Trigger a server-rendered sapevent element (anchor / submit input) the way a
+// user click would. Flag the navigation as self-initiated first, so the
+// browser-back trap ignores any popstate the browser control emits while
+// handling it (mirrors submitSapeventForm). Some callers (command palette)
+// pass anchors that are not sapevents (onclick / plain links); those must not
+// arm the flag - it would never be consumed and the next genuine Back press
+// would be swallowed.
+function clickSapEvent(element) {
+  var isSapEvent = element.getAttribute("data-sapevent")
+    || /sapevent/i.test(element.hrefsav || element.href || element.getAttribute("formaction") || "");
+  if (isSapEvent) gSapeventNavPending = true;
+  element.click();
 }
 
 // Set focus to a control
@@ -175,13 +322,6 @@ function setInitialFocusWithQuerySelector(sSelector, bFocusParent) {
 // Submit an existing form
 function submitFormById(id) {
   document.getElementById(id).submit();
-}
-
-// JS error stub
-function errorStub(event) {
-  var element    = event.target || event.srcElement;
-  var targetName = element.id || element.name || "???";
-  alert("JS Error, please log an issue (@" + targetName + ")");
 }
 
 // Confirm JS initialization
@@ -239,16 +379,6 @@ function findStyleSheetByName(name) {
   }
 }
 
-function getIndocStyleSheet() {
-  for (var s = 0; s < document.styleSheets.length; s++) {
-    if (!document.styleSheets[s].href) return document.styleSheets[s]; // One with empty href
-  }
-  // None found ? create one
-  var style = document.createElement("style");
-  document.head.appendChild(style);
-  return style.sheet;
-}
-
 function RepoOverViewHelper(opts) {
   if (opts && opts.focusFilterKey) {
     this.focusFilterKey = opts.focusFilterKey;
@@ -302,16 +432,16 @@ RepoOverViewHelper.prototype.registerKeyboardShortcuts = function() {
     var indexOfSelected = rows.indexOf(selected);
     var lastRow         = rows.length - 1;
 
-    if (keycode == 13 && document.activeElement.tagName.toLowerCase() != "input") {
+    if (keycode === 13 && document.activeElement.tagName.toLowerCase() !== "input") {
       // "enter" to open, unless command field has focus
       self.openSelectedRepo();
-    } else if ((keycode == 52 || keycode == 56) && indexOfSelected > 0) {
+    } else if ((keycode === 52 || keycode === 56) && indexOfSelected > 0) {
       // "4,8" for previous, digits are the numlock keys
       // NB: numpad must be activated, keypress does not detect arrows
       //     if we need arrows it will be keydown. But then mind the keycodes, they may change !
       //     e.g. 100 is 'd' with keypress (and conflicts with diff hotkey), and also it is arrow-left keydown
       self.selectRowByIndex(indexOfSelected - 1);
-    } else if ((keycode == 54 || keycode == 50) && indexOfSelected < lastRow) {
+    } else if ((keycode === 54 || keycode === 50) && indexOfSelected < lastRow) {
       // "6,2" for next
       self.selectRowByIndex(indexOfSelected + 1);
     }
@@ -359,11 +489,26 @@ RepoOverViewHelper.prototype.updateActionLinks = function(selectedRow) {
   // now we have a repo selected, determine which action buttons are relevant
   var selectedRepoKey       = selectedRow.dataset.key;
   var selectedRepoIsOffline = selectedRow.dataset.offline === "X";
+  var reKey                 = /key=(#|\d+)$/;
+  var newKey                = "key=" + selectedRepoKey;
 
   var actionLinks = document.querySelectorAll("a.action_link");
   actionLinks.forEach(function(link) {
     // adjust repo key in urls
-    link.href = link.href.replace(/\?key=(#|\d+)/, "?key=" + selectedRepoKey);
+    link.href = link.href.replace(reKey, newKey);
+
+    // SAP GUI for HTML rewrites links and saves the original in hrefsav
+    // see /sap/public/icmandir/its/lsgui/js/htmlviewer.js
+    if (link.hrefsav) {
+      link.hrefsav = link.hrefsav.replace(reKey, newKey);
+    }
+
+    // keep the backend's action marker in sync with the rewritten href, so it
+    // stays a faithful description of what clicking the link will do
+    var sapevent = link.getAttribute("data-sapevent");
+    if (sapevent) {
+      link.setAttribute("data-sapevent", sapevent.replace(reKey, newKey));
+    }
 
     // toggle button visibility
     if (link.classList.contains("action_offline_repo")) {
@@ -471,6 +616,7 @@ function StageHelper(params) {
   this.pageSeed        = params.seed;
   this.formAction      = params.formAction;
   this.patchAction     = params.patchAction;
+  this.stageAllAction  = params.stageAllAction;
   this.user            = params.user;
   this.ids             = params.ids;
   this.selectedCount   = 0;
@@ -480,16 +626,16 @@ function StageHelper(params) {
 
   // DOM nodes
   this.dom = {
-    stageTab         : document.getElementById(params.ids.stageTab),
-    commitAllBtn     : document.getElementById(params.ids.commitAllBtn),
-    commitSelectedBtn: document.getElementById(params.ids.commitSelectedBtn),
-    commitFilteredBtn: document.getElementById(params.ids.commitFilteredBtn),
-    patchBtn         : document.getElementById(params.ids.patchBtn),
-    objectSearch     : document.getElementById(params.ids.objectSearch),
-    selectedCounter  : null,
-    filteredCounter  : null,
+    stageTab    : document.getElementById(params.ids.stageTab),
+    commitBtn   : document.getElementById(params.ids.commitBtn),
+    patchBtn    : document.getElementById(params.ids.patchBtn),
+    objectSearch: document.getElementById(params.ids.objectSearch),
   };
-  this.findCounters();
+
+  // Server-rendered "Add All and Commit (n)" / "Patch All (n)" labels
+  // (commit label is empty if nothing to commit by default)
+  this.commitAllLabel = this.dom.commitBtn.innerHTML;
+  this.patchAllLabel  = this.dom.patchBtn.innerHTML;
 
   // Table columns (autodetection)
   this.colIndex      = this.detectColumns();
@@ -502,7 +648,7 @@ function StageHelper(params) {
     remove : "R",
     ignore : "I",
     reset  : "?",
-    isValid: function(status) { return "ARI?".indexOf(status) == -1 }
+    isInvalid: function(status) { return "ARI?".indexOf(status) === -1 }
   };
 
   this.TEMPLATES = {
@@ -516,11 +662,6 @@ function StageHelper(params) {
   Hotkeys.addHotkeyToHelpSheet("^Enter", "Commit");
 }
 
-StageHelper.prototype.findCounters = function() {
-  this.dom.selectedCounter = this.dom.commitSelectedBtn.querySelector("span.counter");
-  this.dom.filteredCounter = this.dom.commitFilteredBtn.querySelector("span.counter");
-};
-
 StageHelper.prototype.injectFilterMe = function() {
   var tabFirstHead = this.dom.stageTab.tHead.rows[0];
   if (!tabFirstHead || tabFirstHead.className !== "local") {
@@ -532,28 +673,29 @@ StageHelper.prototype.injectFilterMe = function() {
 
   var a = document.createElement("A");
   a.appendChild(document.createTextNode("me"));
-  a.onclick = this.onFilterMe.bind(this);
-  a.href    = "#";
+  a.onclick   = this.onFilterMe.bind(this);
+  a.href      = "#";
+  a.title     = "Filter changed by ";
+  a.className = "command"; // expose to command palette (enumerateUiActions)
   changedByHead.appendChild(a);
   changedByHead.appendChild(document.createTextNode(")"));
 };
 
 StageHelper.prototype.onFilterMe = function() {
-  this.dom.objectSearch.value = this.user;
+  this.dom.objectSearch.value = this.dom.objectSearch.value === this.user ? "" : this.user;
   this.onFilter({ type: "keypress", which: 13, target: this.dom.objectSearch });
 };
 
 // Hook global click listener on table, load/unload actions
 StageHelper.prototype.setHooks = function() {
-  window.onkeypress                  = this.onCtrlEnter.bind(this);
-  this.dom.stageTab.onclick          = this.onTableClick.bind(this);
-  this.dom.commitSelectedBtn.onclick = this.submit.bind(this);
-  this.dom.commitFilteredBtn.onclick = this.submitVisible.bind(this);
-  this.dom.patchBtn.onclick          = this.submitPatch.bind(this);
-  this.dom.objectSearch.oninput      = this.onFilter.bind(this);
-  this.dom.objectSearch.onkeypress   = this.onFilter.bind(this);
-  window.onbeforeunload              = this.onPageUnload.bind(this);
-  window.onload                      = this.onPageLoad.bind(this);
+  window.addEventListener("keypress", this.onCtrlEnter.bind(this));
+  this.dom.stageTab.onclick        = this.onTableClick.bind(this);
+  this.dom.commitBtn.onclick       = this.submitCommit.bind(this);
+  this.dom.patchBtn.onclick        = this.submitPatch.bind(this);
+  this.dom.objectSearch.oninput    = this.onFilter.bind(this);
+  this.dom.objectSearch.onkeypress = this.onFilter.bind(this);
+  window.addEventListener("beforeunload", this.onPageUnload.bind(this));
+  window.addEventListener("load", this.onPageLoad.bind(this));
 
   var self = this;
   document.addEventListener("keypress", function(event) {
@@ -592,7 +734,7 @@ StageHelper.prototype.onPageLoad = function() {
   var data = window.sessionStorage && JSON.parse(window.sessionStorage.getItem(this.pageSeed));
 
   this.iterateStageTab(true, function(row) {
-    var status = data && data[row.cells[this.colIndex["name"]].innerText];
+    var status = data && data[this.getPlainText(row.cells[this.colIndex["name"]])];
     this.updateRow(row, status || this.STATUS.reset);
   });
 
@@ -617,7 +759,7 @@ StageHelper.prototype.onTableClick = function(event) {
     } else return;
   } else return;
 
-  if (["TD", "TH"].indexOf(td.tagName) == -1 || td.className != "cmd") return;
+  if (["TD", "TH"].indexOf(td.tagName) === -1 || td.className !== "cmd") return;
 
   var status    = this.STATUS[target.innerText]; // Convert anchor text to status
   var targetRow = td.parentNode;
@@ -639,12 +781,7 @@ StageHelper.prototype.onTableClick = function(event) {
 
 StageHelper.prototype.onCtrlEnter = function(e) {
   if (e.ctrlKey && (e.which === 10 || e.key === "Enter")) {
-    var clickMap = {
-      "default" : this.dom.commitAllBtn,
-      "selected": this.dom.commitSelectedBtn,
-      "filtered": this.dom.commitFilteredBtn
-    };
-    clickMap[this.calculateActiveCommitCommand()].click();
+    this.submitCommit();
   }
 };
 
@@ -665,6 +802,19 @@ StageHelper.prototype.applyFilterValue = function(sFilterValue) {
   this.updateMenu();
 };
 
+// Get plain text of a cell, ignoring injected link-hint spans.
+// innerText is not reliable for this: while the stage table is hidden
+// (iterateStageTab change mode), it includes display:none descendants,
+// so the link-hint codes would leak into the file names
+StageHelper.prototype.getPlainText = function(elem) {
+  var clone = elem.cloneNode(true);
+  var hints = clone.querySelectorAll("span.link-hint");
+  for (var i = hints.length - 1; i >= 0; i--) {
+    hints[i].parentNode.removeChild(hints[i]);
+  }
+  return clone.textContent;
+};
+
 // Apply filter to a single stage line - hide or show
 StageHelper.prototype.applyFilterToRow = function(row, filter) {
   // Collect data cells
@@ -678,7 +828,7 @@ StageHelper.prototype.applyFilterToRow = function(row, filter) {
     if (elemA) elem = elemA;
     return {
       elem     : elem,
-      plainText: elem.innerText.replace(/ /g, "\u00a0"), // without tags, with encoded spaces
+      plainText: this.getPlainText(elem).replace(/ /g, "\u00a0"), // without tags, with encoded spaces
       curHtml  : elem.innerHTML
     };
   }, this);
@@ -710,8 +860,9 @@ StageHelper.prototype.applyFilterToRow = function(row, filter) {
 StageHelper.prototype.getStatusImpact = function(status) {
   if (typeof status !== "string"
     || status.length !== 1
-    || this.STATUS.isValid(status)) {
+    || this.STATUS.isInvalid(status)) {
     alert("Unknown status");
+    return 0; // avoid NaN propagating into the counters
   } else {
     return (status !== this.STATUS.reset) ? 1: 0;
   }
@@ -745,7 +896,7 @@ StageHelper.prototype.updateRowStatus = function(row, status) {
 StageHelper.prototype.updateRowCommand = function(row, status) {
   var cell = row.cells[this.colIndex["cmd"]];
   if (status === this.STATUS.reset) {
-    cell.innerHTML = (row.className == "local")
+    cell.innerHTML = (row.className === "local")
       ? this.TEMPLATES.cmdLocal
       :     this.TEMPLATES.cmdRemote;
   } else {
@@ -765,16 +916,23 @@ StageHelper.prototype.calculateActiveCommitCommand = function() {
   return active;
 };
 
-// Update menu items visibility
+// Update commit/patch toolbar button labels according to the active command
 StageHelper.prototype.updateMenu = function() {
   var display = this.calculateActiveCommitCommand();
 
-  if (display === "selected") this.dom.selectedCounter.innerText = this.selectedCount.toString();
-  if (display === "filtered") this.dom.filteredCounter.innerText = this.filteredCount.toString();
+  var commitLabels = {
+    "default" : this.commitAllLabel,
+    "selected": "Commit <b>Selected</b> (" + this.selectedCount + ")",
+    "filtered": "Add <b>Filtered</b> and Commit (" + this.filteredCount + ")"
+  };
+  this.dom.commitBtn.innerHTML = commitLabels[display];
 
-  this.dom.commitAllBtn.style.display      = display === "default" ? "" : "none";
-  this.dom.commitSelectedBtn.style.display = display === "selected" ? "" : "none";
-  this.dom.commitFilteredBtn.style.display = display === "filtered" ? "" : "none";
+  var patchLabels = {
+    "default" : this.patchAllLabel,
+    "selected": "Patch <b>Selected</b> (" + this.selectedCount + ")",
+    "filtered": "Patch <b>Filtered</b> (" + this.filteredCount + ")"
+  };
+  this.dom.patchBtn.innerHTML = patchLabels[display];
 };
 
 // Submit stage state to the server
@@ -787,7 +945,19 @@ StageHelper.prototype.submitVisible = function() {
   submitSapeventForm(this.collectData(), this.formAction);
 };
 
+// Submit the active commit command (commit button in the page toolbar)
+StageHelper.prototype.submitCommit = function() {
+  switch (this.calculateActiveCommitCommand()) {
+  case "selected": this.submit(); break;
+  case "filtered": this.submitVisible(); break;
+  default: submitSapeventForm({}, this.stageAllAction);
+  }
+};
+
 StageHelper.prototype.submitPatch = function() {
+  if (this.calculateActiveCommitCommand() === "filtered") {
+    this.markVisiblesAsAdded();
+  }
   submitSapeventForm(this.collectData(), this.patchAction);
 };
 
@@ -795,7 +965,7 @@ StageHelper.prototype.submitPatch = function() {
 StageHelper.prototype.collectData = function() {
   var data = {};
   this.iterateStageTab(false, function(row) {
-    data[row.cells[this.colIndex["name"]].innerText] = row.cells[this.colIndex["status"]].innerText;
+    data[this.getPlainText(row.cells[this.colIndex["name"]])] = row.cells[this.colIndex["status"]].innerText;
   });
   return data;
 };
@@ -803,8 +973,9 @@ StageHelper.prototype.collectData = function() {
 StageHelper.prototype.markVisiblesAsAdded = function() {
   this.iterateStageTab(false, function(row) {
     // TODO refactor, unify updateRow logic
-    if (row.style.display === "" && row.className === "local") { // visible
-      this.updateRow(row, this.STATUS.add);
+    if (row.style.display === "") { // visible
+      // Local rows are added, remote rows ("to remove or non-code") are removed
+      this.updateRow(row, row.className === "local" ? this.STATUS.add : this.STATUS.remove);
     } else {
       this.updateRow(row, this.STATUS.reset);
     }
@@ -852,9 +1023,10 @@ function CheckListWrapper(id, cbAction, cbActionOnlyMyChanges) {
   this.id.onclick            = this.onClick.bind(this);
 }
 
-CheckListWrapper.prototype.onClick = function(e) { // eslint-disable-line no-unused-vars
+CheckListWrapper.prototype.onClick = function(e) {
   // Get nodes
-  var target = event.target || event.srcElement;
+  e          = e || window.event;
+  var target = e.target || e.srcElement;
   if (!target) return;
   if (target.tagName !== "A") { target = target.parentNode } // icon clicked
   if (target.tagName !== "A") return;
@@ -869,7 +1041,7 @@ CheckListWrapper.prototype.onClick = function(e) { // eslint-disable-line no-unu
   var option   = nodeA.innerText;
   var oldState = nodeLi.getAttribute("data-check");
   if (oldState === null) return; // no data-check attribute - non-checkbox
-  var newState = oldState === "X" ? false : true;
+  var newState = oldState !== "X";
 
   if (newState) {
     nodeIcon.classList.remove("grey");
@@ -962,20 +1134,12 @@ DiffHelper.prototype.onFilterOnlyMyChanges = function(username, state) {
     .map(function(item) {
       var nodeIcon = item.children[0].children[0];
 
-      if (state === true) {
-        if (item.innerText === username) { // current user
-          item.style.display = "";
-          item.setAttribute("data-check", "X");
-
-          if (nodeIcon) {
-            nodeIcon.classList.remove("grey");
-            nodeIcon.classList.add("blue");
-          }
-        } else { // other users
-          item.style.display = "none";
-          item.setAttribute("data-check", "");
-        }
+      if (state === true && item.innerText !== username) {
+        // hide other users
+        item.style.display = "none";
+        item.setAttribute("data-check", "");
       } else {
+        // show current user (filter on) or all users (filter off)
         item.style.display = "";
         item.setAttribute("data-check", "X");
 
@@ -991,13 +1155,11 @@ DiffHelper.prototype.applyOnlyMyChangesFilter = function(username, state) {
   var jumpListItems = Array.prototype.slice.call(document.querySelectorAll("[id*=li_jump]"));
 
   this.iterateDiffList(function(div) {
-    if (state === true) { // switching on "Only my changes" filter
-      if (div.getAttribute("data-changed-by") === username) {
-        div.style.display = state ? "" : "none";
-      } else {
-        div.style.display = state ? "none" : "";
-      }
-    } else { // disabling
+    if (state === true && div.getAttribute("data-changed-by") !== username) {
+      // switching on "Only my changes" filter -> hide other users
+      div.style.display = "none";
+    } else {
+      // current user when filter on, or all rows when filter off
       div.style.display = "";
     }
 
@@ -1118,13 +1280,14 @@ DiffColumnSelection.prototype.mousedownEventListener = function(e) {
   var splitCodeLeftColumnIdx     = 2;
   var splitLineNumRightColumnIdx = 3;
   var splitCodeRightColumnIdx    = 5;
+  var range;
 
   if (e.button !== 0) return; // function is only valid for left button, not right button
 
   var td = e.target;
 
-  while (td != undefined && td.tagName != "TD" && td.tagName != "TBODY") td = td.parentElement;
-  if (td == undefined) return;
+  while (td !== null && td !== undefined && td.tagName !== "TD" && td.tagName !== "TBODY") td = td.parentElement;
+  if (td === null || td === undefined) return;
   var table = td.parentElement.parentElement;
 
   var patchColumnCount = 0;
@@ -1135,7 +1298,7 @@ DiffColumnSelection.prototype.mousedownEventListener = function(e) {
   if (td.classList.contains("diff_left")) {
     table.classList.remove("diff_select_right");
     table.classList.add("diff_select_left");
-    if (window.getSelection() && this.selectedColumnIdx != splitCodeLeftColumnIdx + patchColumnCount) {
+    if (window.getSelection() && this.selectedColumnIdx !== splitCodeLeftColumnIdx + patchColumnCount) {
       // De-select to avoid effect of dragging selection in case the right column was first selected
       if (document.body.createTextRange) { // All IE but Edge
         // document.getSelection().removeAllRanges() may trigger error
@@ -1154,12 +1317,12 @@ DiffColumnSelection.prototype.mousedownEventListener = function(e) {
   } else if (td.classList.contains("diff_right")) {
     table.classList.remove("diff_select_left");
     table.classList.add("diff_select_right");
-    if (window.getSelection() && this.selectedColumnIdx != splitCodeRightColumnIdx + patchColumnCount) {
+    if (window.getSelection() && this.selectedColumnIdx !== splitCodeRightColumnIdx + patchColumnCount) {
       if (document.body.createTextRange) { // All IE but Edge
         // document.getSelection().removeAllRanges() may trigger error
         // so use this code which is equivalent but does not fail
         // (https://stackoverflow.com/questions/22914075/javascript-error-800a025e-using-range-selector)
-        var range = document.body.createTextRange();
+        range = document.body.createTextRange();
         range.collapse();
         range.select();
       } else {
@@ -1184,11 +1347,11 @@ DiffColumnSelection.prototype.copyEventListener = function(e) {
   // (https://stackoverflow.com/questions/6619805/select-text-in-a-column-of-an-html-table)
   var td = e.target;
 
-  while (td != undefined && td.tagName != "TD" && td.tagName != "TBODY") td = td.parentElement;
-  if (td != undefined) {
+  while (td !== null && td !== undefined && td.tagName !== "TD" && td.tagName !== "TBODY") td = td.parentElement;
+  if (td !== null && td !== undefined) {
     // Use window.clipboardData instead of e.clipboardData
     // (https://stackoverflow.com/questions/23470958/ie-10-copy-paste-issue)
-    var clipboardData = (e.clipboardData == undefined ? window.clipboardData : e.clipboardData);
+    var clipboardData = (e.clipboardData === undefined ? window.clipboardData : e.clipboardData);
     var text          = this.getSelectedText();
     clipboardData.setData("text", text);
     e.preventDefault();
@@ -1210,20 +1373,20 @@ DiffColumnSelection.prototype.getSelectedText = function() {
     var realThis = this;
     var copySide = "";
     [].forEach.call(nodes, function(tr, i) {
-      var cellIdx = (i == 0 ? 0 : realThis.selectedColumnIdx);
+      var cellIdx = (i === 0 ? 0 : realThis.selectedColumnIdx);
       if (tr.cells.length > cellIdx) {
         var tdSelected = tr.cells[cellIdx];
         // decide which side to copy based on first line of selection
-        if (i == 0) {
+        if (i === 0) {
           copySide = (tdSelected.classList.contains("new") ? "new" : "old" );
         }
         // copy is interesting only for one side of code, do not copy lines which exist on other side
-        if (i == 0 || copySide == "new" && !tdSelected.classList.contains("old") || copySide == "old" && !tdSelected.classList.contains("new")) {
+        if (i === 0 || copySide === "new" && !tdSelected.classList.contains("old") || copySide === "old" && !tdSelected.classList.contains("new")) {
           text += newline + tdSelected.textContent;
           // special processing for TD tag which sometimes contains newline
           // (expl: /src/ui/zabapgit_js_common.w3mi.data.js) so do not add newline again in that case.
           var lastChar = tdSelected.textContent[tdSelected.textContent.length - 1];
-          if (lastChar == "\n") newline = "";
+          if (lastChar === "\n") newline = "";
           else newline = "\n";
         }
       }
@@ -1254,7 +1417,7 @@ KeyNavigation.prototype.onkeydown = function(event) {
 
   // navigate with arrows through list items and support pressing links with enter and space
   var isHandled = false;
-  if (event.key === "Enter" || event.key === "") {
+  if (event.key === "Enter" || event.key === " ") {
     isHandled = this.onEnterOrSpace();
   } else if (/Down$/.test(event.key)) {
     isHandled = this.onArrowDown();
@@ -1375,7 +1538,7 @@ function LinkHints(linkHintHotKey) {
   this.linkHintHotKey    = linkHintHotKey;
   this.areHintsDisplayed = false;
   this.pendingPath       = ""; // already typed code prefix
-  this.hintsMap          = this.deployHintContainers();
+  this.hintsMap          = null; // deployed on each activation, the DOM changes after load
   this.activatedDropdown = null;
   this.yankModeActive    = false;
 }
@@ -1401,7 +1564,7 @@ LinkHints.prototype.deployHintContainers = function() {
   // </span>
   for (var i = 0, N = hintTargets.length; i < N; i++) {
     // skip hidden fields
-    if (hintTargets[i].type === "HIDDEN") {
+    if (hintTargets[i].type === "hidden") {
       continue;
     }
 
@@ -1455,6 +1618,15 @@ LinkHints.prototype.deployHintContainers = function() {
   return hintsMap;
 };
 
+LinkHints.prototype.removeHintContainers = function() {
+  if (!this.hintsMap) return;
+  for (var i = this.hintsMap.first; i <= this.hintsMap.last; i++) {
+    var container = this.hintsMap[i].container;
+    if (container.parentNode) container.parentNode.removeChild(container);
+  }
+  this.hintsMap = null;
+};
+
 LinkHints.prototype.getHandler = function() {
   return this.handleKey.bind(this);
 };
@@ -1475,6 +1647,12 @@ LinkHints.prototype.handleKey = function(event) {
     if (this.areHintsDisplayed) this.yankModeActive = false;
 
     this.pendingPath = "";
+    if (!this.areHintsDisplayed) {
+      // redeploy on each activation to catch links created or rewritten
+      // after page load (e.g. stage table commands, filtered file names)
+      this.removeHintContainers();
+      this.hintsMap = this.deployHintContainers();
+    }
     this.displayHints(!this.areHintsDisplayed);
 
   } else if (this.areHintsDisplayed) {
@@ -1606,7 +1784,7 @@ function Hotkeys(oKeyMap) {
     var action = this.oKeyMap[sKey];
 
     // add a tooltip/title with the hotkey, currently only sapevents are supported
-    this.getAllSapEventsForSapEventName(action).forEach(function(elAnchor) {
+    findSapEventElements(action).forEach(function(elAnchor) {
       elAnchor.title = elAnchor.title + " [" + sKey + "]";
     });
 
@@ -1635,26 +1813,14 @@ function Hotkeys(oKeyMap) {
         return;
       }
 
-      // Or a SAP event link
-      var sUiSapEventHref = this.getSapEventHref(action);
-      if (sUiSapEventHref) {
-        submitSapeventForm({}, sUiSapEventHref, "post");
-        oEvent.preventDefault();
-        return;
-      }
-
-      // Or an SAP event input
-      var sUiSapEventInputAction = this.getSapEventInputAction(action);
-      if (sUiSapEventInputAction) {
-        submitSapeventForm({}, sUiSapEventInputAction, "post");
-        oEvent.preventDefault();
-        return;
-      }
-
-      // Or an SAP event main form
-      var elForm = this.getSapEventForm(action);
-      if (elForm) {
-        elForm.submit();
+      // Or a SAP event element (anchor / submit input) rendered on the page.
+      // Click it so the browser control routes the event: on WebGUI ITS has
+      // rewritten the href/formaction, so we must trigger the real element
+      // rather than rebuild the sapevent URL. Clicking also preserves any
+      // getdata the element carries (e.g. "...?key=<repo>").
+      var elSapEvent = findSapEventElement(action);
+      if (elSapEvent) {
+        clickSapEvent(elSapEvent);
         oEvent.preventDefault();
         return;
       }
@@ -1670,69 +1836,6 @@ Hotkeys.prototype.showHotkeys = function() {
   if (elHotkeys) {
     elHotkeys.style.display = (elHotkeys.style.display) ? "" : "none";
   }
-};
-
-Hotkeys.prototype.getAllSapEventsForSapEventName = function (sSapEvent) {
-  if (/^#+$/.test(sSapEvent)){
-    // sSapEvent contains only #. Nothing sensible can be done here
-    return [];
-  }
-
-  var includesSapEvent = function(text){
-    return (text.includes("sapevent") || text.includes("SAPEVENT"));
-  };
-
-  return [].slice
-    .call(document.querySelectorAll("a[href*="+ sSapEvent +"], input[formaction*="+ sSapEvent+"]"))
-    .filter(function (elem) {
-      return (elem.nodeName === "A" && includesSapEvent(elem.href)
-          || (elem.nodeName === "INPUT" && includesSapEvent(elem.formAction)));
-    });
-};
-
-Hotkeys.prototype.getSapEventHref = function(sSapEvent) {
-  return this.getAllSapEventsForSapEventName(sSapEvent)
-    .filter(function(el) {
-      // only anchors
-      return (!!el.href);
-    })
-    .map(function(oSapEvent) {
-      return oSapEvent.href;
-    })
-    .filter(this.eliminateSapEventFalsePositives(sSapEvent))
-    .pop();
-};
-
-Hotkeys.prototype.getSapEventInputAction = function(sSapEvent) {
-  return this.getAllSapEventsForSapEventName(sSapEvent)
-    .filter(function(el) {
-      // input forms
-      return (el.type === "submit");
-    })
-    .map(function(oSapEvent) {
-      return oSapEvent.formAction;
-    })
-    .filter(this.eliminateSapEventFalsePositives(sSapEvent))
-    .pop();
-};
-
-Hotkeys.prototype.getSapEventForm = function(sSapEvent) {
-  return this.getAllSapEventsForSapEventName(sSapEvent)
-    .filter(function(el) {
-      // forms
-      var parentForm = el.parentNode.parentNode.parentNode;
-      return (el.type === "submit" && parentForm.nodeName === "FORM");
-    })
-    .map(function(oSapEvent) {
-      return oSapEvent.parentNode.parentNode.parentNode;
-    })
-    .pop();
-};
-
-Hotkeys.prototype.eliminateSapEventFalsePositives = function(sapEvent) {
-  return function(sapEventAttr) {
-    return sapEventAttr.match(new RegExp("\\b" + sapEvent + "\\b"));
-  };
 };
 
 Hotkeys.prototype.onkeydown = function(oEvent) {
@@ -1760,6 +1863,15 @@ Hotkeys.isHotkeyCallPossible = function() {
   return (activeElementReadOnly || (activeElementType !== "INPUT" && activeElementType !== "TEXTAREA"));
 };
 
+// ctrl-modified keys are denoted with a leading "^" (e.g. "^p"), spell it out for the help sheet
+// an array of keys means "any of them" and is displayed as "F1 / ctrl+p"
+Hotkeys.formatKeyForDisplay = function(key) {
+  if (Array.isArray(key)) {
+    return key.map(function(singleKey) { return Hotkeys.formatKeyForDisplay(singleKey) }).join(" / ");
+  }
+  return (key[0] === "^") ? "ctrl+" + key.substring(1) : key;
+};
+
 Hotkeys.addHotkeyToHelpSheet = function(key, description) {
   var hotkeysUl = document.querySelector("#hotkeys ul.hotkeys");
   if (!hotkeysUl) return;
@@ -1769,7 +1881,7 @@ Hotkeys.addHotkeyToHelpSheet = function(key, description) {
   var spanDescr = document.createElement("span");
 
   spanId.className    = "key-id";
-  spanId.innerText    = key;
+  spanId.innerText    = Hotkeys.formatKeyForDisplay(key);
   spanDescr.className = "key-descr";
   spanDescr.innerText = description;
   li.appendChild(spanId);
@@ -1949,7 +2061,7 @@ Patch.prototype.getAllCheckboxesForId = function(sId, sIdPrefix, sNewIdPrefix) {
 };
 
 Patch.prototype.getToggledCheckbox = function(oEvent) {
-  var elCheckbox = null;
+  var elCheckbox;
 
   // We have either an input element or any element with input child
   // in the latter case we have to toggle the checkbox manually
@@ -2084,7 +2196,9 @@ function fuzzyMatchAndMark(str, filter) {
 function CommandPalette(commandEnumerator, opts) {
   if (typeof commandEnumerator !== "function") throw Error("commandEnumerator must be a function");
   if (typeof opts !== "object") throw Error("opts must be an object");
-  if (typeof opts.toggleKey !== "string" || !opts.toggleKey) throw Error("toggleKey must be a string");
+  if (!opts.toggleKey || typeof opts.toggleKey !== "string" && !Array.isArray(opts.toggleKey)) {
+    throw Error("toggleKey must be a string or an array of strings");
+  }
   this.commands = commandEnumerator();
   if (!this.commands) return;
   // this.commands = [{
@@ -2093,14 +2207,15 @@ function CommandPalette(commandEnumerator, opts) {
   //   title:     "my command X"
   // }, ...];
 
-  if (opts.toggleKey[0] === "^") {
-    this.toggleKeyCtrl = true;
-    this.toggleKey     = opts.toggleKey.substring(1);
-    if (!this.toggleKey) throw Error("Incorrect toggleKey");
-  } else {
-    this.toggleKeyCtrl = false;
-    this.toggleKey     = opts.toggleKey;
-  }
+  // one or more keys can open the palette, e.g. ["F1", "^p"]
+  var toggleKeys  = Array.isArray(opts.toggleKey) ? opts.toggleKey : [opts.toggleKey];
+  this.toggleKeys = toggleKeys.map(function(toggleKey) {
+    if (typeof toggleKey !== "string") throw Error("Incorrect toggleKey");
+    var isCtrl = toggleKey[0] === "^";
+    var key    = isCtrl ? toggleKey.substring(1) : toggleKey;
+    if (!key) throw Error("Incorrect toggleKey");
+    return { key: key, ctrl: isCtrl };
+  });
 
   this.hotkeyDescription = opts.hotkeyDescription;
   this.elements          = {
@@ -2160,8 +2275,10 @@ CommandPalette.prototype.renderAndBindElements = function() {
 };
 
 CommandPalette.prototype.handleToggleKey = function(event) {
-  if (event.key !== this.toggleKey) return;
-  if (this.toggleKeyCtrl && !event.ctrlKey) return;
+  var isToggleKey = this.toggleKeys.some(function(toggleKey) {
+    return event.key === toggleKey.key && (!toggleKey.ctrl || event.ctrlKey);
+  });
+  if (!isToggleKey) return;
   this.toggleDisplay();
   event.preventDefault();
 };
@@ -2270,6 +2387,9 @@ CommandPalette.prototype.toggleDisplay = function(forceState) {
 
   this.elements.palette.style.display = tobeDisplayed ? "" : "none";
   if (tobeDisplayed) {
+    this.commands.forEach(function(cmd) {
+      if (cmd.getTitle) cmd.title = cmd.getTitle();
+    });
     this.elements.input.value = "";
     this.elements.input.focus();
     this.applyFilter();
@@ -2308,6 +2428,10 @@ CommandPalette.prototype.exec = function(cmd) {
 CommandPalette.isVisible = function() {
   return CommandPalette.instances.reduce(function(result, instance) { return result || instance.elements.palette.style.display !== "none" }, false);
 };
+
+function addHotkey(opts) {
+  Hotkeys.addHotkeyToHelpSheet(opts.toggleKey, opts.hotkeyDescription);
+}
 
 /**********************************************************
  * Command Enumerators
@@ -2356,19 +2480,20 @@ function enumerateUiActions() {
     });
 
   items = items.map(function(item) {
-    var action = "";
     var anchor = item[0];
-    if (anchor.href.includes("#")) {
-      action = function() {
-        anchor.click();
-      };
-    } else {
-      action = anchor.href.replace("sapevent:", "");
-    }
     var prefix = item[1];
+    // title is re-read on each palette open, some labels change dynamically
+    // (e.g. commit/patch buttons on the stage page)
+    var getTitle = function() {
+      return (prefix ? prefix + ": " : "") + anchor.innerText.trim();
+    };
     return {
-      action: action,
-      title : (prefix ? prefix + ": " : "") + anchor.innerText.trim()
+      // Clicking the wired anchor routes on every browser control (desktop and
+      // WebGUI); no need to reconstruct the sapevent from the href, which ITS
+      // rewrites on WebGUI anyway.
+      action  : function() { clickSapEvent(anchor) },
+      getTitle: getTitle,
+      title   : getTitle()
     };
   });
 
@@ -2409,7 +2534,7 @@ function enumerateUiActions() {
     }).forEach(function(anchor) {
       items.push({
         action: function() {
-          anchor.click();
+          clickSapEvent(anchor);
         },
         title: (function() {
           var result = anchor.title + anchor.text;
@@ -2467,8 +2592,8 @@ function restoreScrollPosition() {
 function memorizeScrollPosition(fn) {
   return function() {
     saveScrollPosition();
-    return fn.call(this, fn.args);
-  }.bind(this);
+    return fn.apply(this, arguments);
+  };
 }
 
 /**********************************************************
@@ -2506,7 +2631,7 @@ function toggleSticky() {
 
 // Toggle display of warning message when using Edge (based on Chromium) browser control
 // Todo: Remove once https://github.com/abapGit/abapGit/issues/4841 is fixed
-function toggleBrowserControlWarning(){
+function toggleBrowserControlWarning() {
   if (!navigator.userAgent.includes("Edg")){
     var elBrowserControlWarning = document.getElementById("browser-control-warning");
     if (elBrowserControlWarning) {
@@ -2518,5 +2643,159 @@ function toggleBrowserControlWarning(){
 // Output type of HTML control in the abapGit footer
 function displayBrowserControlFooter() {
   var out = document.getElementById("browser-control-footer");
+  // Only rendered where there is a browser control to report on, i.e. not on
+  // the HTML GUI, which runs in the browser of the user
+  if (!out) return;
   out.innerHTML = " - " + ( navigator.userAgent.includes("Edg") ? "Edge" : "IE"  );
+}
+
+// Redirect browser "Back" navigation to the SAPGUI back sapevent (action "go_back").
+//
+// Browser/back-button navigation is not directly cancelable, so we use the
+// History API sentinel trick: push a dummy history entry, then on each popstate
+// (Back press) re-push it (so we never actually leave the page) and fire the
+// SAPGUI back sapevent instead. The old IE-based control lacks reliable
+// pushState support, so it becomes a no-op there.
+//
+// popstate does not only fire on user Back presses: the browser control emits
+// it while handling a sapevent navigation too (it cancels/re-renders the
+// navigation, which traverses our injected sentinel entry). Those self-initiated
+// navigations set gSapeventNavPending (in submitSapeventForm, and in
+// triggerSapEventBack before the Back-element click), so we can skip them and
+// only trigger go_back for a genuine Back press.
+function redirectBrowserBackToSapEvent(backAction) {
+  backAction = backAction || "go_back";
+  if (!window.history || !window.history.pushState) return;
+
+  // Arm the trap: this sentinel entry absorbs the first Back press
+  window.history.pushState({ abapGitBackTrap: true }, "");
+
+  window.addEventListener("popstate", function() {
+    // Re-arm so subsequent Back presses are also captured
+    window.history.pushState({ abapGitBackTrap: true }, "");
+
+    // Ignore popstate caused by our own sapevent navigation (consume the flag)
+    if (gSapeventNavPending) {
+      gSapeventNavPending = false;
+      return;
+    }
+
+    triggerSapEventBack(backAction);
+  });
+}
+
+// Find the server-rendered elements (anchors / submit inputs) the backend
+// rendered for a given sapevent action. Used to trigger the action by clicking
+// one, which routes on every browser control - on WebGUI ITS rewrites the href
+// and drives the submit through its own machinery, so we cannot rebuild the
+// navigation ourselves - and to annotate hotkey tooltips.
+//
+// Matches the backend's data-sapevent marker first: it carries the original
+// action and survives ITS href rewriting on WebGUI. Falls back to
+// hrefsav/href/formaction on the desktop controls. Whole-word match so
+// "go_back" does not also match "go_back_something".
+function findSapEventElements(action) {
+  if (!action || /^#+$/.test(action)) return [];
+
+  // Escape regex metacharacters so actions like "jump?key=1" cannot break the
+  // pattern (\b still assumes word-shaped action names, which all current are)
+  var re = new RegExp("\\b" + action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b");
+  return [].slice
+    .call(document.querySelectorAll("a, input[type='submit']"))
+    .filter(function(el) {
+      var target = el.getAttribute("data-sapevent");
+      if (!target) {
+        // getAttribute, not the formAction property: the property falls back to
+        // the document URL when the attribute is absent, and a WebGUI document
+        // URL can carry both "OnSAPEvent" and "PARAMS=<action>" and so match
+        // every submit button on the page.
+        target = el.hrefsav || el.href || el.getAttribute("formaction") || "";
+        if (!/sapevent/i.test(target)) return false;
+      }
+      return re.test(target);
+    });
+}
+
+// First matching sapevent element (anchor preferred), or undefined. Shared by
+// the browser-back trap (triggerSapEventBack) and the hotkey handler.
+//
+// When a page renders the same action more than once (typically a toolbar entry
+// plus an inline link) we deliberately take the first one in document order,
+// i.e. the toolbar entry. All renderings of an action point at the same target,
+// so the choice only decides which element receives the synthetic click.
+function findSapEventElement(action) {
+  var elements = findSapEventElements(action);
+  var anchors  = elements.filter(function(el) { return el.nodeName === "A" });
+  return (anchors.length ? anchors : elements)[0];
+}
+
+function triggerSapEventBack(backAction) {
+  gSapeventNavPending = true; // self-initiated; ignore the popstate this causes
+
+  // If the page renders a Back element, click it so the control's own handler
+  // runs - as if the user clicked Back in the UI (works on WebGUI and desktop).
+  var elBack = findSapEventElement(backAction);
+  if (elBack) {
+    elBack.click();
+    return;
+  }
+
+  // No Back element on this page (e.g. repo list) -> submit go_back directly,
+  // so browser Back mirrors F3 everywhere (e.g. leaving a top-level page).
+  // This reuses the page-global sapevent form, so it routes on WebGUI as well
+  // as on the desktop browser controls.
+  submitSapeventForm({}, backAction);
+}
+
+/**********************************************************
+ * Popup Control
+ **********************************************************/
+
+// Prevents keyboard navigation to elements outside the modal popup
+// eslint-disable-next-line no-unused-vars
+function trapFocus() {
+  var modal = document.getElementById("modal");
+  if (!modal) return;
+
+  var focusableSelectors = "button, [href], input, select, textarea, [tabindex]";
+  var focusableElements = modal.querySelectorAll(focusableSelectors);
+
+  // Filter out elements with tabindex="-1"
+  var focusable = [];
+  for (var i = 0; i < focusableElements.length; i++) {
+    if (focusableElements[i].getAttribute("tabindex") !== "-1") {
+      focusable.push(focusableElements[i]);
+    }
+  }
+
+  if (focusable.length === 0) return;
+
+  var firstElement = focusable[0];
+  var lastElement = focusable[focusable.length - 1];
+
+  // Focus the main button when modal opens, if it exists
+  if (document.querySelector(".main-button")) {
+    setInitialFocus("main-button");
+  }
+
+  modal.onkeydown = function(e) {
+    var keyCode = e.keyCode || e.which;
+
+    // Tab key
+    if (keyCode === 9) {
+      if (e.shiftKey) {
+        // Shift + Tab
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab only
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+  };
 }
