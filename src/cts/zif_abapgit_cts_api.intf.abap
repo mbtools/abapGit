@@ -13,6 +13,13 @@ INTERFACE zif_abapgit_cts_api
   TYPES:
     ty_trkorr_tt TYPE STANDARD TABLE OF trkorr WITH DEFAULT KEY .
   TYPES:
+    BEGIN OF ty_transport_creation_date,
+      trkorr     TYPE trkorr,
+      created_on TYPE d,
+    END OF ty_transport_creation_date .
+  TYPES:
+    ty_transport_creation_dates_tt TYPE SORTED TABLE OF ty_transport_creation_date WITH UNIQUE KEY trkorr .
+  TYPES:
     BEGIN OF ty_transport_key,
       object  TYPE e071k-object,
       objname TYPE e071k-objname,
@@ -54,6 +61,7 @@ INTERFACE zif_abapgit_cts_api
   CONSTANTS:
     BEGIN OF c_transport_status,
       modifiable TYPE c LENGTH 1 VALUE 'D',
+      released   TYPE c LENGTH 1 VALUE 'R',
     END OF c_transport_status .
 
   METHODS confirm_transport_messages
@@ -137,11 +145,14 @@ INTERFACE zif_abapgit_cts_api
     RAISING
       zcx_abapgit_exception .
 
+  TYPES ty_skip_limu_types_tt TYPE RANGE OF e071-object.
+
   METHODS list_r3tr_by_request
     IMPORTING
-      !iv_request    TYPE trkorr
+      !iv_request         TYPE trkorr
+      !it_skip_limu_types TYPE ty_skip_limu_types_tt OPTIONAL
     RETURNING
-      VALUE(rt_list) TYPE ty_transport_obj_tt
+      VALUE(rt_list)      TYPE ty_transport_obj_tt
     RAISING
       zcx_abapgit_exception .
 
@@ -158,6 +169,12 @@ INTERFACE zif_abapgit_cts_api
       !iv_trkorr            TYPE trkorr
     RETURNING
       VALUE(rv_description) TYPE string .
+
+  METHODS read_creation_dates
+    IMPORTING
+      !it_trkorr           TYPE ty_trkorr_tt
+    RETURNING
+      VALUE(rt_created_on) TYPE ty_transport_creation_dates_tt .
 
   METHODS read_user
     IMPORTING
@@ -182,6 +199,8 @@ INTERFACE zif_abapgit_cts_api
   TYPES: BEGIN OF ty_request_and_tasks,
            trkorr  TYPE trkorr,
            as4user TYPE sy-uname,
+           as4date TYPE d,
+           as4time TYPE t,
          END OF ty_request_and_tasks.
   TYPES: ty_request_and_tasks_tt TYPE STANDARD TABLE OF ty_request_and_tasks WITH DEFAULT KEY.
 
@@ -192,5 +211,16 @@ INTERFACE zif_abapgit_cts_api
       VALUE(rt_tasks) TYPE ty_request_and_tasks_tt
     RAISING
       zcx_abapgit_exception.
+
+  "! Check if an object is customizing i.e. needs a workbench or customizing transport
+  "! @parameter iv_pgmid | Program ID / R3TR and LIMU are relevant
+  "! @parameter iv_object | Object type
+  "! @parameter rv_is_customizing_object | True if an object requires a customizing transport
+  METHODS is_object_type_customizing
+    IMPORTING
+      !iv_pgmid                       TYPE tadir-pgmid DEFAULT 'R3TR'
+      !iv_object                      TYPE tadir-object
+    RETURNING
+      VALUE(rv_is_customizing_object) TYPE abap_bool.
 
 ENDINTERFACE.

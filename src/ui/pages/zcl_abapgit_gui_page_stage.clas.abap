@@ -118,9 +118,6 @@ CLASS zcl_abapgit_gui_page_stage DEFINITION
     METHODS count_default_files_to_commit
       RETURNING
         VALUE(rv_count) TYPE i .
-    METHODS render_deferred_hidden_events
-      RETURNING
-        VALUE(ri_html) TYPE REF TO zif_abapgit_html .
     METHODS render_scripts
       RETURNING
         VALUE(ri_html) TYPE REF TO zif_abapgit_html
@@ -322,9 +319,17 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
     DELETE lt_files WHERE method <> zif_abapgit_definitions=>c_method-add
                       AND method <> zif_abapgit_definitions=>c_method-rm.
 
+    IF lt_files IS INITIAL.
+      " No selection: patch the same file set as the default commit (stage_all)
+      lt_files = stage_all( )->get_all( ).
+      DELETE lt_files WHERE method <> zif_abapgit_definitions=>c_method-add
+                        AND method <> zif_abapgit_definitions=>c_method-rm.
+    ENDIF.
+
     ri_page  = zcl_abapgit_gui_page_patch=>create(
-      iv_key   = lv_key
-      it_files = lt_files ).
+      iv_key        = lv_key
+      it_files      = lt_files
+      iv_sci_result = mv_sci_result ).
 
   ENDMETHOD.
 
@@ -342,62 +347,22 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
 
   METHOD render_actions.
 
-    DATA: lv_local_count TYPE i,
-          lv_add_all_txt TYPE string.
-
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
-    lv_local_count = count_default_files_to_commit( ).
-    IF lv_local_count > 0.
-      lv_add_all_txt = |Add All and Commit ({ lv_local_count })|.
-      " Otherwise empty, but the element (id) is preserved for JS
-    ENDIF.
+
+    " Commit and Patch actions live in the page toolbar (commitBtn / patchBtn,
+    " labels managed by StageHelper.updateMenu)
 
     ri_html->add( '<table class="w100 margin-v5"><tr>' ).
-
-    " Action buttons
-    ri_html->add( '<td class="indent5em">' ).
-    ri_html->add_a( iv_act   = 'errorStub(event)' " Will be reinit by JS
-                    iv_typ   = zif_abapgit_html=>c_action_type-onclick
-                    iv_id    = 'commitSelectedButton'
-                    iv_style = 'display: none'
-                    iv_txt   = 'Commit Selected (<span class="counter"></span>)'
-                    iv_opt   = zif_abapgit_html=>c_html_opt-strong ).
-    ri_html->add_a( iv_act   = 'errorStub(event)' " Will be reinit by JS
-                    iv_typ   = zif_abapgit_html=>c_action_type-onclick
-                    iv_id    = 'commitFilteredButton'
-                    iv_style = 'display: none'
-                    iv_txt   = 'Add <b>Filtered</b> and Commit (<span class="counter"></span>)' ).
-    ri_html->add_a( iv_act = |{ c_action-stage_all }|
-                    iv_id  = 'commitAllButton'
-                    iv_txt = lv_add_all_txt ).
-
-
-    ri_html->add( '</td>' ).
 
     " Filter bar
     ri_html->add( '<td class="right">' ).
     ri_html->add( '<input class="stage-filter" id="objectSearch"' &&
                   ' type="search" placeholder="Filter Objects"' &&
                   | value="{ mv_filter_value }">| ).
-    zcl_abapgit_gui_chunk_lib=>render_sci_result(
-      ii_html       = ri_html
-      iv_sci_result = mv_sci_result ).
     ri_html->add( '</td>' ).
 
     ri_html->add( '</tr>' ).
     ri_html->add( '</table>' ).
-
-  ENDMETHOD.
-
-
-  METHOD render_deferred_hidden_events.
-
-    DATA ls_event TYPE zcl_abapgit_gui_chunk_lib=>ty_event_signature.
-
-    ls_event-method = 'post'.
-    ls_event-name   = 'stage_commit'.
-    ri_html = zcl_abapgit_gui_chunk_lib=>render_event_as_form( ls_event ).
-    ri_html->set_title( cl_abap_typedescr=>describe_by_object_ref( me )->get_relative_name( ) ).
 
   ENDMETHOD.
 
@@ -612,15 +577,14 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
     ri_html->add( 'var gStageParams = {' ).
     ri_html->add( |  seed:            "{ mv_seed }",| ). " Unique page id
     ri_html->add( |  user:            "{ to_lower( sy-uname ) }",| ).
-    ri_html->add( '  formAction:      "stage_commit",' ).
+    ri_html->add( |  formAction:      "{ c_action-stage_commit }",| ).
     ri_html->add( |  patchAction:     "{ zif_abapgit_definitions=>c_action-go_patch }",| ).
+    ri_html->add( |  stageAllAction:  "{ c_action-stage_all }",| ).
     ri_html->add( '  focusFilterKey:  "f",' ).
 
     ri_html->add( '  ids: {' ).
     ri_html->add( '    stageTab:          "stageTab",' ).
-    ri_html->add( '    commitAllBtn:      "commitAllButton",' ).
-    ri_html->add( '    commitSelectedBtn: "commitSelectedButton",' ).
-    ri_html->add( '    commitFilteredBtn: "commitFilteredButton",' ).
+    ri_html->add( '    commitBtn:         "commitBtn",' ).
     ri_html->add( '    patchBtn:          "patchBtn",' ).
     ri_html->add( '    objectSearch:      "objectSearch",' ).
     ri_html->add( '  }' ).
@@ -741,6 +705,11 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
     DATA ls_hotkey_action LIKE LINE OF rt_hotkey_actions.
 
     ls_hotkey_action-ui_component = 'Stage'.
+    ls_hotkey_action-description  = |Commit|.
+    ls_hotkey_action-action       = 'submitCommit'. " JS function in StageHelper
+    ls_hotkey_action-hotkey       = |c|.
+    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+
     ls_hotkey_action-description  = |Patch|.
     ls_hotkey_action-action       = 'submitPatch'. " JS function in StageHelper
     ls_hotkey_action-hotkey       = |p|.
@@ -762,25 +731,53 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
     ls_hotkey_action-hotkey = |f|.
     INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
 
+    ls_hotkey_action-description = |Filter changed by me|.
+    ls_hotkey_action-action      = 'onFilterMe'. " JS function in StageHelper
+    ls_hotkey_action-hotkey      = |m|.
+    INSERT ls_hotkey_action INTO TABLE rt_hotkey_actions.
+
   ENDMETHOD.
 
 
   METHOD zif_abapgit_gui_menu_provider~get_menu.
 
+    DATA: lv_local_count    TYPE i,
+          lv_commit_all_txt TYPE string,
+          lv_patch_all_txt  TYPE string.
+
     ro_toolbar = zcl_abapgit_html_toolbar=>create( 'toolbar-staging' ).
 
     IF lines( ms_files-local ) > 0 OR lines( ms_files-remote ) > 0.
+      lv_local_count = count_default_files_to_commit( ).
+      lv_patch_all_txt = |Patch|.
+      IF lv_local_count > 0.
+        lv_commit_all_txt = |Add All and Commit ({ lv_local_count })|.
+        lv_patch_all_txt  = |Patch All ({ lv_local_count })|.
+        " Otherwise commit is empty, but the element (id) is preserved for JS
+      ENDIF.
+
       ro_toolbar->add(
-        iv_txt = 'Refresh'
-        iv_act = |{ c_action-stage_refresh }|
+        iv_txt = lv_commit_all_txt
+        iv_typ = zif_abapgit_html=>c_action_type-onclick
+        iv_id  = |commitBtn|
         iv_opt = zif_abapgit_html=>c_html_opt-strong
+      )->add(
+        iv_txt = ``
+        iv_typ = zif_abapgit_html=>c_action_type-separator
+      )->add(
+        iv_txt = lv_patch_all_txt
+        iv_typ = zif_abapgit_html=>c_action_type-onclick
+        iv_id  = |patchBtn|
+        iv_opt = zif_abapgit_html=>c_html_opt-strong
+      )->add(
+        iv_txt = ``
+        iv_typ = zif_abapgit_html=>c_action_type-separator
       )->add(
         iv_txt = |Diff|
         iv_act = |{ zif_abapgit_definitions=>c_action-go_repo_diff }?key={ mi_repo->get_key( ) }|
       )->add(
-        iv_txt = |Patch|
-        iv_typ = zif_abapgit_html=>c_action_type-onclick
-        iv_id  = |patchBtn|
+        iv_txt = 'Refresh'
+        iv_act = |{ c_action-stage_refresh }|
       )->add(
         iv_txt = |Back|
         iv_act = zif_abapgit_definitions=>c_action-go_back ).
@@ -799,7 +796,8 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
     ri_html->add( zcl_abapgit_gui_chunk_lib=>render_repo_top(
       ii_repo               = mi_repo
       iv_show_commit        = abap_false
-      iv_interactive_branch = abap_true ) ).
+      iv_interactive_branch = abap_true
+      iv_sci_result         = mv_sci_result ) ).
     ri_html->add( zcl_abapgit_gui_chunk_lib=>render_js_error_banner( ) ).
     ri_html->add( render_main_language_warning( ) ).
 
@@ -810,9 +808,6 @@ CLASS zcl_abapgit_gui_page_stage IMPLEMENTATION.
 
     ri_html->add( '</div>' ).
 
-    gui_services( )->get_html_parts( )->add_part(
-      iv_collection = zcl_abapgit_gui_component=>c_html_parts-hidden_forms
-      ii_part       = render_deferred_hidden_events( ) ).
     register_deferred_script( render_scripts( ) ).
 
   ENDMETHOD.
