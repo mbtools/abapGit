@@ -6,12 +6,6 @@ CLASS zcl_abapgit_gui_chunk_lib DEFINITION
   PUBLIC SECTION.
 
     TYPES:
-      BEGIN OF ty_event_signature,
-        method TYPE string,
-        name   TYPE string,
-      END OF  ty_event_signature .
-
-    TYPES:
       BEGIN OF ty_col_spec,
         tech_name      TYPE string,
         display_name   TYPE string,
@@ -45,6 +39,8 @@ CLASS zcl_abapgit_gui_chunk_lib DEFINITION
         !iv_interactive_branch   TYPE abap_bool DEFAULT abap_false
         !iv_interactive_favorite TYPE abap_bool DEFAULT abap_true
         !io_news                 TYPE REF TO zcl_abapgit_repo_news OPTIONAL
+        !iv_sci_result           TYPE zif_abapgit_definitions=>ty_sci_result
+          DEFAULT zif_abapgit_definitions=>c_sci_result-no_run
       RETURNING
         VALUE(ri_html)           TYPE REF TO zif_abapgit_html
       RAISING
@@ -101,11 +97,6 @@ CLASS zcl_abapgit_gui_chunk_lib DEFINITION
         VALUE(ri_html) TYPE REF TO zif_abapgit_html
       RAISING
         zcx_abapgit_exception .
-    CLASS-METHODS render_event_as_form
-      IMPORTING
-        !is_event      TYPE ty_event_signature
-      RETURNING
-        VALUE(ri_html) TYPE REF TO zif_abapgit_html .
     CLASS-METHODS render_repo_palette
       IMPORTING
         iv_action      TYPE string
@@ -362,6 +353,7 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
       lv_selected_commit  TYPE string,
       lv_commit_short_sha TYPE string,
       lv_text             TYPE string,
+      lv_act              TYPE string,
       lv_icon             TYPE string,
       lv_hint             TYPE string,
       lv_class            TYPE string,
@@ -398,15 +390,18 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
         lv_class = 'branch branch_branch'.
         lv_icon  = 'code-branch/grey70'.
         lv_hint  = 'Current branch'.
+        lv_act   = zif_abapgit_definitions=>c_action-git_branch_switch.
       WHEN zif_abapgit_git_definitions=>c_git_branch_type-annotated_tag
         OR zif_abapgit_git_definitions=>c_git_branch_type-lightweight_tag.
         lv_class = 'branch'.
         lv_icon  = 'tag-solid/grey70'.
         lv_hint  = 'Current tag'.
+        lv_act   = zif_abapgit_definitions=>c_action-git_tag_switch.
       WHEN OTHERS.
         lv_class = 'branch branch_branch'.
         lv_icon  = 'code-branch/grey70'.
         lv_hint  = 'Current commit'.
+        lv_act   = zif_abapgit_definitions=>c_action-repo_remote_settings.
     ENDCASE.
 
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
@@ -414,7 +409,7 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
     ri_html->add_icon( iv_name = lv_icon
                        iv_hint = lv_hint ).
     IF iv_interactive = abap_true.
-      ri_html->add_a( iv_act = |{ zif_abapgit_definitions=>c_action-git_branch_switch }?key={ lv_key }|
+      ri_html->add_a( iv_act = |{ lv_act }?key={ lv_key }|
                       iv_txt = lv_text ).
     ELSE.
       ri_html->add( lv_text ).
@@ -559,16 +554,6 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
     ri_html->add( |{ lv_longtext }| ).
     ri_html->add( |</div>| ).
     ri_html->add( |</div>| ).
-
-  ENDMETHOD.
-
-
-  METHOD render_event_as_form.
-
-    CREATE OBJECT ri_html TYPE zcl_abapgit_html.
-
-    ri_html->add(
-      |<form id="form_{ is_event-name }" method="{ is_event-method }" action="sapevent:{ is_event-name }"></form>| ).
 
   ENDMETHOD.
 
@@ -1023,6 +1008,11 @@ CLASS zcl_abapgit_gui_chunk_lib IMPLEMENTATION.
     ri_html->add( '</td>' ).
 
     ri_html->add( '<td class="repo_attr right">' ).
+
+    " SCI result
+    render_sci_result(
+      ii_html       = ri_html
+      iv_sci_result = iv_sci_result ).
 
     " Fav
     IF abap_true = zcl_abapgit_persist_factory=>get_user( )->is_favorite_repo( ii_repo->get_key( ) ).

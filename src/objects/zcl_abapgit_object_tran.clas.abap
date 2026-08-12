@@ -420,11 +420,10 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
       CHANGING
         ct_tab             = lt_tpool_i18n ).
 
-    IF lines( lt_tpool_i18n ) > 0.
-      SORT lt_tpool_i18n BY sprsl ASCENDING.
-      ii_xml->add( iv_name = 'I18N_TPOOL'
-                   ig_data = lt_tpool_i18n ).
-    ENDIF.
+    SORT lt_tpool_i18n BY sprsl ASCENDING.
+
+    ii_xml->add( iv_name = 'I18N_TPOOL'
+                 ig_data = lt_tpool_i18n ).
 
   ENDMETHOD.
 
@@ -633,7 +632,6 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
     READ TABLE lt_tcodes INDEX 1 INTO es_transaction.
     ASSERT sy-subrc = 0.
     READ TABLE lt_gui_attr INDEX 1 INTO es_gui_attr.
-    ASSERT sy-subrc = 0.
 
   ENDMETHOD.
 
@@ -973,10 +971,8 @@ CLASS zcl_abapgit_object_tran IMPLEMENTATION.
                  ig_data = ls_gui_attr ).
     io_xml->add( iv_name = 'TSTCT'
                  ig_data = ls_tstct ).
-    IF ls_tstcp IS NOT INITIAL.
-      io_xml->add( iv_name = 'TSTCP'
-                   ig_data = ls_tstcp ).
-    ENDIF.
+    io_xml->add( iv_name = 'TSTCP'
+                 ig_data = ls_tstcp ).
     io_xml->add( iv_name = 'AUTHORIZATIONS'
                  ig_data = lt_tstca ).
 

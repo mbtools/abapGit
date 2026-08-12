@@ -382,6 +382,8 @@ CLASS zcl_abapgit_gui_page_repo_view IMPLEMENTATION.
                              iv_act = |{ zif_abapgit_definitions=>c_action-git_branch_switch }?key={ mv_key }| ).
     ro_branch_dropdown->add( iv_txt = 'Create'
                              iv_act = |{ zif_abapgit_definitions=>c_action-git_branch_create }?key={ mv_key }| ).
+    ro_branch_dropdown->add( iv_txt = 'Create From'
+                             iv_act = |{ zif_abapgit_definitions=>c_action-git_branch_create_from }?key={ mv_key }| ).
     ro_branch_dropdown->add( iv_txt = 'Delete'
                              iv_act = |{ zif_abapgit_definitions=>c_action-git_branch_delete }?key={ mv_key }| ).
     ro_branch_dropdown->add( iv_txt = 'Merge'
@@ -509,10 +511,10 @@ CLASS zcl_abapgit_gui_page_repo_view IMPLEMENTATION.
                      iv_act = |{ zif_abapgit_definitions=>c_action-repo_refresh }?key={ mv_key }|
                      iv_opt = zif_abapgit_html=>c_html_opt-strong ).
 
-    ro_toolbar->add( iv_txt   = 'Repo Settings'
-                     iv_act   = |{ zif_abapgit_definitions=>c_action-repo_settings }?key={ mv_key }|
-                     iv_opt   = zif_abapgit_html=>c_html_opt-strong
-                     iv_title = `Repository Settings` ).
+    zcl_abapgit_html_toolbar_lib=>render_repo_settings_dropdown(
+      io_toolbar = ro_toolbar
+      iv_key     = mv_key
+      iv_opt     = zif_abapgit_html=>c_html_opt-strong ).
 
   ENDMETHOD.
 
@@ -1024,8 +1026,7 @@ CLASS zcl_abapgit_gui_page_repo_view IMPLEMENTATION.
     CREATE OBJECT ri_html TYPE zcl_abapgit_html.
 
     ri_html->set_title( cl_abap_typedescr=>describe_by_object_ref( me )->get_relative_name( ) ).
-    ri_html->add( zcl_abapgit_gui_chunk_lib=>render_repo_palette(
-      iv_action = zif_abapgit_definitions=>c_action-go_repo ) ).
+    ri_html->add( zcl_abapgit_gui_chunk_lib=>render_repo_palette( zif_abapgit_definitions=>c_action-go_repo ) ).
 
   ENDMETHOD.
 
@@ -1158,6 +1159,16 @@ CLASS zcl_abapgit_gui_page_repo_view IMPLEMENTATION.
         open_in_main_language( ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
 
+      WHEN zif_abapgit_definitions=>c_action-go_back.
+        IF zcl_abapgit_ui_factory=>get_gui( )->back( ) = abap_true. " end of stack
+          " shutdown
+          zcl_abapgit_ui_factory=>get_gui( )->free( ).
+          SET SCREEN 0.
+          rs_handled-state = zcl_abapgit_gui=>c_event_state-no_more_act.
+        ELSE.
+          rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+        ENDIF.
+
     ENDCASE.
 
   ENDMETHOD.
@@ -1245,7 +1256,10 @@ CLASS zcl_abapgit_gui_page_repo_view IMPLEMENTATION.
       iv_act = zif_abapgit_definitions=>c_action-abapgit_home
     )->add(
       iv_txt = zcl_abapgit_gui_buttons=>help( )
-      io_sub = zcl_abapgit_gui_menus=>help( ) ).
+      io_sub = zcl_abapgit_gui_menus=>help( )
+    )->add(
+      iv_txt = |Back|
+      iv_act = zif_abapgit_definitions=>c_action-go_back ).
 
     zcl_abapgit_gui_menus=>experimental( ro_toolbar ).
 

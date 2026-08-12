@@ -15,6 +15,16 @@ INTERFACE zif_abapgit_exit PUBLIC.
       clsname TYPE abap_classname,
     END OF ty_class_key.
 
+  METHODS adjust_commit_message
+    IMPORTING
+      !ii_repo_online TYPE REF TO zif_abapgit_repo_online
+      !io_stage       TYPE REF TO zcl_abapgit_stage
+    CHANGING
+      !cv_comment     TYPE string
+      !cv_body        TYPE string
+    RAISING
+      zcx_abapgit_exception.
+
   METHODS adjust_display_commit_url
     IMPORTING
       !iv_repo_url    TYPE csequence
@@ -43,6 +53,12 @@ INTERFACE zif_abapgit_exit PUBLIC.
     CHANGING
       cv_name     TYPE csequence
       cv_email    TYPE csequence.
+
+  METHODS change_password_popup_username
+    IMPORTING
+      iv_repo_url TYPE csequence
+    CHANGING
+      cv_user     TYPE string.
 
   METHODS change_local_host
     CHANGING
@@ -113,8 +129,12 @@ INTERFACE zif_abapgit_exit PUBLIC.
 
   METHODS deserialize_postprocess
     IMPORTING
-      !is_step TYPE zif_abapgit_objects=>ty_step_data
-      !ii_log  TYPE REF TO zif_abapgit_log.
+      !iv_package       TYPE devclass OPTIONAL
+      !is_step          TYPE zif_abapgit_objects=>ty_step_data OPTIONAL
+      !ii_log           TYPE REF TO zif_abapgit_log OPTIONAL
+      !it_remote        TYPE zif_abapgit_git_definitions=>ty_files_tt OPTIONAL
+    CHANGING
+      !ct_updated_files TYPE zif_abapgit_git_definitions=>ty_file_signatures_tt OPTIONAL.
 
   METHODS determine_transport_request
     IMPORTING
@@ -122,6 +142,12 @@ INTERFACE zif_abapgit_exit PUBLIC.
       !iv_transport_type    TYPE zif_abapgit_definitions=>ty_transport_type
     CHANGING
       !cv_transport_request TYPE trkorr.
+
+  METHODS enable_adjust_commit_message
+    IMPORTING
+      !ii_repo_online       TYPE REF TO zif_abapgit_repo_online
+    RETURNING
+      VALUE(rv_button_text) TYPE string.
 
   METHODS enhance_any_toolbar
     IMPORTING

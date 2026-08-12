@@ -222,6 +222,9 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
           lv_msg       TYPE string,
           lx_error     TYPE REF TO zcx_abapgit_exception.
 
+    DATA lt_tasks TYPE zif_abapgit_cts_api=>ty_request_and_tasks_tt.
+    DATA lv_transport TYPE trkorr.
+
     FIELD-SYMBOLS: <ls_func> LIKE LINE OF it_functions.
 
     LOOP AT it_functions ASSIGNING <ls_func>.
@@ -288,8 +291,10 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
               corrnum                 = iv_transport
               rfcscope                = <ls_func>-rfcscope " not on lower releases
               rfcvers                 = <ls_func>-rfcvers " not on lower releases
+              suppress_corr_check     = abap_false
             IMPORTING
               function_include        = lv_include
+              corrnum_e               = lv_transport
             TABLES
               import_parameter        = <ls_func>-import
               export_parameter        = <ls_func>-export
@@ -322,8 +327,10 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
               namespace               = lv_namespace
               remote_basxml_supported = <ls_func>-remote_basxml
               corrnum                 = iv_transport
+              suppress_corr_check     = abap_false
             IMPORTING
               function_include        = lv_include
+              corrnum_e               = lv_transport
             TABLES
               import_parameter        = <ls_func>-import
               export_parameter        = <ls_func>-export
@@ -349,6 +356,17 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
         ii_log->add_error( iv_msg  = |Function module { <ls_func>-funcname }: { lv_msg }|
                            is_item = ms_item ).
         CONTINUE.  "with next function module
+      ENDIF.
+
+      IF iv_transport IS NOT INITIAL.
+        lt_tasks = zcl_abapgit_factory=>get_cts_api( )->read_request_and_tasks( iv_transport ).
+        READ TABLE lt_tasks WITH KEY trkorr = lv_transport TRANSPORTING NO FIELDS.
+        IF sy-subrc <> 0.
+          " this happens when a FUNC is recorded in a different transport than
+          " what the current user selected
+          ii_log->add_warning( iv_msg  = |FUGR, transport changed to { lv_transport }|
+                               is_item = ms_item ).
+        ENDIF.
       ENDIF.
 
       zcl_abapgit_factory=>get_sap_report( )->insert_report(
@@ -481,6 +499,8 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
           lv_stext     TYPE tftit-stext,
           lv_group     TYPE rs38l-area.
 
+    DATA lv_transport TYPE trkorr.
+
     lv_complete = ms_item-obj_name.
 
     CALL FUNCTION 'FUNCTION_INCLUDE_SPLIT'
@@ -519,6 +539,8 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
         unicode_checks          = iv_version
         corrnum                 = iv_transport
         suppress_corr_check     = abap_false
+      IMPORTING
+        corrnum                 = lv_transport
       EXCEPTIONS
         name_already_exists     = 1
         name_not_correct        = 2
@@ -570,11 +592,11 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
       zcx_abapgit_exception=>raise_t100( ).
     ENDIF.
 
-    "FM is not reliable if Function Group is inconsistent, so cross-check results (#7147)
+    " FM RS_FUNCTION_POOL_CONTENTS is not reliable if Function Group is inconsistent, so cross-check results (#7147)
+    " Don't check active flag, or the includes become wrong (#7702)
     SELECT * FROM enlfdir
       INTO TABLE lt_enlfdir
       WHERE area = ms_item-obj_name
-        AND active = abap_true
       ORDER BY funcname.                                  "#EC CI_SUBRC
 
     LOOP AT lt_enlfdir ASSIGNING <ls_enlfdir>.
@@ -1071,10 +1093,8 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
       <ls_tpool>-textpool = add_tpool( lt_tpool ).
     ENDLOOP.
 
-    IF lines( lt_tpool_i18n ) > 0.
-      ii_xml->add( iv_name = 'I18N_TPOOL'
-                   ig_data = lt_tpool_i18n ).
-    ENDIF.
+    ii_xml->add( iv_name = 'I18N_TPOOL'
+                 ig_data = lt_tpool_i18n ).
   ENDMETHOD.
 
 
@@ -1275,7 +1295,8 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
           lv_abap_version TYPE trdir-uccheck,
           lt_functions    TYPE ty_function_tt,
           lt_dynpros      TYPE ty_dynpro_tt,
-          ls_cua          TYPE ty_cua.
+          ls_cua          TYPE ty_cua,
+          lt_varis        TYPE ty_vari_tt.
 
     lv_abap_version = get_abap_version( io_xml ).
 
@@ -1317,6 +1338,12 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
 
     deserialize_cua( iv_program_name = lv_program_name
                      is_cua          = ls_cua ).
+
+    io_xml->read( EXPORTING iv_name = 'VARIS'
+                  CHANGING  cg_data = lt_varis ).
+
+    deserialize_varis( iv_program_name = lv_program_name
+                       it_varis        = lt_varis ).
 
     deserialize_function_docs(
       iv_prog_name = lv_program_name
@@ -1454,7 +1481,8 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
           ls_progdir      TYPE zif_abapgit_sap_report=>ty_progdir,
           lv_program_name TYPE syrepid,
           lt_dynpros      TYPE ty_dynpro_tt,
-          ls_cua          TYPE ty_cua.
+          ls_cua          TYPE ty_cua,
+          lt_varis        TYPE ty_vari_tt.
 
     IF zif_abapgit_object~exists( ) = abap_false.
       RETURN.
@@ -1487,6 +1515,10 @@ CLASS zcl_abapgit_object_fugr IMPLEMENTATION.
       ls_cua = serialize_cua( lv_program_name ).
       io_xml->add( iv_name = 'CUA'
                    ig_data = ls_cua ).
+
+      lt_varis = serialize_varis( lv_program_name ).
+      io_xml->add( iv_name = 'VARIS'
+                   ig_data = lt_varis ).
     ENDIF.
 
     serialize_function_docs( iv_prog_name = lv_program_name

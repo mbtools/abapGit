@@ -131,6 +131,7 @@ CLASS zcl_abapgit_object_shma IMPLEMENTATION.
 
     DATA: lv_area_name       TYPE shm_area_name,
           ls_area_attributes TYPE shma_attributes.
+    DATA lx_root TYPE REF TO cx_root.
 
     lv_area_name = ms_item-obj_name.
 
@@ -140,19 +141,29 @@ CLASS zcl_abapgit_object_shma IMPLEMENTATION.
       CHANGING
         cg_data = ls_area_attributes ).
 
+    IF ls_area_attributes-root IS INITIAL.
+      zcx_abapgit_exception=>raise( |Error deserializing SHMA { ms_item-obj_name }, root class is empty| ).
+    ELSEIF zcl_abapgit_oo_factory=>get_by_type( 'CLAS' )->exists( ls_area_attributes-root ) = abap_false.
+      zcx_abapgit_exception=>raise( |Error deserializing SHMA { ms_item-obj_name }, root class {
+        ls_area_attributes-root } does not exist| ).
+    ENDIF.
+
     tadir_insert( iv_package ).
 
     TRY.
+        " dont generate the classes, it will cause a GUI popup to show
         CALL METHOD ('\PROGRAM=SAPLSHMA\CLASS=LCL_SHMA_HELPER')=>('INSERT_AREA')
           EXPORTING
             area_name           = lv_area_name
             attributes          = ls_area_attributes
             force_overwrite     = abap_true
-            no_class_generation = abap_false
+            no_class_generation = abap_true
             silent_mode         = abap_true.
 
-      CATCH cx_root.
-        zcx_abapgit_exception=>raise( |Error serializing SHMA { ms_item-obj_name }| ).
+      CATCH cx_root INTO lx_root.
+        zcx_abapgit_exception=>raise(
+          iv_text     = |Error deserializing SHMA { ms_item-obj_name }, { lx_root->get_text( ) }|
+          ix_previous = lx_root ).
     ENDTRY.
 
   ENDMETHOD.

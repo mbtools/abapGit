@@ -348,9 +348,11 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
 
   METHOD get_page_patch.
 
-    DATA: ls_file   TYPE zif_abapgit_git_definitions=>ty_file,
-          ls_object TYPE zif_abapgit_definitions=>ty_item,
-          lv_key    TYPE zif_abapgit_persistence=>ty_repo-key.
+    DATA: ls_file       TYPE zif_abapgit_git_definitions=>ty_file,
+          ls_object     TYPE zif_abapgit_definitions=>ty_item,
+          lv_key        TYPE zif_abapgit_persistence=>ty_repo-key,
+          li_repo       TYPE REF TO zif_abapgit_repo,
+          lv_sci_result TYPE zif_abapgit_definitions=>ty_sci_result.
 
     lv_key             = ii_event->query( )->get( 'KEY' ).
     ls_file-path       = ii_event->query( )->get( 'PATH' ).
@@ -358,10 +360,31 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
     ls_object-obj_type = ii_event->query( )->get( 'OBJ_TYPE' ).
     ls_object-obj_name = ii_event->query( )->get( 'OBJ_NAME' ). " unescape ?
 
-    ri_page = zcl_abapgit_gui_page_patch=>create(
-      iv_key    = lv_key
-      is_file   = ls_file
-      is_object = ls_object ).
+    lv_sci_result = zif_abapgit_definitions=>c_sci_result-no_run.
+
+    li_repo = zcl_abapgit_repo_srv=>get_instance( )->get( lv_key ).
+
+    IF li_repo->get_local_settings( )-code_inspector_check_variant IS NOT INITIAL.
+
+      TRY.
+          ri_page = zcl_abapgit_gui_page_code_insp=>create(
+            ii_repo                  = li_repo
+            iv_raise_when_no_results = abap_true
+            iv_followup_action       = zcl_abapgit_gui_page_codi_base=>c_actions-patch ).
+
+        CATCH zcx_abapgit_exception.
+          lv_sci_result = zif_abapgit_definitions=>c_sci_result-passed.
+      ENDTRY.
+
+    ENDIF.
+
+    IF ri_page IS INITIAL.
+      ri_page = zcl_abapgit_gui_page_patch=>create(
+        iv_key        = lv_key
+        is_file       = ls_file
+        is_object     = ls_object
+        iv_sci_result = lv_sci_result ).
+    ENDIF.
 
   ENDMETHOD.
 
@@ -460,6 +483,9 @@ CLASS zcl_abapgit_gui_router IMPLEMENTATION.
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
       WHEN zif_abapgit_definitions=>c_action-git_branch_create.             " GIT Create new branch
         zcl_abapgit_services_git=>create_branch( lv_key ).
+        rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+      WHEN zif_abapgit_definitions=>c_action-git_branch_create_from.        " GIT Create new branch from source branch
+        zcl_abapgit_services_git=>create_branch_from( lv_key ).
         rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
       WHEN zif_abapgit_definitions=>c_action-git_branch_delete.             " GIT Delete remote branch
         zcl_abapgit_services_git=>delete_branch( lv_key ).
