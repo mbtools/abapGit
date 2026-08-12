@@ -177,10 +177,16 @@ ENDCLASS.
 
 CLASS ltd_exit IMPLEMENTATION.
 
+  METHOD zif_abapgit_exit~adjust_commit_message.
+  ENDMETHOD.
+
   METHOD zif_abapgit_exit~adjust_display_commit_url.
   ENDMETHOD.
 
   METHOD zif_abapgit_exit~change_committer_info.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_exit~change_password_popup_username.
   ENDMETHOD.
 
   METHOD zif_abapgit_exit~adjust_display_filename.
@@ -232,6 +238,9 @@ CLASS ltd_exit IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_abapgit_exit~determine_transport_request.
+  ENDMETHOD.
+
+  METHOD zif_abapgit_exit~enable_adjust_commit_message.
   ENDMETHOD.
 
   METHOD zif_abapgit_exit~enhance_any_toolbar.

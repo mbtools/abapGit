@@ -62,6 +62,9 @@ span.separator {
 .crossout     { text-decoration: line-through !important; }
 .right        { text-align:right; }
 .center       { text-align:center; }
+.left         { text-align:left; }
+.top          { vertical-align: top; }
+.bottom       { vertical-align: bottom; }
 .paddings     { padding: 0.5em 0.5em; }
 .pad-sides    { padding-left: 0.3em; padding-right: 0.3em; }
 .pad-1em      { padding: 1em 1em; }
@@ -163,6 +166,11 @@ div#footer .logo { font-size: large }
 div#footer {
   padding:          0.5em 0.5em;
   border-top:       3px double;
+}
+/* narrow the side cells so the version line does not wrap */
+div#footer td.sponsor,
+div#footer td#debug-output {
+  width: 25%;
 }
 div#footer .version {
   margin-top: 0.5em;
@@ -770,6 +778,16 @@ div.tutorial h2 { font-size: 14pt;}
 }
 .nav-container ul ul li.separator:first-child { border-top: none; }
 
+/* Top-level toolbar separator - vertical divider between item groups */
+.nav-container > ul > li.separator {
+  width: 0;
+  height: 18px;
+  padding: 0;
+  margin: 6px 0.6em;
+  border-left: 1px solid;
+  opacity: 0.25;
+}
+
 /* NEWS ANNOUNCEMENT */
 
 div.info-panel {
@@ -788,7 +806,6 @@ div.info-panel-fixed {
 }
 
 div.info-panel div.info-hint {
-  text-transform: uppercase;
   font-size: small;
   padding: 8px 6px 0px;
   text-align: center;
@@ -936,7 +953,7 @@ ul.hotkeys span.key-id {
   border: 1px solid;
   border-radius: 3px;
   padding: 1px 7px;
-  width: 3em;
+  width: 5em;
   display: inline-block;
   text-align: center;
   margin-top: 0.2em;

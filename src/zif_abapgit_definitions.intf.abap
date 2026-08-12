@@ -43,11 +43,12 @@ INTERFACE zif_abapgit_definitions
     BEGIN OF ty_overwrite.
       INCLUDE TYPE ty_item.
   TYPES:
-      state    TYPE c LENGTH 2,
-      action   TYPE i,
-      icon     TYPE icon_d,
-      text     TYPE string,
-      decision TYPE ty_yes_no,
+      changed_by TYPE syuname,
+      state      TYPE c LENGTH 2,
+      action     TYPE i,
+      icon       TYPE icon_d,
+      text       TYPE string,
+      decision   TYPE ty_yes_no,
     END OF ty_overwrite .
   TYPES:
     ty_overwrite_tt TYPE STANDARD TABLE OF ty_overwrite WITH DEFAULT KEY
@@ -269,6 +270,7 @@ INTERFACE zif_abapgit_definitions
       documentation                 TYPE string VALUE 'documentation',
       flow                          TYPE string VALUE 'flow',
       git_branch_create             TYPE string VALUE 'git_branch_create',
+      git_branch_create_from        TYPE string VALUE 'git_branch_create_from',
       git_branch_delete             TYPE string VALUE 'git_branch_delete',
       git_branch_merge              TYPE string VALUE 'git_branch_merge',
       git_branch_switch             TYPE string VALUE 'git_branch_switch',

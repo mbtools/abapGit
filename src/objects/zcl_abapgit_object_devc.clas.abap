@@ -216,9 +216,11 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
       ls_item-obj_name = ls_tadir-obj_name.
 
       IF zcl_abapgit_objects=>exists( ls_item ) = abap_false.
+        " Ignore errors since objects might be locked in unreleased transport (TR022)
         zcl_abapgit_factory=>get_tadir( )->delete_single(
-          iv_object    = ls_tadir-object
-          iv_obj_name  = ls_tadir-obj_name ).
+          iv_object   = ls_tadir-object
+          iv_obj_name = ls_tadir-obj_name
+          iv_no_throw = abap_true ).
       ENDIF.
     ENDLOOP.
 
@@ -791,7 +793,7 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
   METHOD zif_abapgit_object~map_filename_to_object.
 
     IF iv_item_part_of_filename <> zcl_abapgit_filename_logic=>c_package_file-obj_name.
-      zcx_abapgit_exception=>raise( |Unexpected filename for package { cs_item-obj_name }| ).
+      zcx_abapgit_exception=>raise( |Unexpected filename part for package: { iv_item_part_of_filename }| ).
     ENDIF.
 
     " Try to get a unique package name for DEVC by using the path
@@ -853,6 +855,10 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
 
     CLEAR: ls_package_data-devclass,
            ls_package_data-parentcl.
+
+    " Clear language fields to prevents diffs, package has to match repo language. Filled since 816
+    CLEAR: ls_package_data-language,
+           ls_package_data-masterlang.
 
     " Clear administrative data to prevent diffs
     CLEAR: ls_package_data-created_by,
@@ -947,9 +953,7 @@ CLASS zcl_abapgit_object_devc IMPLEMENTATION.
       APPEND ls_usage_data TO lt_usage_data.
     ENDLOOP.
 
-    IF lt_usage_data IS NOT INITIAL.
-      io_xml->add( iv_name = 'PERMISSION'
-                   ig_data = lt_usage_data ).
-    ENDIF.
+    io_xml->add( iv_name = 'PERMISSION'
+                 ig_data = lt_usage_data ).
   ENDMETHOD.
 ENDCLASS.

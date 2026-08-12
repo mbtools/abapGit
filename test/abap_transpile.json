@@ -25,6 +25,9 @@
     "zcl_abapgit_object_devc",
     "zcl_abapgit_object_filter_obj",
     "zcl_abapgit_object_intf",
+    "ZCL_ABAPGIT_OBJECTS_ACTIVATION",
+    "zcl_abapgit_object_doma",
+    "zcl_abapgit_object_sfpf",
     "zcl_abapgit_object_zag",
     "zcl_abapgit_objects_bridge",
     "zcl_abapgit_objects_files",
@@ -101,6 +104,7 @@
       {"object": "ZCL_ABAPGIT_XML", "class": "ltcl_xml", "method": "bad_xml_raises_exc",              "note": "handling of xml parser errors, cl_ixml, test method parse_negative"},
       {"object": "ZCL_ABAPGIT_XML_OUTPUT", "class": "ltcl_xml_output", "method": "render_xml_string", "note": "condensing values not working"},
       {"object": "ZCL_ABAPGIT_XML_OUTPUT", "class": "ltcl_xml_output", "method": "long_numc",         "note": "bug in transpiler/open-abap"},
+      {"object": "ZCL_ABAPGIT_XML_OUTPUT", "class": "ltcl_xml_output", "method": "invalid_transformation", "note": "handling corrupt data"},
 
       {"object": "ZCL_ABAPGIT_SOTR_HANDLER", "class": "ltcl_sotr_handler", "method": "sotr_wda_0001",           "note": "Void type: SOTR_HEAD"},
       {"object": "ZCL_ABAPGIT_SOTR_HANDLER", "class": "ltcl_sotr_handler", "method": "sotr_wda_0003_not_exist", "note": "Void type: SOTR_HEAD"},
@@ -117,17 +121,9 @@
       {"object": "ZCL_ABAPGIT_DOT_ABAPGIT", "class": "ltcl_dot_abapgit", "method": "identity", "note": " https://github.com/open-abap/open-abap/issues/471 "},
 
       {"object": "ZCL_ABAPGIT_AJSON", "class": "ltcl_parser_test", "method": "parse_error",           "note": "NodeJS 20 does not set position of parsing error"},
-      {"object": "ZCL_ABAPGIT_AJSON", "class": "ltcl_parser_test", "method": "unicode_characters",    "note": "missing class"},
+      {"object": "ZCL_ABAPGIT_AJSON", "class": "ltcl_parser_test", "method": "unicode_characters",    "note": "duplicate JSON members"},
       {"object": "ZCL_ABAPGIT_AJSON", "class": "ltcl_writer_test", "method": "set_timestampl",        "note": " https://github.com/abaplint/transpiler/issues/1528 "},
       {"object": "ZCL_ABAPGIT_AJSON", "class": "ltcl_abap_to_json", "method": "set_value_timestampl", "note": " https://github.com/abaplint/transpiler/issues/1528 "},
-
-      {"object": "ZCL_ABAPGIT_VERSION", "class": "ltcl_version_parse", "method": "interface1",          "note": "SCAN-ABAP-SOURCE, wrong value"},
-      {"object": "ZCL_ABAPGIT_VERSION", "class": "ltcl_version_parse", "method": "interface2",          "note": "SCAN-ABAP-SOURCE, wrong value"},
-      {"object": "ZCL_ABAPGIT_VERSION", "class": "ltcl_version_parse", "method": "class1",              "note": "SCAN-ABAP-SOURCE, wrong value"},
-      {"object": "ZCL_ABAPGIT_VERSION", "class": "ltcl_version_parse", "method": "class_private",       "note": "SCAN-ABAP-SOURCE, wrong value"},
-      {"object": "ZCL_ABAPGIT_VERSION", "class": "ltcl_version_parse", "method": "int4",                "note": "SCAN-ABAP-SOURCE, wrong value"},
-      {"object": "ZCL_ABAPGIT_VERSION", "class": "ltcl_version_parse", "method": "decfloat34",          "note": "SCAN-ABAP-SOURCE, wrong value"},
-      {"object": "ZCL_ABAPGIT_VERSION", "class": "ltcl_version_parse", "method": "ampersand",           "note": "SCAN-ABAP-SOURCE, wrong value"},
 
       {"object": "ZCL_ABAPGIT_PERSISTENCE_USER", "class": "ltcl_user", "method": "set_get_git_user",   "note": "skip, this changes database"},
       {"object": "ZCL_ABAPGIT_PERSISTENCE_USER", "class": "ltcl_user", "method": "set_get_repo_show",  "note": "skip, this changes database"},
@@ -135,14 +131,6 @@
       {"object": "ZCL_ABAPGIT_PERSISTENCE_USER", "class": "ltcl_user", "method": "set_get_repo_login", "note": "skip, this changes database"},
       {"object": "ZCL_ABAPGIT_PERSISTENCE_USER", "class": "ltcl_user", "method": "default_git_user_email", "note": "skip, this changes database"},
       {"object": "ZCL_ABAPGIT_PERSISTENCE_USER", "class": "ltcl_user", "method": "default_git_stored_in_settings", "note": "skip, this changes database"},
-
-      {"object": "ZCL_ABAPGIT_DIFF", "class": "ltcl_diff", "method": "diff07", "note": "todo zcl_abapgit_diff_diff3"},
-      {"object": "ZCL_ABAPGIT_DIFF", "class": "ltcl_diff", "method": "diff08", "note": "todo zcl_abapgit_diff_diff3"},
-      {"object": "ZCL_ABAPGIT_DIFF", "class": "ltcl_diff", "method": "diff09", "note": "todo zcl_abapgit_diff_diff3"},
-      {"object": "ZCL_ABAPGIT_DIFF", "class": "ltcl_diff", "method": "diff11", "note": "todo zcl_abapgit_diff_diff3"},
-      {"object": "ZCL_ABAPGIT_DIFF", "class": "ltcl_diff", "method": "diff14", "note": "todo zcl_abapgit_diff_diff3"},
-      {"object": "ZCL_ABAPGIT_DIFF", "class": "ltcl_diff", "method": "diff15", "note": "todo zcl_abapgit_diff_diff3"},
-      {"object": "ZCL_ABAPGIT_DIFF", "class": "ltcl_diff", "method": "diff16", "note": "todo zcl_abapgit_diff_diff3"},
 
       {"object": "ZCL_ABAPGIT_USER_RECORD", "class": "ltcl_user_record", "method": "test_invalid_user", "note": "Void type: BAPIADDR3"},
 
@@ -165,7 +153,10 @@
       {"object": "ZCL_ABAPGIT_OBJECTS", "class": "ltcl_check_objects_locked", "method": "throw_excp_if_object_is_locked", "note": "not currently supported in open-abap"},
       {"object": "ZCL_ABAPGIT_OBJECTS", "class": "ltcl_check_objects_locked", "method": "no_excp_if_obj_is_not_locked", "note": "not currently supported in open-abap"},
 
-      {"object": "ZCL_ABAPGIT_ABAP_LANGUAGE_VERS", "class": "ltcl_abap_language_version", "method": "is_import_allowed", "note": "CL_ABAP_LANGUAGE_VERSION/_CFG"}
+      {"object": "ZCL_ABAPGIT_ABAP_LANGUAGE_VERS", "class": "ltcl_abap_language_version", "method": "is_import_allowed", "note": "CL_ABAP_LANGUAGE_VERSION/_CFG"},
+
+      {"object": "ZCL_ABAPGIT_OBJECTS_ACTIVATION", "class": "ltcl_tests", "method": "get_ddic_type", "note": "function module DD_E071_TO_DD"},
+      {"object": "ZCL_ABAPGIT_OBJECTS_ACTIVATION", "class": "ltcl_tests", "method": "is_active", "note": "function module DDIF_STATE_GET"}
     ]
   }
 }
