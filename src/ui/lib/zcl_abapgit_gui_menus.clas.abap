@@ -80,9 +80,6 @@ CLASS zcl_abapgit_gui_menus IMPLEMENTATION.
     ro_menu = zcl_abapgit_html_toolbar=>create( 'toolbar-advanced' ).
 
     ro_menu->add(
-      iv_txt = 'Statistics'
-      iv_act = zif_abapgit_definitions=>c_action-go_statistics
-    )->add(
       iv_txt = 'Database Utility'
       iv_act = zif_abapgit_definitions=>c_action-go_db
     )->add(
@@ -103,6 +100,10 @@ CLASS zcl_abapgit_gui_menus IMPLEMENTATION.
         iv_txt = 'Open IE DevTools'
         iv_act = zif_abapgit_definitions=>c_action-ie_devtools ).
     ENDIF.
+
+    ro_menu->add(
+      iv_txt = 'Statistics'
+      iv_act = zif_abapgit_definitions=>c_action-go_statistics ).
 
   ENDMETHOD.
 

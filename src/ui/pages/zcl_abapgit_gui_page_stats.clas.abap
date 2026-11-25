@@ -131,20 +131,38 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
 
     DATA ls_repo TYPE zcl_abapgit_statistics=>ty_repo.
     DATA lv_content TYPE string.
+    DATA lv_icon TYPE string.
+    DATA lv_hint TYPE string.
 
     ls_repo = is_row.
     lv_content = iv_value.
     CASE iv_column_id.
+      WHEN 'package'.
+        rs_render-html = zcl_abapgit_gui_chunk_lib=>render_package_name( ls_repo-package ).
+        RETURN.
       WHEN 'offline'.
         lv_content = 'Online'.
         IF ls_repo-offline = abap_true.
           lv_content = 'Offline'.
         ENDIF.
-      WHEN 'favorite' OR 'write_protected'.
-        lv_content = 'No'.
-        IF iv_value = abap_true.
-          lv_content = 'Yes'.
+      WHEN 'favorite'.
+        lv_icon = 'star/grey'.
+        lv_hint = 'Not a favorite'.
+        IF ls_repo-favorite = abap_true.
+          lv_icon = 'star/blue'.
+          lv_hint = 'Favorite'.
         ENDIF.
+        rs_render-html = zcl_abapgit_html=>create( ).
+        rs_render-html->add_icon( iv_name = lv_icon
+                                  iv_hint = lv_hint ).
+        RETURN.
+      WHEN 'write_protected'.
+        IF ls_repo-write_protected = abap_true.
+          rs_render-html = zcl_abapgit_html=>create( ).
+          rs_render-html->add_icon( iv_name = 'lock/grey70'
+                                    iv_hint = 'Locked from Pulls' ).
+        ENDIF.
+        RETURN.
       WHEN 'size'.
         lv_content = format_size( ls_repo-size ).
       WHEN 'error'.
