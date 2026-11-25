@@ -47,6 +47,7 @@ CLASS ltcl_statistics DEFINITION FINAL FOR TESTING
     DATA mo_repo TYPE REF TO lcl_repo.
     METHODS setup.
     METHODS local_counts FOR TESTING RAISING cx_static_check.
+    METHODS online_url FOR TESTING RAISING cx_static_check.
     METHODS tadir_failure FOR TESTING RAISING cx_static_check.
     METHODS serialization_failure FOR TESTING RAISING cx_static_check.
     METHODS partial_serialization FOR TESTING RAISING cx_static_check.
@@ -80,6 +81,22 @@ CLASS ltcl_statistics IMPLEMENTATION.
                                         exp = abap_true ).
     cl_abap_unit_assert=>assert_initial( ls_repo-error ).
     cl_abap_unit_assert=>assert_initial( ls_repo-host ).
+    cl_abap_unit_assert=>assert_initial( ls_repo-url ).
+  ENDMETHOD.
+
+  METHOD online_url.
+    DATA ls_data TYPE zif_abapgit_persistence=>ty_repo.
+    DATA ls_repo TYPE zcl_abapgit_statistics=>ty_repo.
+
+    ls_data-package = '$STATISTICS'.
+    ls_data-url = 'https://github.com/example/repository'.
+    CREATE OBJECT mo_repo EXPORTING is_data = ls_data.
+    ls_repo = zcl_abapgit_statistics=>collect( ii_repo = mo_repo
+                                               iv_favorite = abap_false ).
+    cl_abap_unit_assert=>assert_equals( act = ls_repo-url
+      exp = ls_data-url ).
+    cl_abap_unit_assert=>assert_equals( act = ls_repo-host
+      exp = 'GitHub' ).
   ENDMETHOD.
 
   METHOD tadir_failure.
@@ -148,6 +165,7 @@ CLASS ltcl_statistics IMPLEMENTATION.
     ls_repo = zcl_abapgit_statistics=>collect( ii_repo = mo_repo
                                                iv_favorite = abap_true ).
     ls_repo-size = '3000000000'. " Snapshots must support more than 2 GB
+    ls_repo-url = 'https://github.com/example/repository'.
     APPEND ls_repo TO ls_before-repos.
     CREATE OBJECT li_output TYPE zcl_abapgit_xml_output.
     li_output->add( iv_name = 'STATISTICS'

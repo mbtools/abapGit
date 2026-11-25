@@ -8,6 +8,7 @@ CLASS zcl_abapgit_statistics DEFINITION
       ty_size TYPE p LENGTH 16 DECIMALS 0,
       BEGIN OF ty_repo,
         name            TYPE string,
+        url             TYPE string,
         package         TYPE devclass,
         offline         TYPE abap_bool,
         favorite        TYPE abap_bool,
@@ -65,6 +66,7 @@ CLASS zcl_abapgit_statistics IMPLEMENTATION.
     rs_repo-favorite = iv_favorite.
     rs_repo-write_protected = ii_repo->get_local_settings( )-write_protected.
     IF rs_repo-offline = abap_false.
+      rs_repo-url = ii_repo->ms_data-url.
       rs_repo-host = host( ii_repo->ms_data-url ).
     ENDIF.
 
@@ -129,6 +131,9 @@ CLASS zcl_abapgit_statistics IMPLEMENTATION.
 
     DATA lv_xml TYPE string.
     DATA li_input TYPE REF TO zif_abapgit_xml_input.
+    DATA lt_repos TYPE zif_abapgit_persistence=>ty_repos.
+    DATA ls_repo LIKE LINE OF lt_repos.
+    FIELD-SYMBOLS <ls_saved> LIKE LINE OF rs_snapshot-repos.
 
     TRY.
         lv_xml = zcl_abapgit_persistence_db=>get_instance( )->read(
@@ -139,6 +144,15 @@ CLASS zcl_abapgit_statistics IMPLEMENTATION.
     ENDTRY.
     CREATE OBJECT li_input TYPE zcl_abapgit_xml_input EXPORTING iv_xml = lv_xml.
     li_input->read( EXPORTING iv_name = 'STATISTICS' CHANGING cg_data = rs_snapshot ).
+
+    " Older snapshots do not contain URLs. Read metadata locally without serializing.
+    lt_repos = zcl_abapgit_persist_factory=>get_repo( )->list( ).
+    LOOP AT rs_snapshot-repos ASSIGNING <ls_saved> WHERE offline = abap_false AND url IS INITIAL.
+      READ TABLE lt_repos INTO ls_repo WITH KEY package = <ls_saved>-package offline = abap_false.
+      IF sy-subrc = 0.
+        <ls_saved>-url = ls_repo-url.
+      ENDIF.
+    ENDLOOP.
 
   ENDMETHOD.
 

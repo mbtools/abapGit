@@ -19,11 +19,16 @@ CLASS zcl_abapgit_gui_page_stats DEFINITION
   PRIVATE SECTION.
     DATA ms_snapshot TYPE zcl_abapgit_statistics=>ty_snapshot.
     DATA mo_table TYPE REF TO zcl_abapgit_html_table.
+    DATA ms_sorting TYPE zif_abapgit_html_table=>ty_sorting_state.
     METHODS create_table
       RETURNING VALUE(ro_table) TYPE REF TO zcl_abapgit_html_table.
     CLASS-METHODS format_size
       IMPORTING iv_size        TYPE zcl_abapgit_statistics=>ty_size
       RETURNING VALUE(rv_size) TYPE string.
+    CLASS-METHODS sort_repositories
+      IMPORTING it_repos        TYPE zcl_abapgit_statistics=>ty_repos
+                is_sorting      TYPE zif_abapgit_html_table=>ty_sorting_state
+      RETURNING VALUE(rt_repos) TYPE zcl_abapgit_statistics=>ty_repos.
 ENDCLASS.
 
 
@@ -47,22 +52,21 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
 
   METHOD create_table.
 
-    DATA ls_sorting TYPE zif_abapgit_html_table=>ty_sorting_state.
-
-    ls_sorting-column_id = 'name'.
+    ms_sorting-column_id = 'favorite'.
+    ms_sorting-descending = abap_true.
     ro_table = zcl_abapgit_html_table=>create(
       ii_renderer = me
-      is_initial_sorting_state = ls_sorting ).
-    ro_table->define_column( iv_column_id = 'name'
-                             iv_column_title = 'Repository'
+      is_initial_sorting_state = ms_sorting ).
+    ro_table->define_column( iv_column_id = 'favorite'
+                             iv_column_title = 'FAV'
+    )->define_column( iv_column_id = 'name'
+                      iv_column_title = 'Repository'
     )->define_column( iv_column_id = 'package'
                       iv_column_title = 'Package'
     )->define_column( iv_column_id = 'offline'
                       iv_column_title = 'Type'
     )->define_column( iv_column_id = 'host'
                       iv_column_title = 'Host'
-    )->define_column( iv_column_id = 'favorite'
-                      iv_column_title = 'Favorite'
     )->define_column( iv_column_id = 'write_protected'
                       iv_column_title = 'Write protected'
     )->define_column( iv_column_id = 'objects'
@@ -97,11 +101,35 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD sort_repositories.
+
+    DATA lv_field TYPE abap_compname.
+
+    rt_repos = it_repos.
+    SORT rt_repos BY name ASCENDING package ASCENDING.
+    CASE is_sorting-column_id.
+      WHEN 'favorite' OR 'name' OR 'package' OR 'offline' OR 'host'
+        OR 'write_protected' OR 'objects' OR 'files' OR 'size' OR 'error'.
+        lv_field = to_upper( is_sorting-column_id ).
+      WHEN OTHERS.
+        RETURN.
+    ENDCASE.
+    " Keep description order within equal values, especially the favorite groups.
+    IF is_sorting-descending = abap_true.
+      SORT rt_repos STABLE BY (lv_field) DESCENDING.
+    ELSE.
+      SORT rt_repos STABLE BY (lv_field) ASCENDING.
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_gui_event_handler~on_event.
     IF ii_event->mv_action = 'refresh'.
       ms_snapshot = zcl_abapgit_statistics=>refresh( ).
       rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
     ELSEIF mo_table->process_sorting_request( ii_event->mv_action ) = abap_true.
+      ms_sorting = zcl_abapgit_html_table=>detect_sorting_request( ii_event->mv_action ).
       rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
     ENDIF.
   ENDMETHOD.
@@ -137,6 +165,17 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
     ls_repo = is_row.
     lv_content = iv_value.
     CASE iv_column_id.
+      WHEN 'name'.
+        IF ls_repo-offline = abap_false AND ls_repo-url IS NOT INITIAL.
+          rs_render-html = zcl_abapgit_html=>create( ).
+          rs_render-html->add_a(
+            iv_txt = escape( val = ls_repo-name
+                             format = cl_abap_format=>e_html_text )
+            iv_act = escape( val = ls_repo-url
+                             format = cl_abap_format=>e_html_attr )
+            iv_typ = zif_abapgit_html=>c_action_type-url ).
+          RETURN.
+        ENDIF.
       WHEN 'package'.
         rs_render-html = zcl_abapgit_gui_chunk_lib=>render_package_name( ls_repo-package ).
         RETURN.
@@ -275,7 +314,9 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
     ri_html->add( '<p>Hosts classify github.com and gitlab.com; other hosts, '
       && 'including self-hosted services, count as Others.</p>' ).
     ri_html->add( mo_table->render(
-      it_data = ms_snapshot-repos
+      it_data = sort_repositories( it_repos = ms_snapshot-repos
+                                  is_sorting = ms_sorting )
+      is_sorting_state = ms_sorting
       iv_id = 'statistics-repositories'
       iv_css_class = 'default-table' ) ).
     ri_html->add( '</div>' ).
