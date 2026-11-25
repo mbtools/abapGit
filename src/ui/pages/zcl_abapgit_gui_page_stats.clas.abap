@@ -180,10 +180,16 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
         rs_render-html = zcl_abapgit_gui_chunk_lib=>render_package_name( ls_repo-package ).
         RETURN.
       WHEN 'offline'.
-        lv_content = 'Online'.
+        lv_icon = 'cloud-upload-alt/darkgrey'.
+        lv_hint = 'Online'.
         IF ls_repo-offline = abap_true.
-          lv_content = 'Offline'.
+          lv_icon = 'plug/darkgrey'.
+          lv_hint = 'Offline'.
         ENDIF.
+        rs_render-html = zcl_abapgit_html=>create( ).
+        rs_render-html->add_icon( iv_name = lv_icon
+                                  iv_hint = lv_hint ).
+        RETURN.
       WHEN 'favorite'.
         lv_icon = 'star/grey'.
         lv_hint = 'Not a favorite'.
