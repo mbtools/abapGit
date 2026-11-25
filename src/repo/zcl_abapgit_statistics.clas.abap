@@ -7,6 +7,7 @@ CLASS zcl_abapgit_statistics DEFINITION
     TYPES:
       ty_size TYPE p LENGTH 16 DECIMALS 0,
       BEGIN OF ty_repo,
+        key             TYPE zif_abapgit_persistence=>ty_repo-key,
         name            TYPE string,
         url             TYPE string,
         package         TYPE devclass,
@@ -60,6 +61,7 @@ CLASS zcl_abapgit_statistics IMPLEMENTATION.
     DATA ls_message LIKE LINE OF lt_messages.
     DATA lx_error TYPE REF TO zcx_abapgit_exception.
 
+    rs_repo-key = ii_repo->get_key( ).
     rs_repo-name = ii_repo->get_name( ).
     rs_repo-package = ii_repo->get_package( ).
     rs_repo-offline = ii_repo->is_offline( ).
@@ -145,12 +147,18 @@ CLASS zcl_abapgit_statistics IMPLEMENTATION.
     CREATE OBJECT li_input TYPE zcl_abapgit_xml_input EXPORTING iv_xml = lv_xml.
     li_input->read( EXPORTING iv_name = 'STATISTICS' CHANGING cg_data = rs_snapshot ).
 
-    " Older snapshots do not contain URLs. Read metadata locally without serializing.
+    " Complete navigation metadata in older snapshots without serializing.
     lt_repos = zcl_abapgit_persist_factory=>get_repo( )->list( ).
-    LOOP AT rs_snapshot-repos ASSIGNING <ls_saved> WHERE offline = abap_false AND url IS INITIAL.
-      READ TABLE lt_repos INTO ls_repo WITH KEY package = <ls_saved>-package offline = abap_false.
+    LOOP AT rs_snapshot-repos ASSIGNING <ls_saved>
+        WHERE key IS INITIAL OR ( offline = abap_false AND url IS INITIAL ).
+      READ TABLE lt_repos INTO ls_repo WITH KEY package = <ls_saved>-package offline = <ls_saved>-offline.
       IF sy-subrc = 0.
-        <ls_saved>-url = ls_repo-url.
+        IF <ls_saved>-key IS INITIAL.
+          <ls_saved>-key = ls_repo-key.
+        ENDIF.
+        IF <ls_saved>-offline = abap_false AND <ls_saved>-url IS INITIAL.
+          <ls_saved>-url = ls_repo-url.
+        ENDIF.
       ENDIF.
     ENDLOOP.
 

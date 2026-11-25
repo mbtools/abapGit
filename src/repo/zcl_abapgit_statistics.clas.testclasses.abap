@@ -58,6 +58,7 @@ ENDCLASS.
 CLASS ltcl_statistics IMPLEMENTATION.
   METHOD setup.
     DATA ls_data TYPE zif_abapgit_persistence=>ty_repo.
+    ls_data-key = '000000000001'.
     ls_data-package = '$STATISTICS'.
     ls_data-offline = abap_true.
     ls_data-local_settings-display_name = 'Test & repository'.
@@ -69,6 +70,8 @@ CLASS ltcl_statistics IMPLEMENTATION.
     DATA ls_repo TYPE zcl_abapgit_statistics=>ty_repo.
     ls_repo = zcl_abapgit_statistics=>collect( ii_repo = mo_repo
                                                iv_favorite = abap_true ).
+    cl_abap_unit_assert=>assert_equals( act = ls_repo-key
+                                        exp = '000000000001' ).
     cl_abap_unit_assert=>assert_equals( act = ls_repo-objects
                                         exp = 1 ).
     cl_abap_unit_assert=>assert_equals( act = ls_repo-files

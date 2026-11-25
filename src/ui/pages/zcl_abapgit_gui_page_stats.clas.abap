@@ -58,7 +58,7 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
       ii_renderer = me
       is_initial_sorting_state = ms_sorting ).
     ro_table->define_column( iv_column_id = 'favorite'
-                             iv_column_title = 'FAV'
+                             iv_column_title = 'Fav'
     )->define_column( iv_column_id = 'offline'
                       iv_column_title = 'Type'
     )->define_column( iv_column_id = 'name'
@@ -125,9 +125,17 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
 
 
   METHOD zif_abapgit_gui_event_handler~on_event.
+
+    DATA lv_key TYPE zif_abapgit_persistence=>ty_repo-key.
+
     IF ii_event->mv_action = 'refresh'.
       ms_snapshot = zcl_abapgit_statistics=>refresh( ).
       rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+    ELSEIF ii_event->mv_action = zif_abapgit_definitions=>c_action-go_repo.
+      lv_key = ii_event->query( )->get( 'KEY' ).
+      rs_handled-page = zcl_abapgit_gui_page_repo_view=>create( lv_key ).
+      zcl_abapgit_persist_factory=>get_user( )->set_repo_show( lv_key ).
+      rs_handled-state = zcl_abapgit_gui=>c_event_state-new_page.
     ELSEIF mo_table->process_sorting_request( ii_event->mv_action ) = abap_true.
       ms_sorting = zcl_abapgit_html_table=>detect_sorting_request( ii_event->mv_action ).
       rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
@@ -166,10 +174,19 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
     lv_content = iv_value.
     CASE iv_column_id.
       WHEN 'name'.
-        IF ls_repo-offline = abap_false AND ls_repo-url IS NOT INITIAL.
+        IF ls_repo-key IS NOT INITIAL.
           rs_render-html = zcl_abapgit_html=>create( ).
           rs_render-html->add_a(
             iv_txt = escape( val = ls_repo-name
+                             format = cl_abap_format=>e_html_text )
+            iv_act = |{ zif_abapgit_definitions=>c_action-go_repo }?key={ ls_repo-key }| ).
+          RETURN.
+        ENDIF.
+      WHEN 'host'.
+        IF ls_repo-offline = abap_false AND ls_repo-url IS NOT INITIAL.
+          rs_render-html = zcl_abapgit_html=>create( ).
+          rs_render-html->add_a(
+            iv_txt = escape( val = ls_repo-host
                              format = cl_abap_format=>e_html_text )
             iv_act = escape( val = ls_repo-url
                              format = cl_abap_format=>e_html_attr )
