@@ -9,6 +9,7 @@ CLASS zcl_abapgit_gui_page_stats DEFINITION
     INTERFACES zif_abapgit_gui_event_handler.
     INTERFACES zif_abapgit_gui_menu_provider.
     INTERFACES zif_abapgit_gui_renderable.
+    INTERFACES zif_abapgit_html_table.
 
     CLASS-METHODS create
       RETURNING VALUE(ri_page) TYPE REF TO zif_abapgit_gui_renderable
@@ -17,6 +18,12 @@ CLASS zcl_abapgit_gui_page_stats DEFINITION
 
   PRIVATE SECTION.
     DATA ms_snapshot TYPE zcl_abapgit_statistics=>ty_snapshot.
+    DATA mo_table TYPE REF TO zcl_abapgit_html_table.
+    METHODS create_table
+      RETURNING VALUE(ro_table) TYPE REF TO zcl_abapgit_html_table.
+    CLASS-METHODS format_size
+      IMPORTING iv_size        TYPE zcl_abapgit_statistics=>ty_size
+      RETURNING VALUE(rv_size) TYPE string.
 ENDCLASS.
 
 
@@ -27,6 +34,7 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
   METHOD constructor.
     super->constructor( ).
     ms_snapshot = zcl_abapgit_statistics=>read( ).
+    mo_table = create_table( ).
   ENDMETHOD.
 
 
@@ -37,9 +45,63 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD create_table.
+
+    DATA ls_sorting TYPE zif_abapgit_html_table=>ty_sorting_state.
+
+    ls_sorting-column_id = 'name'.
+    ro_table = zcl_abapgit_html_table=>create(
+      ii_renderer = me
+      is_initial_sorting_state = ls_sorting ).
+    ro_table->define_column( iv_column_id = 'name'
+                             iv_column_title = 'Repository'
+    )->define_column( iv_column_id = 'package'
+                      iv_column_title = 'Package'
+    )->define_column( iv_column_id = 'offline'
+                      iv_column_title = 'Type'
+    )->define_column( iv_column_id = 'host'
+                      iv_column_title = 'Host'
+    )->define_column( iv_column_id = 'favorite'
+                      iv_column_title = 'Favorite'
+    )->define_column( iv_column_id = 'write_protected'
+                      iv_column_title = 'Write protected'
+    )->define_column( iv_column_id = 'objects'
+                      iv_column_title = 'TADIR objects'
+    )->define_column( iv_column_id = 'files'
+                      iv_column_title = 'Local files'
+    )->define_column( iv_column_id = 'size'
+                      iv_column_title = 'Size'
+    )->define_column( iv_column_id = 'error'
+                      iv_column_title = 'Status' ).
+
+  ENDMETHOD.
+
+
+  METHOD format_size.
+
+    DATA lv_size TYPE p LENGTH 16 DECIMALS 2.
+
+    IF iv_size >= 1024 * 1024 * 1024.
+      lv_size = iv_size / 1024 / 1024 / 1024.
+      rv_size = |{ lv_size } GB|.
+    ELSEIF iv_size >= 1024 * 1024.
+      lv_size = iv_size / 1024 / 1024.
+      rv_size = |{ lv_size } MB|.
+    ELSEIF iv_size >= 1024.
+      lv_size = iv_size / 1024.
+      rv_size = |{ lv_size } KB|.
+    ELSE.
+      rv_size = |{ iv_size } Bytes|.
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_gui_event_handler~on_event.
     IF ii_event->mv_action = 'refresh'.
       ms_snapshot = zcl_abapgit_statistics=>refresh( ).
+      rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
+    ELSEIF mo_table->process_sorting_request( ii_event->mv_action ) = abap_true.
       rs_handled-state = zcl_abapgit_gui=>c_event_state-re_render.
     ENDIF.
   ENDMETHOD.
@@ -57,6 +119,42 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
 
   METHOD zif_abapgit_gui_page_title~get_page_title.
     rv_title = 'Statistics'.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_html_table~get_row_attrs.
+    " No additional row attributes required.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_html_table~render_cell.
+
+    DATA ls_repo TYPE zcl_abapgit_statistics=>ty_repo.
+    DATA lv_content TYPE string.
+
+    ls_repo = is_row.
+    lv_content = iv_value.
+    CASE iv_column_id.
+      WHEN 'offline'.
+        lv_content = 'Online'.
+        IF ls_repo-offline = abap_true.
+          lv_content = 'Offline'.
+        ENDIF.
+      WHEN 'favorite' OR 'write_protected'.
+        lv_content = 'No'.
+        IF iv_value = abap_true.
+          lv_content = 'Yes'.
+        ENDIF.
+      WHEN 'size'.
+        lv_content = format_size( ls_repo-size ).
+      WHEN 'error'.
+        IF ls_repo-error IS INITIAL.
+          lv_content = 'OK'.
+        ENDIF.
+    ENDCASE.
+    rs_render-content = escape( val = lv_content
+                                format = cl_abap_format=>e_html_text ).
+
   ENDMETHOD.
 
 
@@ -80,8 +178,6 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
     DATA lv_files_max TYPE i.
     DATA lv_size TYPE zcl_abapgit_statistics=>ty_size.
     DATA lv_errors TYPE i.
-    DATA lv_type TYPE string.
-    DATA lv_status TYPE string.
 
     register_handlers( ).
     ri_html = zcl_abapgit_html=>create( ).
@@ -152,38 +248,19 @@ CLASS zcl_abapgit_gui_page_stats IMPLEMENTATION.
     ri_html->add( |<tr><th>Local files</th><td>{ lv_files }</td></tr>| ).
     ri_html->add( |<tr><th>Local files per repo (min / avg / max)</th>| &&
       |<td>{ lv_files_min } / { lv_files_avg } / { lv_files_max }</td></tr>| ).
-    ri_html->add( |<tr><th>Total file size (bytes)</th><td>{ lv_size }</td></tr>| ).
+    ri_html->add( |<tr><th>Total file size</th><td>{ format_size( lv_size ) }</td></tr>| ).
     ri_html->add( '</tbody></table>' ).
     IF lv_errors > 0.
       ri_html->add( |<p class="attention">{ lv_errors } repositories have errors. | &&
         |Counts may be incomplete; see details below.</p>| ).
     ENDIF.
     ri_html->add( '<p>Hosts classify github.com and gitlab.com; other hosts, '
-      && 'including self-hosted services, count as Others.</p>'
-      && '<table class="default-table"><thead><tr>' ).
-    ri_html->add( '<th>Repository</th><th>Package</th><th>Type</th><th>Host</th>' ).
-    ri_html->add( '<th>Favorite</th><th>Write protected</th><th>TADIR objects</th>' ).
-    ri_html->add( '<th>Local files</th><th>Size (bytes)</th><th>Status</th></tr></thead><tbody>' ).
-    LOOP AT ms_snapshot-repos INTO ls_repo.
-      lv_type = 'Online'.
-      IF ls_repo-offline = abap_true.
-        lv_type = 'Offline'.
-      ENDIF.
-      lv_status = 'OK'.
-      IF ls_repo-error IS NOT INITIAL.
-        lv_status = ls_repo-error.
-      ENDIF.
-      ri_html->add( |<tr><td>{ escape( val = ls_repo-name
-                                       format = cl_abap_format=>e_html_text ) }</td>| ).
-      ri_html->add( |<td>{ escape( val = ls_repo-package
-                                   format = cl_abap_format=>e_html_text ) }</td>| ).
-      ri_html->add( |<td>{ lv_type }</td><td>{ ls_repo-host }</td>| ).
-      ri_html->add( |<td>{ ls_repo-favorite }</td><td>{ ls_repo-write_protected }</td>| ).
-      ri_html->add( |<td>{ ls_repo-objects }</td><td>{ ls_repo-files }</td><td>{ ls_repo-size }</td>| ).
-      ri_html->add( |<td>{ escape( val = lv_status
-                                   format = cl_abap_format=>e_html_text ) }</td></tr>| ).
-    ENDLOOP.
-    ri_html->add( '</tbody></table></div>' ).
+      && 'including self-hosted services, count as Others.</p>' ).
+    ri_html->add( mo_table->render(
+      it_data = ms_snapshot-repos
+      iv_id = 'statistics-repositories'
+      iv_css_class = 'default-table' ) ).
+    ri_html->add( '</div>' ).
 
   ENDMETHOD.
 ENDCLASS.
